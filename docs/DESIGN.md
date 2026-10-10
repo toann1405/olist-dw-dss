@@ -1,0 +1,57 @@
+# DESIGN — Thiết kế DW, ETL mapping, data dictionary
+
+> **Trạng thái: khung (Phase 0).** Điền dần ở Phase 2–3. Bản sơ bộ nằm ở `SPEC.md` §5–6; khi mục nào ở đây được điền, SPEC chỉ giữ tóm tắt và trỏ về file này.
+
+## 1. Kiến trúc và cách tiếp cận (R22) — Phase 2
+- Sơ đồ kiến trúc chi tiết (staging / dw / dss schema): _chưa điền_
+- Lý do bottom-up data mart: _chưa điền_
+
+## 2. Bus matrix (R04, R41) — Phase 2
+
+| Business process / Fact | dim_date | dim_month | dim_customer | dim_seller | dim_product | dim_order_status | dim_payment_type |
+|---|---|---|---|---|---|---|---|
+| fact_order_item | ✔ | | ✔ | ✔ | ✔ | ✔ | |
+| fact_order | ✔ (role-playing ×5) | | ✔ | | | ✔ | ✔ |
+| fact_seller_monthly | | ✔ | | ✔ | | | |
+
+_(bản nháp từ SPEC, xác nhận ở Phase 2)_
+
+## 3. Khai báo granularity (R23) — Phase 2
+
+| Fact | Granularity | Ước lượng số dòng | Ghi chú |
+|---|---|---|---|
+| fact_order_item | 1 item của 1 đơn | chờ dữ liệu | |
+| fact_order | 1 đơn hàng | chờ dữ liệu | |
+| fact_seller_monthly | 1 seller × 1 tháng có hoạt động | chờ dữ liệu | |
+
+## 4. ERD / star schema — Phase 2
+_chưa điền (mermaid `erDiagram` hoặc hình trong `docs/report/`)_
+
+## 5. Hierarchy (R24) — Phase 2
+
+| Dimension | Các cấp | Cột |
+|---|---|---|
+| dim_date | Năm → Quý → Tháng → Ngày | _chưa điền_ |
+| dim_customer / dim_seller | Vùng → Bang → Thành phố | _chưa điền_ |
+| dim_product | Nhóm danh mục → Danh mục → Sản phẩm | _chưa điền_ |
+
+## 6. Source-to-target mapping (R05, R29, R30) — Phase 2
+
+| Bảng đích | Cột đích | Bảng nguồn | Cột nguồn | Quy tắc biến đổi |
+|---|---|---|---|---|
+| _chưa điền_ | | | | |
+
+## 7. Quy tắc làm sạch (R27) — Phase 1–2
+_Chuyển từ SPEC §3 sau khi profiling xác nhận; ghi số dòng bị ảnh hưởng._
+
+## 8. Data dictionary (R29) — Phase 2–3
+
+| Bảng | Cột | Kiểu | Khóa | Mô tả | Nguồn |
+|---|---|---|---|---|---|
+| _chưa điền_ | | | | | |
+
+## 9. ETL: thứ tự nạp, incremental, audit (R07, R28, R40) — Phase 3
+_chưa điền_
+
+## 10. Thiết kế dữ liệu cho DSS (R31) — Phase 5
+_Views `dss.v_seller_features`, bảng `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` — chưa điền._

@@ -1,0 +1,54 @@
+# --- Data (raw Olist files are large and licensed CC BY-NC-SA 4.0; download them yourself) ---
+data/raw/*
+!data/raw/.gitkeep
+# External sources: ignore large files, keep small reference CSVs (< 1 MB) committed explicitly
+data/external/*.zip
+data/external/*.parquet
+data/external/large/
+
+# --- Secrets / local config ---
+.env
+.env.*
+!.env.example
+.kaggle/
+kaggle.json
+
+# --- Python cache / virtual envs ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Build / export artifacts ---
+build/
+dist/
+*.egg-info/
+*.zip
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.toc
+docs/report/_build/
+
+# --- Local DB files / logs ---
+*.duckdb
+*.db
+*.sqlite
+logs/
+*.log
+
+# --- Model artifacts (re-trainable from DW) ---
+src/dss/artifacts/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
