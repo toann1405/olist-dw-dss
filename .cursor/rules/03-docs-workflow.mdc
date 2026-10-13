@@ -1,0 +1,36 @@
+---
+description: How to update SPEC, PLAN, DESIGN, and PROGRESS_LOG after real work
+alwaysApply: true
+---
+
+# Docs workflow
+
+| File | Role |
+|---|---|
+| `docs/SPEC.md` | What the system is. RTM is §2. Locked decisions are §10. |
+| `docs/PLAN.md` | Phases, tasks, definition of done. Checkboxes are the status. |
+| `docs/DESIGN.md` | Physical schema, source-to-target mapping, data dictionary. Skeleton until Phase 2. |
+| `docs/PROGRESS_LOG.md` | Newest journal entry is first. Update the "Trạng thái hiện tại" block every session. |
+
+## Before a multi-file change
+
+State a short plan that cites the PLAN task and the R-xx codes it covers. Do not start Phase 1 profiling, ETL, or DSS implementation during a docs-only request.
+
+## After the change
+
+1. Tick the matching PLAN checkbox only if the task's definition of done is actually met.
+2. Update the RTM status in SPEC §2 for every R-xx you touched. Status marks: `☐` not started, `◐` in progress, `⏸` blocked on data, `☑` done.
+3. If a table, column, grain, or mapping changed, update `docs/DESIGN.md` in the same session (`06-dw-modeling`).
+4. Prepend one new journal entry to `docs/PROGRESS_LOG.md`. Do not edit older entries. Also refresh "Trạng thái hiện tại".
+
+## Labels
+
+- `[ĐỀ]` — written in the assignment PDF.
+- `[SUY LUẬN]` — inferred by the team; not a published grading criterion.
+- `[GIẢ ĐỊNH]` — not yet verified. Name the check (S1–S6 or G1–G6).
+
+## Numbers
+
+Do not write a row count, byte size, date range, or test result that did not come from a command you ran in this session (or from an output already pasted in `data/README.md` / `PROGRESS_LOG.md`). If you did not run it, write "not measured" instead of a number.
+
+Do not fill DESIGN grain estimates or SPEC quality issues from memory. Profiling belongs to Phase 1.

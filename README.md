@@ -4,7 +4,7 @@ Bài tập lớn **CO4031 – Kho dữ liệu và Hệ hỗ trợ Quyết địn
 
 **Đề tài (đã chốt có điều kiện, 10/10/2026):** *Quản lý hiệu suất người bán* (T1 – Olist Seller Performance DW & DSS) — giúp Trưởng bộ phận Quản lý chất lượng seller chọn chính sách phân hạng và can thiệp seller hằng tháng, tối thiểu số đơn trải nghiệm xấu dự kiến trong giới hạn GMV bị ảnh hưởng. Chốt cuối sau cổng G1–G6 (đầu Phase 1); nếu không đạt thì chuyển T2 Delivery Promise, dùng lại cùng DW.
 
-**Công nghệ (đã chốt, 10/10/2026):** PostgreSQL (staging / dw / dss cùng một database, tách schema) + Python 3.11+ (pandas, SQLAlchemy, psycopg) + Streamlit + scikit-learn / statsmodels + pytest.
+**Công nghệ (kiến trúc đổi 10/10/2026):** Databricks Free Edition, Delta Lake, Unity Catalog (schema `bronze` / `silver` / `gold` / `dss`), PySpark + Spark SQL; DSS bằng Python (scikit-learn / statsmodels), đọc Gold và ghi `dss.*`. Frontend OLAP chờ spike (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Đường tái lập local: pyspark + delta-spark trên `data/sample/`.
 
 **Hạn nộp:** 23:59, 15/11/2026 (ZIP qua LMS).
 
@@ -31,11 +31,11 @@ olist-dw-dss/
 │   ├── external/          # nguồn bổ sung
 │   └── sample/            # mẫu nhỏ giữ toàn vẹn khóa (commit để nộp)
 └── src/
-    ├── sql/               # ddl/, olap_queries/, views/
-    ├── etl/               # pipeline staging → DW
-    ├── dss/               # mô hình rủi ro, mô phỏng chính sách, what-if
-    ├── frontend/          # Streamlit dashboard + DSS UI
-    ├── notebooks/         # EDA, profiling; 00_verify_and_sample.py
+    ├── sql/               # ddl/ (Delta DDL), views/, olap_queries/ (Spark SQL trên Gold)
+    ├── etl/               # pipeline Bronze → Silver → Gold
+    ├── dss/               # mô hình đọc gold.*, ghi dss.*
+    ├── frontend/          # OLAP chờ spike; DSS UI dự kiến Streamlit local
+    ├── notebooks/         # profiling trên Bronze; 00_verify_and_sample.py
     └── tests/             # kiểm thử ETL và chất lượng dữ liệu
 ```
 
@@ -44,8 +44,9 @@ olist-dw-dss/
    ```bash
    python src/notebooks/00_verify_and_sample.py
    ```
-2. `cp .env.example .env` và điền thông tin PostgreSQL.
-3. ETL / dashboard / DSS: _điền sau khi hiện thực (Phase 3–6)._
+2. `cp .env.example .env` và điền biến Databricks. Không commit `.env`. `DATABRICKS_TOKEN` để trống trong `.env.example`.
+3. **Databricks** (Volume → Bronze → Silver → Gold): _điền sau spike S1 và khi hiện thực (Phase 3–6)._
+4. **Local trên sample** (pyspark + delta-spark, `USE_SAMPLE=1`): _điền sau S6._
 
 ## Thành viên và vai trò
 
@@ -58,4 +59,4 @@ olist-dw-dss/
 | | | | |
 
 ## Trạng thái
-Phase 0 — hoàn tất phần repo/tài liệu/dữ liệu/sample (10/10/2026). Đề tài T1 và stack đã chốt có điều kiện G1–G6. Việc nhóm tự làm: tạo repo GitHub, mỗi người cài PostgreSQL, điền bảng thành viên. Việc tiếp theo: Phase 1, chạy G1–G6. Xem [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+Phase 0 — tài liệu đã cập nhật sang kiến trúc Databricks medallion (10/10/2026). Spike S1–S6 chưa làm. Đề tài T1 vẫn chốt có điều kiện G1–G6. Việc tiếp theo: spike S1–S6 (hạn 13/10), rồi Phase 1. Xem [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).

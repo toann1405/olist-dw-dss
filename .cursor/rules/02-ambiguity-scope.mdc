@@ -1,0 +1,43 @@
+---
+description: Stop on ambiguity, stay inside the request, and do not change locked SPEC decisions
+alwaysApply: true
+---
+
+# Ambiguity and scope
+
+## Ask before acting
+
+If a request has two or more reasonable readings, stop and ask one concrete question. Do not pick a reading and proceed.
+
+Examples that require a question:
+
+- "Add the seller table" — Bronze raw copy vs Silver conformed `dim_seller`.
+- "Wire the dashboard" — OLAP frontend is still pending (see below). Do not choose Power BI, AI/BI, or Streamlit for OLAP.
+
+## Stay inside the request
+
+- Do not add files, folders, dependencies, or features the user did not ask for.
+- Do not start the next PLAN phase because the current task is finished.
+- Out of scope unless SPEC changes: streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL, a second warehouse (PostgreSQL, DuckDB).
+
+## Unverified claims
+
+Label anything not measured or not checked on this workspace as `[GIẢ ĐỊNH]`, and name the spike or phase that will check it (S1–S6 or Phase 1). Do not state Databricks Free Edition limits as facts. See `03-docs-workflow` for numbers.
+
+## Locked decisions
+
+SPEC §10 "Quyết định đã chốt" is locked. To change one:
+
+1. Ask the user and wait for an explicit yes.
+2. Record the reason in SPEC §10 (keep the old row, mark it replaced).
+3. Add a new `docs/PROGRESS_LOG.md` entry at the top.
+
+Do not silently reopen: topic T1 (conditional on G1–G6), decision maker / alternatives / principle of choice, medallion mapping, Gold as the only DW, training DSS on Gold not Silver, Marketing Funnel as a required extra source.
+
+## Still pending — do not lock these in code or docs
+
+- OLAP frontend: Power BI Desktop / Databricks AI/BI Dashboard / Streamlit.
+- OLAP storage mode: ROLAP or HOLAP. MOLAP is not an option.
+- Unity Catalog name (`UC_CATALOG`) and Volume path until S1.
+- Default `X` (% GMV), `N` (sellers per month), and the exact "bad experience" definition until Phase 1.
+- If a spike fails, list two options and wait. Do not choose.

@@ -1,0 +1,37 @@
+---
+description: Language split and git safety — Vietnamese chat/docs, English code, no commit without explicit consent
+alwaysApply: true
+---
+
+# Language and git
+
+## Language
+
+- Chat with the user in Vietnamese.
+- Write `docs/` and `data/README.md` in Vietnamese.
+- Write code, comments, SQL, table names, column names, and commit messages in English.
+- Keep requirement tags in Vietnamese exactly as SPEC uses them: `[ĐỀ]`, `[SUY LUẬN]`, `[GIẢ ĐỊNH]`.
+
+## Commits
+
+Match the existing history style: `type(scope): message`.
+
+- `type` is a Conventional Commits type (`feat`, `fix`, `docs`, `chore`, `test`, `refactor`).
+- `scope` is a phase or a layer: `phase0`, `bronze`, `silver`, `gold`, `dss`, `olap`.
+- Example: `feat(silver): dedupe reviews by latest answer timestamp`.
+- Existing example: `chore(phase0): finalize topic, stack, data docs and sample`.
+
+Never commit or push unless the user explicitly asks in that message. "Finish the task" is not consent to commit.
+
+Do not add `Co-Authored-By`, `Signed-off-by`, or any bot attribution line.
+
+Do not update git config. Do not `--no-verify`, force-push, or `commit --amend` unless the user explicitly asks.
+
+## Never commit
+
+- `data/raw/*` (gitignored; `.gitkeep` may stay)
+- `.env`, `.env.*` except `.env.example`
+- `DATABRICKS_TOKEN`, `kaggle.json`, `*.token`, `.databrickscfg`
+- `spark-warehouse/`, `metastore_db/`, `.databricks/`
+
+`data/sample/*.csv` is allowed in git. Do not add a gitignore pattern that excludes it.

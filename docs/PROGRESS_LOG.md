@@ -10,15 +10,29 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 0 hoàn tất (công việc repo/tài liệu/dữ liệu/sample). Việc nhóm tự làm còn lại: GitHub, PostgreSQL, điền thành viên |
+| Phase hiện tại | Phase 0 (sửa kiến trúc) — tài liệu đã chuyển sang Databricks medallion. Spike S1–S6 chưa bắt đầu |
 | Đang làm | — |
-| Blocker | Không (dữ liệu Olist + Marketing Funnel đã có; sample đã tạo) |
-| Việc tiếp theo | Phase 1, chạy G1–G6 |
+| Blocker | Chưa có workspace Databricks; S1–S6 chưa chạy |
+| Việc tiếp theo | Spike S1–S6 (hạn 13/10). Không chốt frontend OLAP trước khi có kết quả spike |
 | Cập nhật | 10/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 10/10/2026 — Phase 0 (sửa kiến trúc) — Đổi sang Databricks medallion; spike chưa bắt đầu
+- **Đã làm:** cập nhật tài liệu từ stack PostgreSQL (đã khóa trong SPEC v0.1) sang medallion Databricks. Không viết ETL/DSS, không tạo file mới, không commit.
+- **Lý do:** giảng viên cho phép cloud/Databricks và Power BI. Nhóm muốn lakehouse. Gold vẫn là star-schema DW (data mart Kimball bottom-up) nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a). Bỏ PostgreSQL, psycopg và schema `staging` / `dw` để không giữ hai kho. Quyết định PostgreSQL **thay thế ngày 10/10/2026** (giữ dòng cũ trong SPEC §10, không xóa).
+- **File đã sửa:** `docs/SPEC.md` (v0.2), `docs/PLAN.md` (v0.2), `docs/DESIGN.md` (chỉ câu kiến trúc và nguồn DSS), `README.md`, `data/README.md`, `.env.example`, `.gitignore`, `docs/PROGRESS_LOG.md`. `docs/TOPIC_EVALUATION.md` không sửa vì không có câu nào nêu PostgreSQL, psycopg, DuckDB hay schema `staging`/`dw` là stack đã chọn.
+- **Quyết định đã chốt (nhóm xác nhận 10/10/2026):** Bronze = staging (raw, append-only); Silver = làm sạch/conform; Gold = DW / data mart; `dss` = đầu ra DSS. Chỉ batch. PySpark + Spark SQL, notebook `.py`, Delta `MERGE`. DSS Python đọc chỉ từ Gold, ghi `dss.*`, huấn luyện trên Gold (lệch có chủ đích so với Silver, để đáp ứng mục tiêu 4). Audit: `gold.etl_audit`. Thêm R45 (BB\*), R46 (NC), R47 (ĐC). Đề tài T1, decision maker, alternatives, principle of choice, 3 fact, hierarchy, M1/M2 giữ nguyên.
+- **[GIẢ ĐỊNH] chưa kiểm:** tên catalog và Volume (S1); Unity Catalog trên Free Edition (S1); SQL warehouse từ máy local (S2); Jobs (S4); Git folder (S5); AI/BI Dashboard trên Free Edition (quan sát lúc chốt frontend); pyspark + delta-spark local (S6).
+- **Câu hỏi còn mở:**
+  1. S1–S6 đạt hay không? Nếu không đạt: 2 phương án, chờ nhóm, không tự chọn.
+  2. Frontend OLAP: Power BI Desktop, Databricks AI/BI Dashboard, hay Streamlit?
+  3. Loại OLAP: ROLAP hay HOLAP? Chốt cùng frontend.
+  4. Tên catalog Unity Catalog?
+  5. Các mục Phase 1 vẫn mở: G1–G6, X, N, định nghĩa trải nghiệm xấu, thuyết trình, thành viên, ngày lễ / bảng IBGE.
+- **Việc tiếp theo:** spike S1–S6 (hạn 13/10). Chưa bắt đầu.
 
 ### 10/10/2026 — Phase 0 — Finalize topic, stack, data, sample
 - **Đã làm:** kiểm tra `data/raw/` đã có đủ 9 CSV Olist (nhóm tải tay) và `data/external/` đã có Marketing Funnel; chạy `python src/notebooks/00_verify_and_sample.py`; điền số liệu vào `data/README.md`; cập nhật README, SPEC, PLAN, TOPIC_EVALUATION; `git init` + 1 commit local (không push).

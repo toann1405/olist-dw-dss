@@ -1,0 +1,45 @@
+---
+description: DSS subsystems, Gold-only reads, and the single parameter set from SPEC §8
+globs: src/dss/**,src/frontend/**
+alwaysApply: false
+---
+
+# DSS
+
+Three subsystems, all required (R32): data, model, UI. This is a model-driven DSS plus OLAP, not a descriptive dashboard. If M1 or M2 is cut, mark the DSS requirement unmet in SPEC.
+
+## Data access
+
+- Read only `gold.*` (usually `gold.fact_seller_monthly` and Gold dimensions).
+- Write scores and scenarios only to `dss.seller_risk_score`, `dss.policy_scenario`, and `dss.decision_log`.
+- Build feature views such as `dss.v_seller_features` on `gold.*` only.
+- In `src/dss/`, do not call `read_csv`, `spark.read.csv`, or open any `data/raw` or `data/sample` path. Local sample runs still enter through Gold tables produced by ETL.
+
+Train on Gold, not Silver.
+
+## Parameters
+
+Define θ, e_k, r, s, X, and N in one module, for example `src/dss/params.py`. Names:
+
+| SPEC §8 | Python name | Meaning |
+|---|---|---|
+| θ₁, θ₂, θ₃ | `theta_1`, `theta_2`, `theta_3` | Risk thresholds for the three intervention tiers |
+| e_k | `e_k` | Assumed intervention effect by tier |
+| r | `r` | Order-transfer rate when a seller is suspended |
+| s | `s` | Seasonality / demand factor (`Q_i = Q_bar_i * s`) |
+| X | `X` | Max GMV share affected (percent). Default unset until Phase 1. |
+| N | `N` | Max sellers to handle per month. Default unset until Phase 1. |
+
+Do not scatter these literals across UI and model code. `X`, `N`, and the exact "bad experience" predicate are pending Phase 1: read them from config and fail if missing. Do not invent defaults.
+
+Scenarios are P0 (no intervention), P1 (fixed KPI thresholds), P2 (predicted risk). Compare at least three.
+
+## Models
+
+- M1: logistic regression baseline. Split train/test by time, not at random. Set a fixed `random_state` and record it.
+- M2: `expected_bad_orders = sum(p_i * Q_i * (1 - e_k(i)))`. Compute what-if, goal seeking (bisection on θ for GMV ≤ X%), and ±20% sensitivity on `e_k`, `r`, and `s` inside the model.
+- Do not hardcode scenario outputs or paste numbers that a function did not compute.
+
+## UI
+
+DSS screens are SPEC §7 items 4–7. Streamlit local via a SQL warehouse is `[GIẢ ĐỊNH]` until S2. The OLAP frontend choice is pending; do not implement OLAP screens in Streamlit unless the user locks that option (`02-ambiguity-scope`).

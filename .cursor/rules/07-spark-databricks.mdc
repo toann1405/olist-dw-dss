@@ -1,0 +1,36 @@
+---
+description: PySpark notebooks — widgets, no large collects, dual Databricks and local sample run
+globs: src/etl/**,src/notebooks/**
+alwaysApply: false
+---
+
+# Spark and Databricks
+
+## File shape
+
+Store notebooks as `.py` source files under `src/etl/` or `src/notebooks/` so git can diff them. Do not add `.ipynb` as the source of truth.
+
+Pass parameters through Databricks widgets or environment variables (`USE_SAMPLE`, schema names, Volume path). Do not hardcode tokens, catalog names, or absolute Windows paths.
+
+```python
+catalog = os.environ["UC_CATALOG"]  # empty until S1 — fail clearly, do not guess
+gold = os.environ.get("GOLD_SCHEMA", "gold")
+```
+
+## Spark usage
+
+- Do not `collect()` or `toPandas()` on Bronze geolocation, full Gold facts, or any frame you have not filtered to a known small result (a single audit aggregate is fine).
+- Read ids and zips as strings (`04-data-integrity`).
+- Batch only. Do not add Auto Loader streaming, CDF, or `trigger(availableNow)` as a hidden stream.
+
+## Dual runtime (R46)
+
+Transform code must run on Databricks and locally with `pyspark` + `delta-spark` when `USE_SAMPLE=1` (input `data/sample/`). Keep filesystem paths behind one function so the Databricks path reads the Volume and the local path reads the sample directory.
+
+Local Delta support is `[GIẢ ĐỊNH]` until spike S6. If S6 fails, stop and list two options; do not drop the local path silently.
+
+Databricks Jobs as the scheduler are `[GIẢ ĐỊNH]` until S4. A manual notebook run is the fallback until that spike passes.
+
+## Partitioning
+
+Do not partition Delta tables yet. SPEC §5: about 100k orders, no partition. If you later partition, partition by a filter column used in `WHERE`, never by a high-cardinality id. Record the reason in DESIGN before adding the clause.

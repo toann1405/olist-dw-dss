@@ -73,3 +73,12 @@ Ngày tải: **10/10/2026**. Số dòng / số cột / dung lượng: từ `pyth
 | `sample/` | Mẫu **5,000** đơn hàng (seed **42**, mặc định script), giữ toàn vẹn khóa giữa các bảng, cùng tên file với `raw/` | Có (dùng để nộp bài và chạy demo nhanh với `USE_SAMPLE=1`) |
 
 Mẫu được tạo bằng `src/notebooks/00_verify_and_sample.py` (chọn ngẫu nhiên đơn hàng với seed cố định, rồi lấy toàn bộ item/payment/review/customer/product/seller/geolocation liên quan). Lần chạy 10/10/2026: `--orders` mặc định 5,000, `--seed` mặc định 42; integrity asserts passed; các file mẫu: orders 5,000 · items 5,712 · payments 5,237 · reviews 4,980 · customers 5,000 · products 3,844 · sellers 1,222 · geolocation 481,054 · translation 71. Bản dữ liệu đầy đủ: đặt link Kaggle/Drive tại đây khi nộp (đề mục 5.1 cho phép dữ liệu qua GitHub/Google Drive).
+
+## 5. Upload lên Unity Catalog Volume
+
+Làm sau khi có workspace Databricks (spike S1). Đây là các bước mức hướng dẫn, chưa chạy.
+
+1. Tạo Unity Catalog Volume trong workspace Free Edition.
+2. Upload 9 CSV từ `data/raw/` và các CSV Marketing Funnel từ `data/external/`. Giữ nguyên nội dung file, không sửa tay.
+3. Bronze đọc Volume bằng `spark.read`. Đường dẫn Volume là **[GIẢ ĐỊNH]** đến khi S1 ghi lại, dạng `/Volumes/<UC_CATALOG>/<schema>/<volume>/`. `UC_CATALOG` để trống trong `.env.example` cho đến khi S1 chốt tên catalog.
+4. `data/sample/` dùng cho đường chạy local (pyspark + delta-spark), không thay cho bản upload đầy đủ trên Databricks.

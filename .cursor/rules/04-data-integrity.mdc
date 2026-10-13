@@ -1,0 +1,38 @@
+---
+description: Olist data rules — no fake data, raw is read-only, ids and zips stay strings
+alwaysApply: true
+---
+
+# Data integrity
+
+## No substitute data
+
+Do not generate fake orders, sellers, or reviews to stand in for Olist. If `data/raw/` is missing, stop and say so. Do not continue ETL or profiling on invented files.
+
+## Paths
+
+| Path | Rule |
+|---|---|
+| `data/raw/` | Read only. Do not edit, re-encode, or commit the CSVs. |
+| `data/external/` | Marketing Funnel CSVs are real inputs. Do not hand-edit them. Holiday and IBGE region tables are Phase 1 and need a license check first. |
+| `data/sample/` | Create or refresh only by running `python src/notebooks/00_verify_and_sample.py`. Default sample is 5,000 orders, seed 42. Do not hand-edit sample CSVs. |
+
+## Types
+
+Read every id and zip prefix as a string so leading zeros survive.
+
+```python
+df = spark.read.option("header", True).csv(path, schema=None)  # then cast ids explicitly to string
+# pandas: pd.read_csv(path, dtype=str)
+```
+
+Do not infer zip columns as integers.
+
+## Sharing
+
+Olist and Marketing Funnel are CC BY-NC-SA 4.0. When the sample or a data excerpt is shared (GitHub, Drive, report), cite Olist/Kaggle and keep that license. Do not present the sample as the full dataset.
+
+## Local vs cloud inputs
+
+- Databricks Bronze reads CSVs from a Unity Catalog Volume, not from a hardcoded laptop path.
+- Local reruns (`USE_SAMPLE=1`) read `data/sample/` only. The Volume path stays `[GIẢ ĐỊNH]` until spike S1 records it.

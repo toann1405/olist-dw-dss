@@ -1,0 +1,36 @@
+---
+description: Medallion layer contract — Bronze append-only, Silver conform, Gold star only, downstream reads Gold
+globs: src/etl/**,src/sql/**,src/notebooks/**
+alwaysApply: false
+---
+
+# Medallion layers
+
+Schemas come from the environment (`UC_CATALOG`, `BRONZE_SCHEMA`, `SILVER_SCHEMA`, `GOLD_SCHEMA`, `DSS_SCHEMA` in `.env.example`). Defaults are `bronze`, `silver`, `gold`, `dss`. Do not hardcode a catalog name. `UC_CATALOG` is empty until spike S1.
+
+Reference tables as `` `{catalog}`.`{schema}`.`{table}` `` built from that config.
+
+## Contract (R45)
+
+| Layer | Allowed contents | Write pattern |
+|---|---|---|
+| Bronze | Raw CSV rows plus `_ingest_ts`, `_source_file`, `_batch_id` | Append only. No updates, no deletes, no business rules. |
+| Silver | Typed, deduped, conformed entities | Clean here: city normalization, category translation, state→region, geolocation and review dedupe. |
+| Gold | Star schema only: `fact_*` and `dim_*` from SPEC §5, plus `etl_audit` | Surrogate keys and `MERGE`. No raw CSV columns left as the model. |
+| `dss` | Model outputs only | Written by `src/dss/`, never by a Gold fact job. See `09-dss`. |
+
+Physical Gold names: `gold.fact_order_item`, `gold.fact_order`, `gold.fact_seller_monthly`, `gold.dim_date`, `gold.dim_month`, `gold.dim_customer`, `gold.dim_seller`, `gold.dim_product`, `gold.dim_order_status`, `gold.dim_payment_type`, `gold.etl_audit`.
+
+## Do not skip a layer
+
+- Bronze does not join or aggregate.
+- Silver does not publish facts.
+- Gold does not read `data/raw` or the Volume directly.
+- OLAP queries and DSS read Gold only. They do not read Bronze or Silver.
+- Train M1 on Gold (`fact_seller_monthly`), not on Silver. That split is intentional (assignment objective 4).
+
+## Idempotent loads
+
+Gold (and any Silver table that can be re-run) uses Delta `MERGE` on the grain, not `INSERT` plus a manual delete. Re-running a batch with the same `_batch_id` must not duplicate rows.
+
+Audit row counts in `gold.etl_audit`: rows read = rows loaded + rows rejected, per source file.

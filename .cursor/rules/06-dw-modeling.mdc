@@ -1,0 +1,42 @@
+---
+description: Kimball modeling for Gold facts and dimensions — grain, surrogate keys, SCD, measures
+globs: src/sql/ddl/**,src/etl/**,docs/DESIGN.md
+alwaysApply: false
+---
+
+# DW modeling
+
+Gold is a bottom-up Kimball mart (fact constellation). Layer placement is in `05-medallion-layers`. This file is the modeling contract.
+
+## Grain comment
+
+The first comment on every fact DDL or load function states the grain in one sentence.
+
+```sql
+-- grain: one row = one order item (order_id, order_item_id)
+CREATE TABLE {gold}.fact_order_item ( ... );
+```
+
+Locked grains (do not change without SPEC §10):
+
+- `fact_order_item`: one item of one order (`order_id`, `order_item_id`). Transaction fact.
+- `fact_order`: one order. Accumulating snapshot.
+- `fact_seller_monthly`: one seller × one active month. Periodic snapshot.
+
+## Keys and dimensions
+
+- Every dimension has a surrogate key. Business keys (`seller_id`, `customer_unique_id`, …) stay as attributes.
+- Member `-1` means Unknown on every dimension. Do not drop late-arriving FKs; point them at `-1` and count them in `gold.etl_audit`.
+- Dimensions are conformed across the three facts. `dim_date` is role-playing (purchase, approved, shipping limit, delivered to carrier, delivered to customer, estimated). `dim_month` is the shrunken month dimension.
+- `dim_customer` is keyed by `customer_unique_id`. Map per-order `customer_id` in Silver.
+- SCD Type 2 on `dim_seller` is bonus (R41), not required. If you add it, include `effective_from`, `effective_to`, and `is_current`, and say so in DESIGN §2.
+
+## Measures
+
+- Additive (sum in OLAP): `price`, `freight_value`, `items_value`, `freight_total`, `payment_total`, counts, 0/1 flags.
+- Non-additive (average or percentile only): `delivery_days`, `delay_days`, `seller_handling_days`, `review_score`, `distance_km`, and any `*_rate`.
+- Do not `SUM` a rate column. Recompute rates from additive numerators and denominators.
+
+## DESIGN stays in sync
+
+A schema change in the same session updates DESIGN §6 (source-to-target) and §8 (data dictionary). Leave sections marked `_chưa điền_` empty until you have a real mapping; do not invent columns. Bus-matrix ticks in DESIGN §2 already match SPEC; change them only when SPEC changes.

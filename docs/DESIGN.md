@@ -3,8 +3,8 @@
 > **Trạng thái: khung (Phase 0).** Điền dần ở Phase 2–3. Bản sơ bộ nằm ở `SPEC.md` §5–6; khi mục nào ở đây được điền, SPEC chỉ giữ tóm tắt và trỏ về file này.
 
 ## 1. Kiến trúc và cách tiếp cận (R22) — Phase 2
-- Sơ đồ kiến trúc chi tiết (staging / dw / dss schema): _chưa điền_
-- Lý do bottom-up data mart: _chưa điền_
+- Sơ đồ kiến trúc chi tiết (schema `bronze` / `silver` / `gold` / `dss`): _chưa điền_
+- Lý do bottom-up data mart (nằm ở Gold): _chưa điền_
 
 ## 2. Bus matrix (R04, R41) — Phase 2
 
@@ -51,7 +51,7 @@ _Chuyển từ SPEC §3 sau khi profiling xác nhận; ghi số dòng bị ảnh
 | _chưa điền_ | | | | | |
 
 ## 9. ETL: thứ tự nạp, incremental, audit (R07, R28, R40) — Phase 3
-_chưa điền_
+_chưa điền. Bảng audit dùng tên `gold.etl_audit` (chưa thiết kế cột)._
 
 ## 10. Thiết kế dữ liệu cho DSS (R31) — Phase 5
-_Views `dss.v_seller_features`, bảng `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` — chưa điền._
+_Feature view (ví dụ `dss.v_seller_features`) chỉ dựa trên `gold.*`. Bảng kết quả `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` — chưa điền._

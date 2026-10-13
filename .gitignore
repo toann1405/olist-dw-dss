@@ -7,11 +7,14 @@ data/external/*.parquet
 data/external/large/
 
 # --- Secrets / local config ---
+# .env holds DATABRICKS_TOKEN and must never be committed. Token files stay out of git.
 .env
 .env.*
 !.env.example
 .kaggle/
 kaggle.json
+*.token
+.databrickscfg
 
 # --- Python cache / virtual envs ---
 __pycache__/
@@ -43,6 +46,12 @@ docs/report/_build/
 *.sqlite
 logs/
 *.log
+derby.log
+
+# --- Local Spark / Databricks (do not ignore data/sample/*.csv) ---
+.databricks/
+spark-warehouse/
+metastore_db/
 
 # --- Model artifacts (re-trainable from DW) ---
 src/dss/artifacts/

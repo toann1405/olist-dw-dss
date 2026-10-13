@@ -1,0 +1,34 @@
+---
+description: Shell and environment commands for this repo — detect OS, use the venv, do not invent commands or add dependencies
+alwaysApply: false
+---
+
+# Commands and environment
+
+Request this rule when running shell commands, installing packages, or writing run instructions.
+
+## Before a command
+
+1. Detect the OS. This workspace is often Windows PowerShell. Do not assume `cp`, `source`, or bash heredocs work.
+2. Prefer `python -m ...` so the module comes from the active interpreter.
+3. Use the repo virtualenv if it exists (`.venv/`). Do not install packages into the global interpreter.
+4. Do not add a dependency until the user agrees. Do not create `requirements.txt` or `pyproject.toml` as a side effect.
+
+Windows venv examples:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe src\notebooks\00_verify_and_sample.py
+```
+
+## Commands that exist
+
+| Command | Status |
+|---|---|
+| `python src/notebooks/00_verify_and_sample.py` | Exists. Optional `--orders` and `--seed` (defaults 5000 and 42). |
+| Copy `.env.example` to `.env` | Documented. On PowerShell use `Copy-Item .env.example .env`. |
+| Databricks job / Volume upload | TBD until spikes S1 and S4 record the real steps. |
+| Local `pyspark` + `delta-spark` on `data/sample/` | TBD until spike S6. |
+| `python -m pytest` | Tooling is planned (`src/tests/`). No test module exists yet — do not invent a pytest invocation that imports missing code. |
+
+If a command is not in this table and not in `README.md`, mark it TBD in the docs. Do not fabricate a CLI.

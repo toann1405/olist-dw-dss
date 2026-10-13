@@ -1,0 +1,31 @@
+---
+description: pytest on the sample and the required reconciliation checks before calling work done
+globs: src/tests/**,src/etl/**
+alwaysApply: false
+---
+
+# Testing and data quality
+
+## Where tests run
+
+- Framework is pytest.
+- Default input is `data/sample/` (`USE_SAMPLE=1`), not the full raw extract.
+- Tests live in `src/tests/`. ETL jobs should expose the same checks they assert, so a test can call them.
+
+## Required checks
+
+Every Gold load test covers all of the following. Record failures in `gold.etl_audit` rather than hiding them.
+
+1. Row reconciliation: source rows = loaded rows + rejected rows, per source.
+2. `SUM(price)` on the source order items equals `SUM(price)` on `gold.fact_order_item` for the same batch (rejected rows excluded on both sides).
+3. No orphan foreign keys from facts to dimensions. Unknown keys are `-1`, and `-1` exists.
+4. Unique grain: `fact_order_item` (`order_id`, `order_item_id`), `fact_order` (`order_id`), `fact_seller_monthly` (seller, month).
+5. NULL rate of each non-key measure stays inside the threshold documented in DESIGN. If DESIGN has no threshold yet, assert the rate and print it; do not invent a pass limit.
+
+Also add Delta `NOT NULL` and `CHECK` constraints on Gold grain keys and on flags that must be 0 or 1.
+
+## Done means executed
+
+Do not say tests passed, a pipeline is done, or a metric has a value unless you ran the command in this session and the report quotes the real output (pass count, failure text, or printed totals). If pytest is not installed or no test file exists yet, say so. See `11-commands-env` for how to run commands.
+
+Sample refresh is not a test. Run `python src/notebooks/00_verify_and_sample.py` only to rebuild `data/sample/` (`04-data-integrity`). DQ assertions belong in pytest, not in that script.
