@@ -1,49 +1,50 @@
 # olist-dw-dss
 
-Bài tập lớn **CO4031 – Kho dữ liệu và Hệ hỗ trợ Quyết định (HK261)**: xây dựng kho dữ liệu, OLAP dashboard và hệ hỗ trợ quyết định trên dataset **Olist Brazilian E-Commerce** (Kaggle).
+Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)**: a data warehouse, an OLAP dashboard, and a decision support system on the **Olist Brazilian E-Commerce** dataset (Kaggle).
 
-**Đề tài:** *Quản lý hiệu suất người bán* (T1 – Olist Seller Performance DW & DSS) — giúp Trưởng bộ phận Quản lý chất lượng seller chọn chính sách phân hạng và can thiệp seller hằng tháng, tối thiểu số đơn trải nghiệm xấu dự kiến trong giới hạn GMV bị ảnh hưởng. Chốt cuối sau cổng G1–G6 (đầu Phase 1); nếu không đạt thì chuyển T2 Delivery Promise, dùng lại cùng DW.
+**Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS). It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit. Final lock is after gates G1–G6 (start of Phase 1). If those gates fail, the topic switches to T2 Delivery Promise on the same warehouse.
 
-**Công nghệ:** Databricks Free Edition, Delta Lake, Unity Catalog (schema `bronze` / `silver` / `gold` / `dss`), PySpark + Spark SQL; DSS bằng Python (scikit-learn / statsmodels), đọc Gold và ghi `dss.*`. Frontend OLAP chờ spike (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Đường tái lập local: pyspark + delta-spark trên `data/sample/`.
+**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog (schemas `bronze` / `silver` / `gold` / `dss`), PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels): it reads Gold and writes `dss.*`. The OLAP frontend is still open (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Local rerun path: pyspark + delta-spark on `data/sample/`.
 
+## Read this first
+1. [README.md](README.md) (this file)
+2. [docs/SPEC.md](docs/SPEC.md) — what the system is, requirement codes R-xx, architecture, DSS
+3. [docs/PLAN.md](docs/PLAN.md) — phases, tasks, definition of done
+4. [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md) — the first entry is the latest status
 
-## Thứ tự đọc tài liệu (cho người/AI mới)
-1. [README.md](README.md) (file này)
-2. [docs/SPEC.md](docs/SPEC.md) — dự án là gì, yêu cầu R-xx, kiến trúc, DSS
-3. [docs/PLAN.md](docs/PLAN.md) — các phase, task, Definition of Done
-4. [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md) — mục đầu tiên = trạng thái mới nhất
+Also: [docs/TOPIC_EVALUATION.md](docs/TOPIC_EVALUATION.md) (why this topic) · [docs/DESIGN.md](docs/DESIGN.md) (schema, ETL mapping) · [data/README.md](data/README.md) (sources, license, download) · [docs/assignment/](docs/assignment/) (assignment PDF and analysis). Files under `docs/` stay in Vietnamese.
 
-Tham khảo thêm: [docs/TOPIC_EVALUATION.md](docs/TOPIC_EVALUATION.md) (vì sao chọn đề tài) · [docs/DESIGN.md](docs/DESIGN.md) (schema, ETL mapping) · [data/README.md](data/README.md) (nguồn, license, cách tải) · [docs/assignment/](docs/assignment/) (đề gốc + phân tích đề).
-
-## Cấu trúc thư mục
+## Layout
 
 ```
 olist-dw-dss/
 ├── README.md, .gitignore, .env.example
 ├── docs/
-│   ├── assignment/        # đề PDF + file phân tích đề
+│   ├── assignment/        # assignment PDF and analysis
 │   ├── TOPIC_EVALUATION.md, SPEC.md, PLAN.md, DESIGN.md, PROGRESS_LOG.md
-│   └── report/            # nháp báo cáo + hình
+│   └── report/            # report draft and figures
 ├── data/
-│   ├── README.md          # nguồn, license, cách tải, mô tả file
-│   ├── raw/               # CSV Olist gốc (gitignore)
-│   ├── external/          # nguồn bổ sung
-│   └── sample/            # mẫu nhỏ giữ toàn vẹn khóa (commit để nộp)
+│   ├── README.md          # sources, license, download, file notes
+│   ├── raw/               # original Olist CSVs (gitignored)
+│   ├── external/          # extra sources
+│   └── sample/            # small key-consistent sample (committed for submission)
 └── src/
-    ├── sql/               # ddl/ (Delta DDL), views/, olap_queries/ (Spark SQL trên Gold)
-    ├── etl/               # pipeline Bronze → Silver → Gold
-    ├── dss/               # mô hình đọc gold.*, ghi dss.*
-    ├── frontend/          # OLAP chờ spike; DSS UI dự kiến Streamlit local
-    ├── notebooks/         # profiling trên Bronze; 00_verify_and_sample.py
-    └── tests/             # kiểm thử ETL và chất lượng dữ liệu
+    ├── sql/               # ddl/ (Delta DDL), views/, olap_queries/ (Spark SQL on Gold)
+    ├── etl/               # Bronze → Silver → Gold
+    ├── dss/               # models that read gold.* and write dss.*
+    ├── frontend/          # OLAP still open; DSS UI expected as local Streamlit
+    ├── notebooks/         # Bronze profiling; 00_verify_and_sample.py
+    └── tests/             # ETL and data-quality checks
 ```
 
-## Cách chạy
-1. Tải dữ liệu vào `data/raw/` theo [data/README.md](data/README.md), rồi:
+## How to run
+1. Put the CSVs in `data/raw/` as described in [data/README.md](data/README.md), then:
    ```bash
    python src/notebooks/00_verify_and_sample.py
    ```
-2. `cp .env.example .env` và điền biến Databricks. `DATABRICKS_TOKEN` để trống trong `.env.example`.
+2. Copy `.env.example` to `.env` and fill in the Databricks variables. `DATABRICKS_TOKEN` stays empty in `.env.example`. Do not commit `.env`.
+3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Bronze → Silver → Gold ETL is filled in during Phase 3–6.
+4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): filled in after spike S6.
 
-## Trạng thái
-Phase 0 — S1, S4, S5 đạt trên Databricks Free Edition (13/10/2026). Còn S2, S3, S6. Đề tài T1 vẫn chốt có điều kiện G1–G6. Xem [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+## Status
+Phase 0 is in place. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open. Topic T1 stays conditional on gates G1–G6. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).

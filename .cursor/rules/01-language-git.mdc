@@ -1,5 +1,5 @@
 ---
-description: Language split and git safety — Vietnamese chat/docs, English code, no commit without explicit consent
+description: Language split and git safety — Vietnamese chat and docs/, English README and code, no commit without explicit consent
 alwaysApply: true
 ---
 
@@ -8,8 +8,9 @@ alwaysApply: true
 ## Language
 
 - Chat with the user in Vietnamese.
-- Write `docs/` and `data/README.md` in Vietnamese.
-- Write code, comments, SQL, table names, column names, and commit messages in English.
+- Write `docs/` in Vietnamese.
+- Write `README.md`, `data/README.md`, code, comments, SQL, table names, column names, and commit messages in English.
+
 - Keep requirement tags in Vietnamese exactly as SPEC uses them: `[ĐỀ]`, `[SUY LUẬN]`, `[GIẢ ĐỊNH]`.
 
 ## Commits
