@@ -76,9 +76,14 @@ Mẫu được tạo bằng `src/notebooks/00_verify_and_sample.py` (chọn ng�
 
 ## 5. Upload lên Unity Catalog Volume
 
-Làm sau khi có workspace Databricks (spike S1). Đây là các bước mức hướng dẫn, chưa chạy.
+Đã làm ở spike S1 (13/10/2026).
 
-1. Tạo Unity Catalog Volume trong workspace Free Edition.
-2. Upload 9 CSV từ `data/raw/` và các CSV Marketing Funnel từ `data/external/`. Giữ nguyên nội dung file, không sửa tay.
-3. Bronze đọc Volume bằng `spark.read`. Đường dẫn Volume là **[GIẢ ĐỊNH]** đến khi S1 ghi lại, dạng `/Volumes/<UC_CATALOG>/<schema>/<volume>/`. `UC_CATALOG` để trống trong `.env.example` cho đến khi S1 chốt tên catalog.
-4. `data/sample/` dùng cho đường chạy local (pyspark + delta-spark), không thay cho bản upload đầy đủ trên Databricks.
+| Mục | Giá trị |
+|---|---|
+| Catalog | `olist_catalog` |
+| Schema | `bronze`, `silver`, `gold`, `dss` (`silver`, `gold`, `dss` chưa có bảng) |
+| Volume | `/Volumes/olist_catalog/bronze/raw/` |
+| `olist/` | 9 CSV từ `data/raw/`, giữ nguyên tên |
+| `funnel/` | `olist_closed_deals_dataset.csv`, `olist_marketing_qualified_leads_dataset.csv` |
+
+Dung lượng từng file trên Volume khớp bảng mục 3 (đo local 10/10/2026). Notebook đọc `olist/olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột cast `string`): **99,441** dòng. `data/sample/` dùng cho đường chạy local (pyspark + delta-spark), không thay bản upload đầy đủ trên Databricks.

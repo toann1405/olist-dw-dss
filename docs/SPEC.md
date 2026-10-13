@@ -3,8 +3,8 @@
 | Mục | Giá trị |
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
-| Phiên bản | v0.2 — 10/10/2026 |
-| Trạng thái | **Kiến trúc đổi sang Databricks medallion; frontend OLAP chờ spike.** Đề tài T1 vẫn chốt có điều kiện G1–G6. Dữ liệu đã tải (10/10/2026). Spike S1–S6 chưa chạy |
+| Phiên bản | v0.3 — 13/10/2026 |
+| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Đề tài T1 vẫn chốt có điều kiện G1–G6. Dữ liệu đã tải (10/10/2026) |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -50,7 +50,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R13 | Thuyết trình: trực tiếp 15' + 5' Q&A, hoặc video 10–15' (YouTube unlisted/Drive); mọi thành viên trình bày | BB | 1.1 (mục tiêu 6), 4.1–4.3; Trang 4–5 | 7 | Slide, video | ☐ |
 | R14 | Nhóm 2–3 SV, mỗi người vai trò rõ; điểm cá nhân điều chỉnh theo peer review | BB | 1.3; Trang 2–3 | 0→7 | `README.md`, `PROGRESS_LOG.md` | ◐ |
 | R15 | Báo cáo PDF | BB | 5.1(1); Trang 5 | 7 | `docs/report/` → PDF | ☐ |
-| R16 | Mã nguồn `src/` (SQL, Python, frontend, ETL), ưu tiên GitHub truy cập được | BB | 5.1(2); Trang 5 | 0→7 | `src/`, repo GitHub | ◐ |
+| R16 | Mã nguồn `src/` (SQL, Python, frontend, ETL), ưu tiên GitHub truy cập được. Git folder Databricks đã nối repo (S5, 13/10/2026) | BB | 5.1(2); Trang 5 | 0→7 | `src/`, repo GitHub | ◐ |
 | R17 | Dữ liệu mẫu `data/` (GitHub/Drive) | BB | 5.1(3); Trang 5 | 0 | `data/sample/` | ☑ |
 | R18 | Slide thuyết trình PDF | BB | 5.1(4); Trang 5 | 7 | Slide PDF | ☐ |
 | R19 | Link video trên trang bìa báo cáo (nếu nhóm thuyết trình bằng video) | BB (có điều kiện) | 4.3, 5.1(5); Trang 5 | 7 | Bìa báo cáo | ☐ |
@@ -74,7 +74,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R37 | Ánh xạ chức năng DSS ↔ pha intelligence/design/choice/implementation | BB\* | L.O.3.2 | 5 | SPEC §8, báo cáo | ◐ |
 | R38 | Phân loại DSS | BB\* | L.O.3.1 | 5 | SPEC §8 | ◐ |
 | R39 | Phương pháp phát triển (SDLC/prototyping), rủi ro dự án | NC | L.O.4.1 | 7 | Báo cáo | ☐ |
-| R40 | Lịch chạy ETL tự động bằng Databricks Jobs (**[GIẢ ĐỊNH]** Free Edition có Jobs — kiểm tra S4) | ĐC | slide Ch2 (batch ETL) | 3 | `src/etl/` | ☐ |
+| R40 | Lịch chạy ETL tự động bằng Databricks Jobs (S4 đạt 13/10/2026: Free Edition tạo được Job và lưu lịch; ETL chưa gắn vào Job) | ĐC | slide Ch2 (batch ETL) | 3 | `src/etl/` | ◐ |
 | R41 | Surrogate key + SCD Type 2 cho ≥ 1 dimension (`dim_seller` nếu làm điểm cộng) | ĐC | Kimball (TLTK [2]) | 2–3 | `src/sql/ddl/`, `src/etl/` | ☐ |
 | R42 | Aggregate / view trên Gold cho OLAP (không partition vì dữ liệu nhỏ) | NC | slide Ch1–2 | 3–4 | `src/sql/views/` | ☐ |
 | R43 | Knowledge subsystem: luật khuyến nghị hành động | ĐC | slide Ch6 | 5 | `src/dss/` | ☐ |
@@ -113,7 +113,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Lịch ngày lễ Brazil 2016–2018 | Cờ ngày lễ / mùa cao điểm trong dim_date — biến không kiểm soát được |
 | Bảng bang (UF) → vùng (IBGE) | Cấp "Vùng" cho hierarchy địa lý |
 
-**Đưa nguồn lên lakehouse:** upload 9 CSV Olist và file Marketing Funnel vào một Unity Catalog Volume, rồi Bronze đọc bằng `spark.read`. Đường dẫn Volume là **[GIẢ ĐỊNH]** đến khi S1 ghi lại (dạng `/Volumes/<UC_CATALOG>/<schema>/<volume>/`; tên catalog chưa biết). Các bước mức hướng dẫn: `data/README.md`.
+**Đưa nguồn lên lakehouse:** 9 CSV Olist và 2 CSV Marketing Funnel nằm trong một Unity Catalog Volume. Spike S1 (13/10/2026) đọc `olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột `string`): 99,441 dòng. Catalog `olist_catalog`. Đường dẫn `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Các bước: `data/README.md` §5.
 
 **Bằng chứng tích hợp nhiều bảng/nguồn (R30):** (1) mỗi fact cần ≥ 4 bảng nguồn để nạp; (2) bảng source-to-target mapping trong `DESIGN.md` ghi nguồn từng cột; (3) bảng `gold.etl_audit` ghi số dòng đọc/nạp/loại theo từng nguồn; (4) measure phái sinh liên nguồn (khoảng cách cần geolocation × customers × sellers; điểm rủi ro cần items × reviews × orders).
 
@@ -151,7 +151,7 @@ flowchart LR
 ```
 
 - **Cách tiếp cận:** *bottom-up, một data mart* theo Kimball cho chủ đề "hiệu suất seller & hoàn tất đơn", đặt ở **Gold**, dimension dùng chung (conformed) để mở rộng sau. Lý do: nhóm 2–3 người, ~5 tuần, một quyết định trọng tâm → EDW top-down không khả thi. Gold vẫn là star schema nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a).
-- **Lưu trữ:** Databricks Free Edition (đăng ký bằng email cá nhân), Delta Lake, Unity Catalog. Schema: `bronze`, `silver`, `gold`, `dss`. Tên catalog là **[GIẢ ĐỊNH]**, chốt ở S1. Chỉ **batch**.
+- **Lưu trữ:** Databricks Free Edition (đăng ký bằng email cá nhân), Delta Lake, Unity Catalog. Catalog `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `dss`. Chỉ **batch**.
 - **Hợp đồng layer (R45):** Bronze append-only, có metadata ingest. Silver làm sạch và conform. Gold chỉ chứa star schema. OLAP và DSS chỉ đọc Gold. Kết quả mô hình ghi `dss.*`.
 - **Lệch có chủ đích:** mô hình DSS huấn luyện trên Gold, không trên Silver, để DSS dựa trên DW theo mục tiêu 4 của đề.
 - **Tái lập (R46):** mã transform chạy trên Databricks và chạy local (pyspark + delta-spark) trên `data/sample/`, phòng Free Edition bị giới hạn và để người chấm chạy lại.
@@ -170,10 +170,10 @@ flowchart LR
 
 | Hạng mục | Đã chốt | Còn mở (spike) | Không dùng + lý do |
 |---|---|---|---|
-| Nền tảng | Databricks Free Edition, Delta Lake, Unity Catalog, schema `bronze` / `silver` / `gold` / `dss`. CSV upload lên Volume. Chỉ batch | Tên catalog; Volume, Unity Catalog trên Free Edition có dùng được không (**[GIẢ ĐỊNH]**, S1) | PostgreSQL, psycopg, schema `staging` / `dw`: Gold đảm nhận vai trò DW, tránh hai kho. DuckDB: phương án local từng xét, không dùng; đường tái lập local là pyspark + delta-spark |
-| Xử lý | PySpark + Spark SQL. Notebook lưu trong repo dạng `.py` để diff. Load idempotent bằng Delta `MERGE` | Databricks Jobs trên Free Edition (**[GIẢ ĐỊNH]**, S4). Git folder nối GitHub (**[GIẢ ĐỊNH]**, S5) | Streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL: ngoài phạm vi, để hướng phát triển. ETL không dùng pandas + SQLAlchemy + psycopg |
+| Nền tảng | Databricks Free Edition, Delta Lake, Unity Catalog, schema `bronze` / `silver` / `gold` / `dss`. CSV ở Volume `/Volumes/olist_catalog/bronze/raw/`. Chỉ batch. Catalog `olist_catalog` (S1, 13/10/2026) | SQL warehouse từ máy local (S2) | PostgreSQL, psycopg, schema `staging` / `dw`: Gold đảm nhận vai trò DW, tránh hai kho. DuckDB: phương án local từng xét, không dùng; đường tái lập local là pyspark + delta-spark |
+| Xử lý | PySpark + Spark SQL. Notebook lưu trong repo dạng `.py` để diff. Load idempotent bằng Delta `MERGE`. Databricks Jobs có trên Free Edition (S4, 13/10/2026: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được và đang Paused). Git folder nối GitHub (S5, 13/10/2026: `olist-dw-dss`, nhánh `main`) | — | Streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL: ngoài phạm vi, để hướng phát triển. ETL không dùng pandas + SQLAlchemy + psycopg |
 | DSS | Python (scikit-learn / statsmodels). Feature view chỉ trên `gold.*`. Kết quả ghi `dss.*`. Huấn luyện trên Gold | UI Streamlit local đọc Gold qua SQL warehouse (**[GIẢ ĐỊNH]**, S2) | Đọc `data/raw` hoặc `read_csv` trong `src/dss/`: vi phạm mục tiêu 4 |
-| OLAP frontend | — | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit. AI/BI có trên Free Edition hay không là **[GIẢ ĐỊNH]** (quan sát ở S1, chốt cùng S2–S3) | Chưa loại trừ phương án nào trong ba công cụ trên cho đến khi spike xong |
+| OLAP frontend | — | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit. AI/BI có trên Free Edition hay không là **[GIẢ ĐỊNH]** (chốt cùng S2–S3) | Chưa loại trừ phương án nào trong ba công cụ trên cho đến khi spike xong |
 | Loại OLAP | — | ROLAP (SQL warehouse truy vấn trực tiếp Gold) hoặc HOLAP (Power BI Import + Gold), chốt cùng frontend | MOLAP: cần cube engine riêng, không nằm trong hai phương án đang xét |
 | Tái lập | Mã transform phải chạy được trên Databricks và local trên `data/sample/` | pyspark + delta-spark local chạy được hay không (S6) | — |
 | Kiểm thử | pytest trên sample, đối soát số dòng và tổng, Delta constraints (`NOT NULL`, `CHECK`) | — | — |
@@ -202,7 +202,7 @@ Chỉ xử lý batch. Nếu một spike không đạt, ghi hai phương án vào
 | `dim_order_status`, `dim_payment_type` | trạng thái; phương thức thanh toán | — |
 
 - Surrogate key cho mọi dimension; member `-1 = Unknown`. SCD Type 2 cho `dim_seller` (thuộc tính từ funnel) là **điểm cộng** (R41).
-- **Vị trí vật lý:** `gold.fact_order_item`, `gold.fact_order`, `gold.fact_seller_monthly`, `gold.dim_date`, `gold.dim_month`, `gold.dim_customer`, `gold.dim_seller`, `gold.dim_product`, `gold.dim_order_status`, `gold.dim_payment_type`. Tên catalog **[GIẢ ĐỊNH]**, chốt ở S1.
+- **Vị trí vật lý:** `olist_catalog.gold.fact_order_item`, `olist_catalog.gold.fact_order`, `olist_catalog.gold.fact_seller_monthly`, và các dimension `olist_catalog.gold.dim_*` liệt kê ở bảng trên. Catalog `olist_catalog` (S1, 13/10/2026). Bảng chưa tạo.
 - **Thiết kế vật lý Delta:** dữ liệu nhỏ (~100 nghìn đơn) nên không partition. Nếu partition sau này thì partition theo cột dùng để lọc, không theo cột cardinality cao.
 - **Loại OLAP: còn mở** (R26), chốt cùng frontend sau spike. Hai phương án: **ROLAP** — SQL warehouse truy vấn trực tiếp Gold; **HOLAP** — Power BI Import cộng với Gold. MOLAP không nằm trong hai phương án này.
 
@@ -218,7 +218,7 @@ Chỉ batch. Notebook/pipeline lưu ở `src/etl/` dạng `.py`.
 | Silver | Cast kiểu; dedupe geolocation và review; chuẩn hóa thành phố; dịch category; map state → region; SCD2 `dim_seller` nếu làm điểm cộng (R41) |
 | Gold | Tra surrogate key, member `-1`; nạp 3 fact bằng Delta `MERGE` |
 | Incremental | Watermark `order_purchase_timestamp`; demo nạp lần đầu đến tháng T, sau đó nạp tiếp từng tháng; `gold.fact_order` cập nhật mốc thời gian khi đơn thay đổi trạng thái |
-| Lịch chạy | Databricks Jobs (**[GIẢ ĐỊNH]** có trên Free Edition, kiểm tra S4). Nếu S4 không đạt: ghi 2 phương án, chờ nhóm, không tự chọn |
+| Lịch chạy | Databricks Jobs có trên Free Edition (S4 đạt 13/10/2026). Job ETL gắn ở Phase 3. Spike dùng job `s4_smoke` (Serverless); lịch đã lưu và đang Paused |
 | Kiểm thử DQ | Delta constraints (`NOT NULL`, `CHECK`) + đối soát số dòng và tổng + pytest local trên `data/sample/`. Bảng `gold.etl_audit`: số dòng nguồn = nạp + loại; Σprice nguồn = Σprice fact; không orphan FK; grain không trùng; tỷ lệ NULL trong ngưỡng |
 
 ---
@@ -311,7 +311,7 @@ flowchart LR
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
 | `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (chốt có điều kiện; G1–G6 = Phase 1) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.2 kiến trúc medallion; còn mở: X, N, trải nghiệm xấu, thuyết trình, vai trò, frontend OLAP, loại OLAP, tên catalog, S1–S6) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.3: S1/S4/S5 đã ghi; còn mở: X, N, trải nghiệm xấu, thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
 | `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☐ (khung) |
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
@@ -333,7 +333,7 @@ flowchart LR
 | Rủi ro | Ảnh hưởng | Giảm thiểu |
 |---|---|---|
 | Chưa tải được dữ liệu | Chặn Phase 1 | Đã qua (10/10/2026): Olist và Marketing Funnel đã có trong repo local |
-| Giới hạn Databricks Free Edition (Unity Catalog, Volume, SQL warehouse, Jobs, AI/BI) — **[GIẢ ĐỊNH]** cho đến S1–S4 | Không dựng được layer hoặc không lên lịch | Spike S1–S4; đường local pyspark + delta-spark trên `data/sample/` (R46); nếu fail thì ghi 2 phương án và chờ nhóm |
+| Giới hạn Databricks Free Edition (SQL warehouse, AI/BI) — **[GIẢ ĐỊNH]** cho đến S2–S3. Unity Catalog, Volume, Jobs và Git folder đã kiểm (S1, S4, S5, 13/10/2026) | Không kết nối được từ máy local hoặc không có AI/BI | S2, S3; đường local pyspark + delta-spark trên `data/sample/` (R46); nếu fail thì ghi 2 phương án và chờ nhóm |
 | Mất tài khoản Free Edition (email cá nhân) | Mất workspace, người chấm không vào được | Mã trong Git; lưu screenshot và output làm bằng chứng; README hướng dẫn chạy local (R46) |
 | Người chấm không chạy lại được trên cloud | Khó chấm ETL/DSS | R46: chạy local trên sample; hướng dẫn trong README; nộp kèm output/screenshot |
 | Đường cong học Spark | Trễ Phase 3 | Chỉ batch; dữ liệu nhỏ; notebook `.py`; thử trên sample trước (S6) |
@@ -352,6 +352,9 @@ flowchart LR
 | Stack: PostgreSQL (staging/dw/dss cùng 1 DB, tách schema) + Python 3.11+ (pandas, SQLAlchemy, psycopg) + Streamlit + scikit-learn/statsmodels + pytest | 10/10/2026 — **thay thế ngày 10/10/2026** |
 | Nguồn bổ sung Marketing Funnel by Olist (CC BY-NC-SA 4.0) dùng chắc chắn | 10/10/2026 |
 | Kiến trúc medallion trên Databricks Free Edition: Bronze (staging, append-only) → Silver (làm sạch/conform) → Gold (DW / data mart Kimball, fact constellation, star schema) + schema `dss`. Chỉ batch. PySpark + Spark SQL, notebook `.py`, Delta `MERGE`. DSS Python (scikit-learn/statsmodels) đọc Gold, ghi `dss.*`, huấn luyện trên Gold. Lý do: giảng viên cho phép cloud/Databricks và Power BI; nhóm muốn lakehouse; Gold vẫn là DW nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a); bỏ PostgreSQL để không giữ hai kho | 10/10/2026 |
+| Catalog `olist_catalog`; Volume `/Volumes/olist_catalog/bronze/raw/` (`olist/` 9 CSV, `funnel/` 2 CSV). `spark.read` trên `olist_orders_dataset.csv`: 99,441 dòng, cột `string` | 13/10/2026 (S1) |
+| Databricks Jobs dùng được trên Free Edition: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được (Paused) | 13/10/2026 (S4) |
+| Git folder dùng được trên Free Edition: `olist-dw-dss`, nhánh `main`, repo `https://github.com/toann1405/olist-dw-dss.git` | 13/10/2026 (S5) |
 
 | Còn mở | Ghi chú |
 |---|---|
@@ -361,5 +364,4 @@ flowchart LR
 | Ngày lễ Brazil 2016–2018 và bảng bang→vùng IBGE | Kiểm tra license và lập ở Phase 1 |
 | Frontend OLAP | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit — chốt sau S2–S3. AI/BI trên Free Edition là **[GIẢ ĐỊNH]** |
 | Loại OLAP | ROLAP hoặc HOLAP — chốt cùng frontend |
-| Tên catalog Unity Catalog | **[GIẢ ĐỊNH]**, khóa ở S1 |
-| Kết quả S1–S6 | Chưa chạy. Mỗi spike ghi đạt/không đạt vào nhật ký và mục này. Nếu không đạt: 2 phương án, chờ nhóm |
+| Kết quả S2, S3, S6 | Chưa chạy. Nếu không đạt: 2 phương án, chờ nhóm |

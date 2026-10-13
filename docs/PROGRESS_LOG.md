@@ -10,15 +10,32 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 0 (sửa kiến trúc) — tài liệu đã chuyển sang Databricks medallion. Spike S1–S6 chưa bắt đầu |
+| Phase hiện tại | Phase 0 — S1, S4, S5 đạt trên Databricks Free Edition (13/10/2026). S2, S3, S6 chưa chạy |
 | Đang làm | — |
-| Blocker | Chưa có workspace Databricks; S1–S6 chưa chạy |
-| Việc tiếp theo | Spike S1–S6 (hạn 13/10). Không chốt frontend OLAP trước khi có kết quả spike |
-| Cập nhật | 10/10/2026 |
+| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm |
+| Việc tiếp theo | Local → Cloud: S2 rồi S3. S6 (pyspark + delta-spark trên `data/sample/`) sau S1, không chặn ETL trên Cloud. Profiling Phase 1 khi nhóm bắt đầu |
+| Cập nhật | 13/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 13/10/2026 — Phase 0 — S1, S4, S5 đạt
+- **Đã làm:** ghi kết quả spike Cloud. Không viết ETL, không profiling.
+- **S1 đạt:** catalog `olist_catalog`; schema `bronze`, `silver`, `gold`, `dss`; Volume `/Volumes/olist_catalog/bronze/raw/` với `olist/` (9 CSV) và `funnel/` (2 CSV). Dung lượng file trên Volume khớp `data/README.md` §3. `spark.read` `olist_orders_dataset.csv`: 99,441 dòng, mọi cột `string`.
+- **S4 đạt:** job `s4_smoke`, compute Serverless, hai lần Run now thành công; lịch `11:04 PM` Asia/Saigon đã lưu và đang Paused. R40 chuyển ◐ vì Job ETL thật chưa gắn.
+- **S5 đạt:** Git folder `olist-dw-dss`, nhánh `main`, repo `https://github.com/toann1405/olist-dw-dss.git`. Workspace thấy `README.md`, `docs/`, `src/`, `data/`.
+- **File đã sửa:** `docs/PLAN.md`, `docs/SPEC.md` (v0.3), `docs/PROGRESS_LOG.md`, `README.md`, `data/README.md`, `.env.example`. `UC_CATALOG=olist_catalog` đã có trong `.env` (không commit).
+- **Quyết định:** catalog và Volume khóa theo S1. Jobs và Git folder dùng được trên Free Edition. Không đổi kiến trúc SPEC §10 ngày 10/10/2026.
+- **Còn mở:** S2, S3, S6; frontend OLAP; loại OLAP; AI/BI trên Free Edition.
+- **Việc tiếp theo:** S2 (SQL warehouse từ Python local), rồi S3. S6 không chặn ETL Cloud.
+
+### 13/10/2026 — Phase 0 — PLAN tách Cloud và Local
+- **Đã làm:** viết lại `docs/PLAN.md` v0.3. Mỗi phase có mục **Cloud**, **Local → Cloud**, **Local**. Thứ tự hiện thực: Databricks trước; pyspark + delta-spark trên `data/sample/` (R46) làm sau khi phần Cloud tương ứng đã chạy.
+- **Lý do:** nhóm cần biết việc nào làm trên workspace và việc nào làm trên máy. Không đổi kiến trúc SPEC §10, không thêm hoặc bỏ mã R-xx, không viết ETL.
+- **File đã sửa:** `docs/PLAN.md`, `docs/PROGRESS_LOG.md`.
+- **Quyết định:** không có quyết định kiến trúc mới. Chỉ thứ tự làm: Cloud trước, local sau.
+- **Việc tiếp theo:** S1 trên Databricks (catalog, Volume, `spark.read`).
 
 ### 10/10/2026 — Phase 0 (sửa kiến trúc) — Đổi sang Databricks medallion; spike chưa bắt đầu
 - **Đã làm:** cập nhật tài liệu từ stack PostgreSQL (đã khóa trong SPEC v0.1) sang medallion Databricks. Không viết ETL/DSS, không tạo file mới, không commit.

@@ -2,11 +2,10 @@
 
 Bài tập lớn **CO4031 – Kho dữ liệu và Hệ hỗ trợ Quyết định (HK261)**: xây dựng kho dữ liệu, OLAP dashboard và hệ hỗ trợ quyết định trên dataset **Olist Brazilian E-Commerce** (Kaggle).
 
-**Đề tài (đã chốt có điều kiện, 10/10/2026):** *Quản lý hiệu suất người bán* (T1 – Olist Seller Performance DW & DSS) — giúp Trưởng bộ phận Quản lý chất lượng seller chọn chính sách phân hạng và can thiệp seller hằng tháng, tối thiểu số đơn trải nghiệm xấu dự kiến trong giới hạn GMV bị ảnh hưởng. Chốt cuối sau cổng G1–G6 (đầu Phase 1); nếu không đạt thì chuyển T2 Delivery Promise, dùng lại cùng DW.
+**Đề tài:** *Quản lý hiệu suất người bán* (T1 – Olist Seller Performance DW & DSS) — giúp Trưởng bộ phận Quản lý chất lượng seller chọn chính sách phân hạng và can thiệp seller hằng tháng, tối thiểu số đơn trải nghiệm xấu dự kiến trong giới hạn GMV bị ảnh hưởng. Chốt cuối sau cổng G1–G6 (đầu Phase 1); nếu không đạt thì chuyển T2 Delivery Promise, dùng lại cùng DW.
 
-**Công nghệ (kiến trúc đổi 10/10/2026):** Databricks Free Edition, Delta Lake, Unity Catalog (schema `bronze` / `silver` / `gold` / `dss`), PySpark + Spark SQL; DSS bằng Python (scikit-learn / statsmodels), đọc Gold và ghi `dss.*`. Frontend OLAP chờ spike (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Đường tái lập local: pyspark + delta-spark trên `data/sample/`.
+**Công nghệ:** Databricks Free Edition, Delta Lake, Unity Catalog (schema `bronze` / `silver` / `gold` / `dss`), PySpark + Spark SQL; DSS bằng Python (scikit-learn / statsmodels), đọc Gold và ghi `dss.*`. Frontend OLAP chờ spike (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Đường tái lập local: pyspark + delta-spark trên `data/sample/`.
 
-**Hạn nộp:** 23:59, 15/11/2026 (ZIP qua LMS).
 
 ## Thứ tự đọc tài liệu (cho người/AI mới)
 1. [README.md](README.md) (file này)
@@ -44,19 +43,7 @@ olist-dw-dss/
    ```bash
    python src/notebooks/00_verify_and_sample.py
    ```
-2. `cp .env.example .env` và điền biến Databricks. Không commit `.env`. `DATABRICKS_TOKEN` để trống trong `.env.example`.
-3. **Databricks** (Volume → Bronze → Silver → Gold): _điền sau spike S1 và khi hiện thực (Phase 3–6)._
-4. **Local trên sample** (pyspark + delta-spark, `USE_SAMPLE=1`): _điền sau S6._
-
-## Thành viên và vai trò
-
-> Đề yêu cầu nhóm 2–3 sinh viên, **mỗi thành viên phải có vai trò rõ ràng**, và **tất cả** phải tham gia thuyết trình (mục 1.3, 4 của đề).
-
-| Họ tên | MSSV | Vai trò | Ghi chú |
-|---|---|---|---|
-| | | | |
-| | | | |
-| | | | |
+2. `cp .env.example .env` và điền biến Databricks. `DATABRICKS_TOKEN` để trống trong `.env.example`.
 
 ## Trạng thái
-Phase 0 — tài liệu đã cập nhật sang kiến trúc Databricks medallion (10/10/2026). Spike S1–S6 chưa làm. Đề tài T1 vẫn chốt có điều kiện G1–G6. Việc tiếp theo: spike S1–S6 (hạn 13/10), rồi Phase 1. Xem [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+Phase 0 — S1, S4, S5 đạt trên Databricks Free Edition (13/10/2026). Còn S2, S3, S6. Đề tài T1 vẫn chốt có điều kiện G1–G6. Xem [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
