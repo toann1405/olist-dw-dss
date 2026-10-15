@@ -10,15 +10,23 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 1 — notebook profiling đã có trong repo, chưa Run trên Databricks. S2, S3, S6 chưa chạy |
-| Đang làm | Chờ output `SOURCE=volume` của `src/notebooks/01_profiling.py` |
-| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE chưa upload Volume |
-| Việc tiếp theo | Upload `ibge_state_region.csv` vào `ref/` trên Volume (không vào `funnel/`). Pull và Run profiling trên Databricks, dán `PHASE1_RESULT` |
+| Phase hiện tại | Phase 1 tài liệu đã khóa từ số Volume (15/10/2026). T1, X=10, N=40 đã chốt. Việc tiếp theo là Phase 2 |
+| Đang làm | — |
+| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE chưa upload `ref/` trên Volume |
+| Việc tiếp theo | Phase 2: viết `docs/DESIGN.md` (fact, grain, hierarchy, source-to-target). Upload `ibge_state_region.csv` vào `/Volumes/olist_catalog/bronze/raw/ref/` |
 | Cập nhật | 15/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 15/10/2026 — Phase 1 — Ghi số đo Volume và chốt T1, X, N
+- **Đã làm:** ghi kết quả `01_profiling.py` Run All trên Databricks (`SOURCE=volume`, `NOT_OFFICIAL=no`). Không viết ETL. Không upload Volume.
+- **Cổng:** G1 pass 173/3.095; G2 pass 96.469/96.478; G3 pass 1.278/98.666; G4 pass 14.575/99.224; G5 pass 19/25 tháng; G6 record 380/3.095 (12,3%), `funnel_as_attribute_only=no`.
+- **Quyết định nhóm:** giữ T1; trải nghiệm xấu = review ≤ 2 hoặc giao trễ hẹn; loại 1.278 đơn nhiều seller khỏi measure đó; giữ cửa sổ 2016-09-04 → 2018-10-17 (tháng thưa ghi hạn chế); X=10% GMV; N=40 seller/tháng.
+- **File đã sửa:** `docs/SPEC.md` (v0.4), `docs/TOPIC_EVALUATION.md`, `docs/PLAN.md`, `docs/DESIGN.md` §7, `docs/PROGRESS_LOG.md`.
+- **Còn mở:** đọc slide Ch6–7; upload IBGE vào `ref/`; S2, S3, S6; frontend OLAP; loại OLAP; thuyết trình; phân vai.
+- **Việc tiếp theo:** Phase 2 thiết kế DW.
 
 ### 15/10/2026 — Phase 1 — Bỏ ngày lễ; snapshot bang → vùng IBGE
 - **Đã làm:** nhóm bỏ lịch ngày lễ Brazil. Tạo `data/external/ibge_state_region.csv` từ API https://servicodados.ibge.gov.br/api/v1/localidades/estados (tải 15/10/2026). Không gọi API trong ETL. Không upload Volume. Không chạy profiling.

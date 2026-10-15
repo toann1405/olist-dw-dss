@@ -2,9 +2,9 @@
 
 | Mục | Giá trị |
 |---|---|
-| Ngày | 10/10/2026 (tuần 7); cập nhật 10/10/2026 sau khi tải dữ liệu |
-| Trạng thái | **Đã chốt có điều kiện (10/10/2026).** Dữ liệu Olist và Marketing Funnel đã tải; số liệu nhẹ từ `00_verify_and_sample.py`. Profiling sâu và cổng G1–G6 thuộc Phase 1. |
-| Kết luận | **T1 – nhóm đã xác nhận; chốt cuối sau G1–G6** |
+| Ngày | 10/10/2026 (tuần 7); cổng G1–G6 đo trên Volume 15/10/2026 |
+| Trạng thái | **T1 chốt (15/10/2026).** G1–G5 pass; G6 record 380/3.095 (12,3%). |
+| Kết luận | **T1 Seller Performance** |
 
 Ký hiệu: **[ĐỀ]** có trong file đề · **[SUY LUẬN]** do nhóm suy ra · **[GIẢ ĐỊNH]** chưa kiểm chứng, kiểm tra ở Phase 1.
 
@@ -74,14 +74,14 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 
 ### 1.7 Cổng kiểm tra trên dữ liệu thật (chạy đầu Phase 1, trước khi chốt)
 
-| Mã | Kiểm tra | Ngưỡng đề xuất (nhóm chốt) | Nếu không đạt |
-|---|---|---|---|
-| G1 | Số seller có ≥ 10 item/tháng trong ≥ 6 tháng | ≥ 150 seller | Hạ ngưỡng sang quý, hoặc chuyển sang T2 |
-| G2 | % đơn đã giao có đủ `delivered_carrier_date` và `delivered_customer_date` | ≥ 95% | Loại đơn thiếu mốc, ghi vào hạn chế |
-| G3 | % đơn có > 1 seller | ≤ 5% | Quy tắc quy trách nhiệm (chia đều / loại) |
-| G4 | Tỷ lệ review ≤ 2 trên tổng review | 5–25% (đủ để mô hình học) | Đổi biến mục tiêu sang "trễ hạn" |
-| G5 | Số tháng có ≥ 1.000 đơn | ≥ 15 tháng | Giới hạn phạm vi thời gian |
-| G6 | % seller trong `orders` khớp được với `closed_deals` | Chỉ ghi nhận | < 10% → dùng funnel như thuộc tính phụ, không làm hierarchy chính |
+| Mã | Kiểm tra | Ngưỡng đề xuất (nhóm chốt) | Nếu không đạt | Kết quả Volume 15/10/2026 |
+|---|---|---|---|---|
+| G1 | Số seller có ≥ 10 item/tháng trong ≥ 6 tháng | ≥ 150 seller | Hạ ngưỡng sang quý, hoặc chuyển sang T2 | **pass** 173 / 3.095 |
+| G2 | % đơn đã giao có đủ `delivered_carrier_date` và `delivered_customer_date` | ≥ 95% | Loại đơn thiếu mốc, ghi vào hạn chế | **pass** 96.469 / 96.478 (0,999907) |
+| G3 | % đơn có > 1 seller | ≤ 5% | Quy tắc quy trách nhiệm (chia đều / loại) | **pass** 1.278 / 98.666 (0,012953). Nhóm loại những đơn này khỏi measure trải nghiệm xấu |
+| G4 | Tỷ lệ review ≤ 2 trên tổng review | 5–25% (đủ để mô hình học) | Đổi biến mục tiêu sang "trễ hạn" | **pass** 14.575 / 99.224 (0,146890) |
+| G5 | Số tháng có ≥ 1.000 đơn | ≥ 15 tháng | Giới hạn phạm vi thời gian | **pass** 19 / 25 tháng. 19 tháng ≥ 1.000 đơn liền 2017-02 → 2018-08 |
+| G6 | % seller trong `orders` khớp được với `closed_deals` | Chỉ ghi nhận | < 10% → dùng funnel như thuộc tính phụ, không làm hierarchy chính | **record** 380 / 3.095 (0,122779). `funnel_as_attribute_only=no` |
 
 ---
 
@@ -115,7 +115,7 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 
 ---
 
-## 3. Kết luận — đề tài đã chốt có điều kiện (10/10/2026)
+## 3. Kết luận — đề tài T1 chốt (15/10/2026)
 
 **Tên đề tài:** *Kho dữ liệu và Hệ hỗ trợ quyết định quản lý hiệu suất người bán trên sàn thương mại điện tử Olist* (Olist Seller Performance DW & DSS).
 
@@ -134,4 +134,4 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 | (b) Nguồn hợp lệ, quy mô đủ lớn | Kaggle, license CC BY-NC-SA 4.0; **99,441 đơn**, 9 bảng Olist + Marketing Funnel (842 closed deals, 8,000 MQL) — số từ script 10/10/2026. Đề không định lượng "đủ lớn" — nhóm nêu quy mô thực tế |
 | (c) Ý nghĩa thực tế, bài toán quyết định cụ thể | Quyết định phân hạng/can thiệp seller hằng tháng của một marketplace thật, gắn KPI trải nghiệm khách và GMV |
 
-**Việc cần làm trước khi chốt cuối:** chạy G1–G6 trên dữ liệu thật (đầu Phase 1); nhóm chốt X (% GMV) và N (số seller/tháng) mặc định cho DSS.
+**Đã chốt 15/10/2026:** G1–G6 đo trên Volume; giữ T1; X=10% GMV; N=40 seller/tháng; trải nghiệm xấu = review ≤ 2 hoặc giao trễ hẹn, không tính đơn nhiều seller.

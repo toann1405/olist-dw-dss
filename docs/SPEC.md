@@ -3,8 +3,8 @@
 | Mục | Giá trị |
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
-| Phiên bản | v0.3 — 13/10/2026 |
-| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Đề tài T1 vẫn chốt có điều kiện G1–G6. Không dùng lịch ngày lễ. Bảng bang → vùng ở `data/external/ibge_state_region.csv`, chưa upload Volume (15/10/2026) |
+| Phiên bản | v0.4 — 15/10/2026 |
+| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt. X=10, N=40. S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Bảng bang → vùng ở `data/external/ibge_state_region.csv`, chưa upload Volume |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -21,8 +21,8 @@ Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra t�
 | Bài toán quyết định | Mỗi tháng, chọn **chính sách phân hạng seller** (bộ ngưỡng) để xếp seller vào mức can thiệp: *Bình thường / Theo dõi / Cảnh báo + hỗ trợ / Tạm ngưng hiển thị* |
 | Decision maker | Trưởng bộ phận Quản lý chất lượng người bán (Seller Quality / Marketplace Ops Manager) |
 | Alternatives | P0 không can thiệp · P1 ngưỡng KPI cố định · P2 ngưỡng theo điểm rủi ro dự báo · các biến thể ngưỡng của P1/P2 |
-| Principle of choice / KPI | Tối thiểu **số đơn trải nghiệm xấu dự kiến** tháng tới (đơn có review ≤ 2 hoặc giao trễ hẹn), ràng buộc **GMV bị ảnh hưởng ≤ X%** và **số seller cần xử lý ≤ N** (X, N là tham số của decision maker) |
-| Phạm vi | Đơn 2016–2018 của dataset Olist + Marketing Funnel; medallion trên Databricks (Bronze → Silver → Gold), chỉ batch; data mart Kimball chủ đề "hiệu suất seller & hoàn tất đơn" nằm ở Gold; OLAP (frontend chờ spike); DSS mô hình rủi ro + mô phỏng chính sách, đọc Gold và ghi `dss.*` |
+| Principle of choice / KPI | Tối thiểu **số đơn trải nghiệm xấu dự kiến** tháng tới. Đơn trải nghiệm xấu = review ≤ 2 **hoặc** giao trễ so với ngày hẹn. Measure **không tính** 1.278 đơn có hơn một seller (G3, 15/10/2026). Ràng buộc **GMV bị ảnh hưởng ≤ 10%** và **số seller cần xử lý ≤ 40**/tháng (X, N là tham số; mặc định nhóm chốt 15/10/2026) |
+| Phạm vi | Đơn Olist có `order_purchase_timestamp` từ 2016-09-04 21:15:19 đến 2018-10-17 17:30:18 (Volume, 15/10/2026) + Marketing Funnel; medallion trên Databricks (Bronze → Silver → Gold), chỉ batch; data mart Kimball chủ đề "hiệu suất seller & hoàn tất đơn" nằm ở Gold; OLAP (frontend chờ spike); DSS mô hình rủi ro + mô phỏng chính sách, đọc Gold và ghi `dss.*`. Tháng thưa (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10; không có 2016-11) giữ trong kho, ghi vào hạn chế |
 | Ngoài phạm vi | Tối ưu lợi nhuận (không có dữ liệu chi phí); phân tích NLP nội dung review; dự báo nhu cầu toàn sàn; triển khai production. Hướng phát triển: streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL |
 
 **Đáp ứng mục 3.1 [ĐỀ, Trang 3]:** (a) Gold layer là DW, nguồn duy nhất cho OLAP và DSS; (b) dữ liệu Kaggle, license CC BY-NC-SA 4.0, ~100 nghìn đơn, 9 bảng + nguồn bổ sung; (c) quyết định cụ thể, lặp lại hằng tháng, có KPI đo được.
@@ -61,7 +61,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R24 | ≥ 2 dimension có hierarchy | BB\* | L.O.2.3; slide Ch2 | 2 | `DESIGN.md` | ◐ |
 | R25 | Đủ 5 phép OLAP (slice, dice, drill-down, roll-up, pivot), mỗi phép trả lời 1 câu hỏi nghiệp vụ | BB\* | Mục tiêu 3; slide Ch2–3 | 4 | `src/sql/olap_queries/`, `src/frontend/` | ☐ |
 | R26 | Chọn ROLAP hoặc HOLAP có lý do — loại OLAP còn mở, chốt sau spike cùng frontend | NC | slide Ch2–3 | 0–2 | SPEC §5 | ◐ |
-| R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain, pytest trên sample) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/`, `src/tests/` | ☐ |
+| R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain, pytest trên sample) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/`, `src/tests/` | ◐ |
 | R28 | Incremental load (watermark `order_purchase_timestamp`, Delta MERGE) | NC | slide Ch2 | 3 | `src/etl/` | ☐ |
 | R29 | Data dictionary, metadata, source-to-target mapping | NC | slide Ch2-cont, Ch6 | 2 | `DESIGN.md` | ☐ |
 | R30 | Tích hợp thật nhiều bảng/nguồn, có bằng chứng | BB\* | 3.1(a) + lý do bỏ DataCo | 1–3 | SPEC §3, `DESIGN.md`, `src/etl/` | ◐ |
@@ -116,20 +116,35 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 
 **Bằng chứng tích hợp nhiều bảng/nguồn (R30):** (1) mỗi fact cần ≥ 4 bảng nguồn để nạp; (2) bảng source-to-target mapping trong `DESIGN.md` ghi nguồn từng cột; (3) bảng `gold.etl_audit` ghi số dòng đọc/nạp/loại theo từng nguồn; (4) measure phái sinh liên nguồn (khoảng cách cần geolocation × customers × sellers; điểm rủi ro cần items × reviews × orders).
 
-**Vấn đề chất lượng dữ liệu cần xử lý** (tất cả **[GIẢ ĐỊNH], kiểm tra ở Phase 1**):
+**Vấn đề chất lượng dữ liệu** (đo trên Volume, `SOURCE=volume`, 15/10/2026, `01_profiling.py`):
 
-| Vấn đề | Hướng xử lý |
-|---|---|
-| geolocation nhiều dòng/zip prefix, có tọa độ ngoài Brazil | Lọc theo bounding box Brazil, lấy trung vị lat/lng và mode city/state theo zip prefix |
-| Tên thành phố lệch chính tả/dấu | Chuẩn hóa: lowercase, bỏ dấu, trim |
-| Hai loại khóa khách hàng | dim_customer theo `customer_unique_id`; map `customer_id` → key ở Silver |
-| Category tiếng Bồ Đào Nha, có product thiếu category / thiếu bản dịch | Join bảng dịch; thiếu → `unknown`; thêm `category_group` do nhóm định nghĩa |
-| Timestamp thiếu (đơn hủy/chưa giao) hoặc sai thứ tự | Giữ NULL + cờ; loại khỏi measure thời gian; ghi số dòng vào `gold.etl_audit` |
-| Review trùng `review_id` / đơn nhiều review | Giữ review mới nhất theo `review_answer_timestamp` |
-| Payment `not_defined`, giá trị 0, trả góp 0 | Gắn "unknown"; đối soát tổng payment vs price + freight |
-| Zip prefix mất số 0 đầu nếu đọc dạng số | Đọc mọi id/zip dạng chuỗi |
-| 2016 thưa, cuối 2018 bị cắt | Giới hạn cửa sổ phân tích/mô hình theo tháng đủ dữ liệu (G5) |
-| Đơn có nhiều seller | Quy trách nhiệm review cho mọi seller trong đơn hoặc loại (chốt theo G3) |
+| Vấn đề | Số đo | Hướng xử lý |
+|---|---|---|
+| geolocation nhiều dòng/zip prefix, tọa độ ngoài Brazil | 1.000.163 dòng; 19.015 zip prefix; 17.972 zip có hơn một dòng; tối đa 1.146 dòng/zip; trung bình 52,598633 dòng/zip; 31 điểm ngoài bbox; 0 lat/lng NULL | Lọc bounding box Brazil, lấy trung vị lat/lng và mode city/state theo zip prefix |
+| Tên thành phố lệch chính tả/dấu | `geolocation_city`: 8.010 distinct_lower, 5.968 sau khi bỏ dấu, 73.437 dòng có dấu. `customer_city` 4.119 / `seller_city` 611: không đổi sau khi bỏ dấu | Chuẩn hóa: lowercase, bỏ dấu, trim |
+| Hai loại khóa khách hàng | 99.441 `customer_id` phân biệt trên 99.441 dòng; 96.096 `customer_unique_id` | dim_customer theo `customer_unique_id`; map `customer_id` → key ở Silver |
+| Category thiếu / thiếu bản dịch | 610 / 32.951 product thiếu `product_category_name`; 2 category không có dòng dịch | Join bảng dịch; thiếu → `unknown`; thêm `category_group` do nhóm định nghĩa |
+| Timestamp thiếu hoặc sai thứ tự | Orders 99.441. NULL: `order_approved_at` 160, `order_delivered_carrier_date` 1.783, `order_delivered_customer_date` 2.965. Đảo: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 96.469 / 96.478 đơn `delivered` có cả hai mốc giao | Giữ NULL + cờ; loại khỏi measure thời gian; ghi số dòng vào `gold.etl_audit` |
+| Review trùng / đơn nhiều review | 99.224 dòng; 789 nhóm `review_id` trùng; 814 dòng thừa; 547 đơn có hơn một dòng review. Điểm ≤ 2: 14.575 / 99.224 (G4) | Giữ review mới nhất theo `review_answer_timestamp` |
+| Payment lạ | `not_defined` 3; `payment_value` = 0: 9; `payment_installments` = 0: 2. 387 / 98.665 đơn lệch abs(price + freight − payment) > 0,01 | Gắn "unknown"; đối soát tổng payment vs price + freight |
+| Zip prefix đọc dạng chuỗi | 0 dòng zip ngắn hơn 5 ký tự trên customer, seller, geolocation; min_length = 5 | Tiếp tục đọc mọi id/zip dạng chuỗi |
+| 2016 thưa, cuối 2018 bị cắt | 25 tháng có đơn; 19 tháng ≥ 1.000 đơn (G5), liền 2017-02 → 2018-08. Thưa: 2016-09=4, 2016-10=324, 2016-12=1, 2017-01=800, 2018-09=16, 2018-10=4. Không có 2016-11. Purchase min/max: 2016-09-04 21:15:19 → 2018-10-17 17:30:18 | Giữ toàn bộ cửa sổ trong kho. Tháng thưa ghi vào hạn chế, không cắt khỏi Bronze/Silver/Gold |
+| Đơn có nhiều seller | 1.278 / 98.666 đơn có items (1,2953%, G3). 0 item orphan | Loại những đơn này khỏi measure trải nghiệm xấu / review trách nhiệm seller |
+
+**Câu hỏi phân tích ↔ KPI** (chốt 15/10/2026; SQL thuộc Phase 4):
+
+| # | Câu hỏi | KPI | Dimension |
+|---|---|---|---|
+| 1 | Tỷ lệ seller bàn giao trễ khi gộp Thành phố → Bang → Vùng: vấn đề mang tính vùng hay cục bộ? | Tỷ lệ bàn giao trễ = đơn/item trễ hạn bàn giao / tổng | seller (vùng, bang, thành phố); thời gian |
+| 2 | Tỷ lệ review ≤ 2 theo Năm → Quý → Tháng → Ngày: tháng nào nổi so với các tháng quanh đó? | Tỷ lệ review ≤ 2 | thời gian (ngày) |
+| 3 | Cố định một nhóm danh mục: seller nào có tỷ lệ giao trễ cao nhất? | Tỷ lệ giao trễ so với ngày hẹn | sản phẩm (nhóm danh mục); seller |
+| 4 | Khách vùng Norte + Nordeste, Q1–Q2/2018, hàng cồng kềnh: tỷ lệ trễ và review ≤ 2 theo bang seller? | Tỷ lệ trễ; tỷ lệ review ≤ 2 | địa lý khách; thời gian; sản phẩm; bang seller |
+| 5 | Bảng Bang seller × Quý (tỷ lệ bàn giao trễ) xoay thành Nhóm danh mục × Quý: nguồn gây trễ nằm ở đâu? | Tỷ lệ bàn giao trễ | bang seller; quý; nhóm danh mục |
+| 6 | Tỷ lệ đơn trải nghiệm xấu theo seller-tháng, đã loại 1.278 đơn nhiều seller, là bao nhiêu? | Tỷ lệ trải nghiệm xấu (review ≤ 2 hoặc giao trễ hẹn) | seller; tháng |
+| 7 | GMV của seller bị gắn cờ có vượt trần 10% GMV kỳ không? | % GMV bị ảnh hưởng so với X=10 | seller; tháng |
+| 8 | Số seller bị gắn cờ mỗi tháng có nằm trong trần N=40 không? | Số seller gắn cờ so với N=40 | seller; tháng |
+| 9 | Seller có `closed_deals` khác seller không có funnel ở tỷ lệ trải nghiệm xấu không? | Tỷ lệ trải nghiệm xấu; số seller | seller (có/không funnel); tháng |
+| 10 | Các tháng thưa (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10) có kéo lệch KPI cả kỳ so với 2017-02–2018-08 không? | Tỷ lệ trải nghiệm xấu; số đơn | thời gian (tháng) |
 
 ---
 
@@ -309,8 +324,8 @@ flowchart LR
 | `README.md` | Tổng quan, cách chạy (Databricks và local trên sample), thứ tự đọc | 0 | ☑ |
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
-| `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (chốt có điều kiện; G1–G6 = Phase 1) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.3: S1/S4/S5 đã ghi; còn mở: X, N, trải nghiệm xấu, thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
+| `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (T1 chốt 15/10/2026; G1–G6 đã đo trên Volume) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.4: profiling Volume; T1, X=10, N=40, trải nghiệm xấu đã chốt. Còn mở: thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
 | `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☐ (khung) |
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
@@ -318,7 +333,7 @@ flowchart LR
 | `data/README.md` | Nguồn, license, cách tải, mô tả file, upload Volume | 0 | ☑ |
 | `data/raw/` · `data/external/` · `data/sample/` | Dữ liệu gốc · bổ sung · mẫu (local và nộp bài) | 0–1 | ☑ Olist + Funnel + sample + `ibge_state_region.csv` (chưa upload Volume). Không dùng lịch ngày lễ |
 | `src/notebooks/00_verify_and_sample.py` | Kiểm tra file tải về + tạo mẫu giữ khóa | 0 | ☑ |
-| `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☐ |
+| `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☑ `01_profiling.py` chạy trên Volume 15/10/2026 |
 | `src/sql/ddl/` · `src/sql/views/` · `src/sql/olap_queries/` | Delta DDL (bronze/silver/gold/dss) · view · truy vấn OLAP Spark SQL trên Gold | 3–4 | ☐ |
 | `src/etl/` | Notebook/pipeline Bronze, Silver, Gold | 3 | ☐ |
 | `src/dss/` | M1, M2, goal seek, sensitivity, rules; đọc Gold, ghi `dss.*` | 5 | ☐ |
@@ -337,7 +352,7 @@ flowchart LR
 | Người chấm không chạy lại được trên cloud | Khó chấm ETL/DSS | R46: chạy local trên sample; hướng dẫn trong README; nộp kèm output/screenshot |
 | Đường cong học Spark | Trễ Phase 3 | Chỉ batch; dữ liệu nhỏ; notebook `.py`; thử trên sample trước (S6) |
 | Kết nối từ ngoài vào Free Edition (Python local, Power BI, Streamlit) | OLAP hoặc DSS UI không đọc được Gold | S2 và S3; nếu fail thì ghi 2 phương án và chờ nhóm, không tự đổi công cụ |
-| Seller thưa (G1 không đạt) | M1 nhiễu | Gộp theo quý, ngưỡng số đơn tối thiểu; dự phòng chuyển sang T2 dùng lại DW (Gold) |
+| Seller thưa (G1 không đạt) | M1 nhiễu | G1 đạt 173 seller (15/10/2026). Giữ ngưỡng ≥ 10 item/tháng trong ≥ 6 tháng |
 | DSS bị cắt vì trễ tiến độ | Hụt L.O.3.3/4.2 | M2 + what-if là phần tối thiểu, làm trước; M1 bắt đầu bằng baseline đơn giản |
 | Chương 6–8 dạy sau giữa kỳ | Thiếu lý thuyết DSS khi cần | Đọc trước slide Ch6–7 trong tuần 8 |
 | Thay đổi phạm vi | Trễ hạn | Khóa phạm vi sau Phase 1; mọi thay đổi ghi vào PROGRESS_LOG |
@@ -346,6 +361,9 @@ flowchart LR
 |---|---|
 | Dùng dataset Olist (bỏ DataCo) | Trước 10/10/2026 |
 | Đề tài **T1 Seller Performance** (có điều kiện: chốt cuối khi G1–G6 đạt; nếu không đạt → T2 Delivery Promise, dùng lại cùng DW) | 10/10/2026 |
+| Đề tài **T1 Seller Performance** chốt cuối. G1–G5 pass, G6 = 380/3.095 (12,3%), `funnel_as_attribute_only=no`. Không chuyển T2 | 15/10/2026 |
+| Trải nghiệm xấu = review ≤ 2 hoặc giao trễ so với ngày hẹn. Measure không tính 1.278 đơn nhiều seller. Cửa sổ kho: 2016-09-04 → 2018-10-17; tháng thưa giữ trong kho | 15/10/2026 |
+| X mặc định = 10% GMV bị ảnh hưởng; N mặc định = 40 seller/tháng | 15/10/2026 |
 | Decision maker / quyết định / alternatives / principle of choice giữ như SPEC §1 | 10/10/2026 |
 | Kiến trúc: bottom-up data mart, fact constellation (`fact_order_item`, `fact_order`, `fact_seller_monthly`), ROLAP | 10/10/2026 — **thay thế ngày 10/10/2026** (data mart giữ ở Gold; loại OLAP mở lại) |
 | Stack: PostgreSQL (staging/dw/dss cùng 1 DB, tách schema) + Python 3.11+ (pandas, SQLAlchemy, psycopg) + Streamlit + scikit-learn/statsmodels + pytest | 10/10/2026 — **thay thế ngày 10/10/2026** |
@@ -359,7 +377,6 @@ flowchart LR
 
 | Còn mở | Ghi chú |
 |---|---|
-| Giá trị mặc định X (% GMV), N (seller/tháng), định nghĩa "trải nghiệm xấu" | Phase 1 |
 | Thuyết trình trực tiếp hay video | Đăng ký với giảng viên |
 | Phân vai thành viên | Nhóm tự điền README |
 | Upload `ibge_state_region.csv` lên `/Volumes/olist_catalog/bronze/raw/ref/` | Chưa làm. Không đặt file này trong `funnel/` |

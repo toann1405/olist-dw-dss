@@ -43,7 +43,21 @@ _chưa điền (mermaid `erDiagram` hoặc hình trong `docs/report/`)_
 | _còn lại_ | | | | _chưa điền — Phase 2_ |
 
 ## 7. Quy tắc làm sạch (R27) — Phase 1–2
-_Chuyển từ SPEC §3 sau khi profiling xác nhận; ghi số dòng bị ảnh hưởng._
+
+Số đo từ `01_profiling.py`, `SOURCE=volume`, 15/10/2026.
+
+| Quy tắc | Số dòng / nhóm bị ảnh hưởng | Ghi chú |
+|---|---|---|
+| Geolocation: lọc bbox Brazil, trung vị lat/lng, mode city/state theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox | 0 lat/lng NULL |
+| Chuẩn hóa thành phố (lowercase, bỏ dấu, trim) | `geolocation_city`: 8.010 → 5.968 distinct sau khi bỏ dấu; 73.437 dòng có dấu. Customer/seller city không đổi | |
+| dim_customer theo `customer_unique_id` | 99.441 `customer_id`; 96.096 `customer_unique_id` | Map `customer_id` ở Silver |
+| Category thiếu → `unknown`; join bản dịch | 610 / 32.951 product thiếu category; 2 category không có dòng dịch | |
+| Timestamp NULL hoặc đảo thứ tự: giữ NULL + cờ; loại khỏi measure thời gian | NULL approved 160, carrier 1.783, customer 2.965. Đảo: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23 | G2: 9 đơn `delivered` thiếu một trong hai mốc giao |
+| Review: giữ dòng mới nhất theo `review_answer_timestamp` | 789 nhóm `review_id` trùng; 814 dòng thừa; 547 đơn nhiều review | 99.224 dòng thô |
+| Payment `not_defined` / 0 → unknown; đối soát price+freight vs payment | 3 `not_defined`; 9 value 0; 2 installments 0; 387 / 98.665 đơn lệch > 0,01 | |
+| Đọc id và zip dạng chuỗi | 0 zip ngắn hơn 5 ký tự | min_length = 5 trên customer, seller, geolocation |
+| Giữ cửa sổ mua hàng 2016-09-04 → 2018-10-17 | Tháng thưa: 2016-09=4, 2016-10=324, 2016-12=1, 2017-01=800, 2018-09=16, 2018-10=4; không có 2016-11. 19 tháng ≥ 1.000 đơn (2017-02 → 2018-08) | Không cắt khỏi kho |
+| Loại đơn nhiều seller khỏi measure trải nghiệm xấu | 1.278 / 98.666 đơn | G3 pass |
 
 ## 8. Data dictionary (R29) — Phase 2–3
 
