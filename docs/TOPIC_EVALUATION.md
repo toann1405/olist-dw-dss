@@ -42,9 +42,9 @@ Ký hiệu: **[ĐỀ]** có trong file đề · **[SUY LUẬN]** do nhóm suy ra
 
 | Dimension | Hierarchy | Nguồn |
 |---|---|---|
-| Thời gian | Năm → Quý → Tháng → Ngày (+ thứ trong tuần, ngày lễ) | Timestamp của `orders`; ngày lễ từ nguồn bổ sung |
-| Địa lý khách hàng | Vùng → Bang → Thành phố (→ zip prefix) | `customers` + bảng bang→vùng (IBGE) |
-| Địa lý người bán | Vùng → Bang → Thành phố | `sellers` + bảng bang→vùng |
+| Thời gian | Năm → Quý → Tháng → Ngày (+ thứ trong tuần, cuối tuần) | Timestamp của `orders`. Không dùng lịch ngày lễ (15/10/2026) |
+| Địa lý khách hàng | Vùng → Bang → Thành phố (→ zip prefix) | `customers` + `data/external/ibge_state_region.csv` |
+| Địa lý người bán | Vùng → Bang → Thành phố | `sellers` + `data/external/ibge_state_region.csv` |
 | Sản phẩm | Nhóm danh mục → Danh mục → Sản phẩm | `products` + `translation` + nhóm danh mục do nhóm tự định nghĩa |
 | Người bán | Phân khúc kinh doanh → Seller | `closed_deals.business_segment` (chỉ một phần seller, [GIẢ ĐỊNH] độ phủ thấp) |
 

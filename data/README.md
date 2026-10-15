@@ -10,8 +10,8 @@
 | License | **CC BY-NC-SA 4.0** (Attribution – NonCommercial – ShareAlike) | ✔ read on the Kaggle page 10/10/2026 |
 | Source description (Kaggle page) | About 100 thousand orders from 2016–2018 across marketplaces in Brazil; real anonymized commercial data; one order can have many items, and each item can be fulfilled by a different seller | ✔; script: **99,441** orders, `order_purchase_timestamp` **2016-09-04 21:15:19 → 2018-10-17 17:30:18** (99,441/99,441 non-null) |
 | Extra source | *Marketing Funnel by Olist* — https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist — 2 files (`olist_closed_deals_dataset.csv`, `olist_marketing_qualified_leads_dataset.csv`), joined to the main dataset on `seller_id` | ✔ license **CC BY-NC-SA 4.0** (Kaggle page 10/10/2026); **downloaded** into `data/external/` on 10/10/2026 (842 closed deals, 8,000 MQLs — from the script) |
-| Extra source (planned) | Brazilian national holidays 2016–2018 (for example the Python `holidays` package or the public Nager.Date API) | ✖ license not checked — Phase 1 |
-| Extra source (planned) | State (UF) → region (Norte, Nordeste, Centro-Oeste, Sudeste, Sul) map from IBGE — a small reference table the team will build and cite | ✖ cite the source when built in Phase 1 |
+| Extra source (dropped) | Brazilian national holidays 2016–2018 | Not used (team decision 15/10/2026). No redistributable 2016–2018 file: Nager.Date offline needs a sponsor license key; do not copy timeanddate.com. `dim_date` uses the order timestamp only |
+| Extra source | State (UF) → region. Snapshot `data/external/ibge_state_region.csv` from the IBGE localities API https://servicodados.ibge.gov.br/api/v1/localidades/estados on 15/10/2026. Official division: Decreto-Lei n. 67.647/1970 and https://www.ibge.gov.br/geociencias/organizacao-do-territorio/divisao-regional/15778-divisoes-regionais-do-brasil.html | ✔ 27 data rows, 863 bytes, 27 distinct `state_code`, regions Norte / Nordeste / Sudeste / Sul / Centro-Oeste. Not on the Volume yet |
 
 **CC BY-NC-SA 4.0 consequence (inference, not legal advice):** academic non-commercial use fits the license. When `data/sample/` is shared on GitHub or Drive, **cite Olist/Kaggle** and **keep the same license** on the shared excerpt.
 
@@ -69,7 +69,7 @@ Download date: **10/10/2026**. Row counts, column counts, and sizes come from `p
 | Folder | Contents | Commit to git? |
 |---|---|---|
 | `raw/` | 9 original Kaggle CSVs, original names, **do not edit by hand** | No (gitignored) |
-| `external/` | Extra sources (Marketing Funnel is present; holidays and state → region: Phase 1) | Small reference files: yes; large files: no |
+| `external/` | Marketing Funnel plus `ibge_state_region.csv`. No holiday calendar | Small reference files: yes; large files: no |
 | `sample/` | Sample of **5,000** orders (seed **42**, script default), keys kept intact across tables, same file names as `raw/` | Yes (submission and a quick demo with `USE_SAMPLE=1`) |
 
 The sample is built by `src/notebooks/00_verify_and_sample.py` (random orders with a fixed seed, then every related item, payment, review, customer, product, seller, and geolocation row). Run on 10/10/2026: default `--orders` 5,000, default `--seed` 42; integrity asserts passed; sample files: orders 5,000 · items 5,712 · payments 5,237 · reviews 4,980 · customers 5,000 · products 3,844 · sellers 1,222 · geolocation 481,054 · translation 71. Full dataset: add a Kaggle or Drive link here at submission time (assignment item 5.1 allows data via GitHub or Google Drive).
@@ -85,5 +85,6 @@ Done in spike S1 (13/10/2026).
 | Volume | `/Volumes/olist_catalog/bronze/raw/` |
 | `olist/` | 9 CSVs from `data/raw/`, original names |
 | `funnel/` | `olist_closed_deals_dataset.csv`, `olist_marketing_qualified_leads_dataset.csv` |
+| `ref/` | Not uploaded yet. Put `ibge_state_region.csv` here, not under `funnel/` |
 
 File sizes on the Volume match section 3 (local measurement 10/10/2026). A notebook read `olist/olist_orders_dataset.csv` with `spark.read` (header, every column cast to `string`): **99,441** rows. `data/sample/` is the local rerun path (pyspark + delta-spark). It does not replace the full upload on Databricks.

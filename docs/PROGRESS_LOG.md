@@ -10,15 +10,23 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 0 — S1, S4, S5 đạt trên Databricks Free Edition (13/10/2026). S2, S3, S6 chưa chạy |
-| Đang làm | — |
-| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm |
-| Việc tiếp theo | Local → Cloud: S2 rồi S3. S6 (pyspark + delta-spark trên `data/sample/`) sau S1, không chặn ETL trên Cloud. Profiling Phase 1 khi nhóm bắt đầu |
-| Cập nhật | 13/10/2026 |
+| Phase hiện tại | Phase 1 — notebook profiling đã có trong repo, chưa Run trên Databricks. S2, S3, S6 chưa chạy |
+| Đang làm | Chờ output `SOURCE=volume` của `src/notebooks/01_profiling.py` |
+| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE chưa upload Volume |
+| Việc tiếp theo | Upload `ibge_state_region.csv` vào `ref/` trên Volume (không vào `funnel/`). Pull và Run profiling trên Databricks, dán `PHASE1_RESULT` |
+| Cập nhật | 15/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 15/10/2026 — Phase 1 — Bỏ ngày lễ; snapshot bang → vùng IBGE
+- **Đã làm:** nhóm bỏ lịch ngày lễ Brazil. Tạo `data/external/ibge_state_region.csv` từ API https://servicodados.ibge.gov.br/api/v1/localidades/estados (tải 15/10/2026). Không gọi API trong ETL. Không upload Volume. Không chạy profiling.
+- **Số liệu (đếm file vừa ghi):** 27 dòng dữ liệu, 28 dòng kể header, 863 byte, 27 `state_code` phân biệt, 5 `region_name` (Norte, Nordeste, Sudeste, Sul, Centro-Oeste).
+- **Lý do bỏ ngày lễ:** không có file 2016–2018 được phép đưa vào repo. `dim_date` chỉ dùng timestamp của đơn (ngày, thứ, cuối tuần).
+- **File đã sửa:** `data/external/ibge_state_region.csv`, `data/README.md`, `docs/SPEC.md`, `docs/PLAN.md`, `docs/DESIGN.md`, `docs/TOPIC_EVALUATION.md`, `docs/PROGRESS_LOG.md`.
+- **Quyết định:** ghi SPEC §10. Upload sau này vào `/Volumes/olist_catalog/bronze/raw/ref/`, không vào `funnel/` (thư mục đó chỉ có 2 CSV Marketing Funnel).
+- **Việc tiếp theo:** upload file IBGE vào `ref/`, rồi Run `01_profiling.py` trên Databricks.
 
 ### 13/10/2026 — Phase 0 — S1, S4, S5 đạt
 - **Đã làm:** ghi kết quả spike Cloud. Không viết ETL, không profiling.
