@@ -72,7 +72,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local** (sau khi có số từ notebook Cloud)
 
 - [ ] Liệt kê vấn đề chất lượng thực tế, cập nhật SPEC §3 (bỏ nhãn [GIẢ ĐỊNH] của dữ liệu) (R27, R30)
-- [ ] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30)
+- [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, chưa upload Volume
 - [ ] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25)
 - [ ] Đọc trước slide Ch6–7 (DSS, modeling) (R33, R36)
 

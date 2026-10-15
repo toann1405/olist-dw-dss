@@ -4,7 +4,7 @@
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
 | Phiên bản | v0.3 — 13/10/2026 |
-| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Đề tài T1 vẫn chốt có điều kiện G1–G6. Dữ liệu đã tải (10/10/2026) |
+| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Đề tài T1 vẫn chốt có điều kiện G1–G6. Không dùng lịch ngày lễ. Bảng bang → vùng ở `data/external/ibge_state_region.csv`, chưa upload Volume (15/10/2026) |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -110,10 +110,9 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Nguồn bổ sung (dự kiến) | Lý do |
 |---|---|
 | Marketing Funnel by Olist (`closed_deals`, nối qua `seller_id`; license CC BY-NC-SA 4.0) | Thuộc tính seller: business_segment, lead_type, ngày ký → hierarchy/thuộc tính dim_seller, biến "tuổi" seller cho mô hình |
-| Lịch ngày lễ Brazil 2016–2018 | Cờ ngày lễ / mùa cao điểm trong dim_date — biến không kiểm soát được |
-| Bảng bang (UF) → vùng (IBGE) | Cấp "Vùng" cho hierarchy địa lý |
+| Bảng bang (UF) → vùng: `data/external/ibge_state_region.csv` (snapshot API IBGE 15/10/2026, 27 dòng) | Cấp "Vùng" cho hierarchy địa lý. Nối `state_code` với `customer_state` / `seller_state` |
 
-**Đưa nguồn lên lakehouse:** 9 CSV Olist và 2 CSV Marketing Funnel nằm trong một Unity Catalog Volume. Spike S1 (13/10/2026) đọc `olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột `string`): 99,441 dòng. Catalog `olist_catalog`. Đường dẫn `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Các bước: `data/README.md` §5.
+**Đưa nguồn lên lakehouse:** 9 CSV Olist và 2 CSV Marketing Funnel nằm trong một Unity Catalog Volume. Spike S1 (13/10/2026) đọc `olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột `string`): 99,441 dòng. Catalog `olist_catalog`. Đường dẫn `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Bảng bang → vùng nằm ở máy trong `data/external/ibge_state_region.csv`; khi upload thì để ở `ref/`, không để trong `funnel/`. File này chưa có trên Volume. Các bước: `data/README.md` §5.
 
 **Bằng chứng tích hợp nhiều bảng/nguồn (R30):** (1) mỗi fact cần ≥ 4 bảng nguồn để nạp; (2) bảng source-to-target mapping trong `DESIGN.md` ghi nguồn từng cột; (3) bảng `gold.etl_audit` ghi số dòng đọc/nạp/loại theo từng nguồn; (4) measure phái sinh liên nguồn (khoảng cách cần geolocation × customers × sellers; điểm rủi ro cần items × reviews × orders).
 
@@ -139,7 +138,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 ```mermaid
 flowchart LR
   subgraph S[Nguồn]
-    A1[9 CSV Olist] --- A2[Marketing Funnel] --- A3[Ngày lễ, Bang sang Vùng]
+    A1[9 CSV Olist] --- A2[Marketing Funnel] --- A3[Bang sang Vung IBGE]
   end
   S -->|Upload| V[(Unity Catalog Volume)]
   V -->|spark.read, append| B[(Bronze: raw)]
@@ -194,7 +193,7 @@ Chỉ xử lý batch. Nếu một spike không đạt, ghi hai phương án vào
 
 | Dimension | Thuộc tính chính | Hierarchy |
 |---|---|---|
-| `dim_date` (role-playing) | ngày, thứ, cuối tuần, ngày lễ, mùa cao điểm | **Năm → Quý → Tháng → Ngày** |
+| `dim_date` (role-playing) | ngày, thứ, cuối tuần | **Năm → Quý → Tháng → Ngày** |
 | `dim_month` (shrunken của dim_date) | tháng, quý, năm | Năm → Quý → Tháng |
 | `dim_customer` | customer_unique_id, zip prefix, city, state, region | **Vùng → Bang → Thành phố** |
 | `dim_seller` | seller_id, city, state, region, business_segment, lead_type, ngày ký | **Vùng → Bang → Thành phố**; Phân khúc → Seller |
@@ -230,7 +229,7 @@ Truy vấn viết bằng Spark SQL trên Gold. Công cụ màn hình OLAP chờ 
 | Phép | Câu hỏi nghiệp vụ | Truy vấn / màn hình |
 |---|---|---|
 | Roll-up | Tỷ lệ seller bàn giao trễ khi gộp Thành phố → Bang → Vùng của seller: vấn đề mang tính vùng hay cục bộ? | Spark SQL trên `gold.fact_order_item` × `gold.dim_seller`, `ROLLUP(region, state, city)` |
-| Drill-down | Tỷ lệ review tiêu cực theo Năm → Quý → Tháng → Ngày: đỉnh có rơi vào mùa cao điểm (ví dụ Black Friday 11/2017 [GIẢ ĐỊNH]) không? | Spark SQL trên `gold.fact_order` × `gold.dim_date` |
+| Drill-down | Tỷ lệ review tiêu cực theo Năm → Quý → Tháng → Ngày: tháng nào nổi so với các tháng quanh đó? | Spark SQL trên `gold.fact_order` × `gold.dim_date` |
 | Slice | Cố định 1 nhóm danh mục: seller nào có tỷ lệ giao trễ cao nhất? | Spark SQL `WHERE category_group = :g` trên Gold |
 | Dice | Khách vùng Norte + Nordeste, Q1–Q2/2018, hàng cồng kềnh: tỷ lệ trễ và review xấu theo bang seller | Spark SQL lọc đồng thời 3 dimension trên Gold |
 | Pivot | Bảng Bang seller × Quý (tỷ lệ bàn giao trễ) xoay thành Nhóm danh mục × Quý để tìm nguồn gây trễ | Spark SQL `PIVOT` trên Gold |
@@ -317,7 +316,7 @@ flowchart LR
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
 | `docs/report/` | Nháp báo cáo, hình | 6–7 | ☐ |
 | `data/README.md` | Nguồn, license, cách tải, mô tả file, upload Volume | 0 | ☑ |
-| `data/raw/` · `data/external/` · `data/sample/` | Dữ liệu gốc · bổ sung · mẫu (local và nộp bài) | 0–1 | ☑ Olist + Funnel + sample (ngày lễ / bang→vùng: Phase 1) |
+| `data/raw/` · `data/external/` · `data/sample/` | Dữ liệu gốc · bổ sung · mẫu (local và nộp bài) | 0–1 | ☑ Olist + Funnel + sample + `ibge_state_region.csv` (chưa upload Volume). Không dùng lịch ngày lễ |
 | `src/notebooks/00_verify_and_sample.py` | Kiểm tra file tải về + tạo mẫu giữ khóa | 0 | ☑ |
 | `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☐ |
 | `src/sql/ddl/` · `src/sql/views/` · `src/sql/olap_queries/` | Delta DDL (bronze/silver/gold/dss) · view · truy vấn OLAP Spark SQL trên Gold | 3–4 | ☐ |
@@ -355,13 +354,15 @@ flowchart LR
 | Catalog `olist_catalog`; Volume `/Volumes/olist_catalog/bronze/raw/` (`olist/` 9 CSV, `funnel/` 2 CSV). `spark.read` trên `olist_orders_dataset.csv`: 99,441 dòng, cột `string` | 13/10/2026 (S1) |
 | Databricks Jobs dùng được trên Free Edition: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được (Paused) | 13/10/2026 (S4) |
 | Git folder dùng được trên Free Edition: `olist-dw-dss`, nhánh `main`, repo `https://github.com/toann1405/olist-dw-dss.git` | 13/10/2026 (S5) |
+| Không dùng lịch ngày lễ Brazil. `dim_date` chỉ lấy ngày, thứ, cuối tuần từ timestamp của đơn. Không có file 2016–2018 được phép đưa vào repo | 15/10/2026 |
+| Bảng bang → vùng: `data/external/ibge_state_region.csv`, 27 dòng, snapshot https://servicodados.ibge.gov.br/api/v1/localidades/estados ngày 15/10/2026. Upload Volume vào `ref/`, không vào `funnel/` | 15/10/2026 |
 
 | Còn mở | Ghi chú |
 |---|---|
 | Giá trị mặc định X (% GMV), N (seller/tháng), định nghĩa "trải nghiệm xấu" | Phase 1 |
 | Thuyết trình trực tiếp hay video | Đăng ký với giảng viên |
 | Phân vai thành viên | Nhóm tự điền README |
-| Ngày lễ Brazil 2016–2018 và bảng bang→vùng IBGE | Kiểm tra license và lập ở Phase 1 |
+| Upload `ibge_state_region.csv` lên `/Volumes/olist_catalog/bronze/raw/ref/` | Chưa làm. Không đặt file này trong `funnel/` |
 | Frontend OLAP | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit — chốt sau S2–S3. AI/BI trên Free Edition là **[GIẢ ĐỊNH]** |
 | Loại OLAP | ROLAP hoặc HOLAP — chốt cùng frontend |
 | Kết quả S2, S3, S6 | Chưa chạy. Nếu không đạt: 2 phương án, chờ nhóm |

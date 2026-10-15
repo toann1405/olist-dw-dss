@@ -32,14 +32,15 @@ _chưa điền (mermaid `erDiagram` hoặc hình trong `docs/report/`)_
 | Dimension | Các cấp | Cột |
 |---|---|---|
 | dim_date | Năm → Quý → Tháng → Ngày | _chưa điền_ |
-| dim_customer / dim_seller | Vùng → Bang → Thành phố | _chưa điền_ |
+| dim_customer / dim_seller | Vùng → Bang → Thành phố | Vùng = `region_name` trong `ibge_state_region.csv`, nối `state_code` = `customer_state` / `seller_state`. Bang và thành phố từ Olist |
 | dim_product | Nhóm danh mục → Danh mục → Sản phẩm | _chưa điền_ |
 
 ## 6. Source-to-target mapping (R05, R29, R30) — Phase 2
 
 | Bảng đích | Cột đích | Bảng nguồn | Cột nguồn | Quy tắc biến đổi |
 |---|---|---|---|---|
-| _chưa điền_ | | | | |
+| `dim_customer`, `dim_seller` | region | `data/external/ibge_state_region.csv` | `region_name` | Nối `state_code` với `customer_state` hoặc `seller_state`. Đọc mọi id dạng chuỗi |
+| _còn lại_ | | | | _chưa điền — Phase 2_ |
 
 ## 7. Quy tắc làm sạch (R27) — Phase 1–2
 _Chuyển từ SPEC §3 sau khi profiling xác nhận; ghi số dòng bị ảnh hưởng._
@@ -48,7 +49,13 @@ _Chuyển từ SPEC §3 sau khi profiling xác nhận; ghi số dòng bị ảnh
 
 | Bảng | Cột | Kiểu | Khóa | Mô tả | Nguồn |
 |---|---|---|---|---|---|
-| _chưa điền_ | | | | | |
+| `ibge_state_region` | `state_id` | string | | Mã IBGE của UF | API localidades/estados, 15/10/2026 |
+| `ibge_state_region` | `state_code` | string | duy nhất (27 giá trị) | Sigla UF, khóa nối với Olist | cùng nguồn |
+| `ibge_state_region` | `state_name` | string | | Tên bang | cùng nguồn |
+| `ibge_state_region` | `region_id` | string | | Mã vùng IBGE 1–5 | cùng nguồn |
+| `ibge_state_region` | `region_code` | string | | N, NE, SE, S, CO | cùng nguồn |
+| `ibge_state_region` | `region_name` | string | | Norte, Nordeste, Sudeste, Sul, Centro-Oeste | cùng nguồn |
+| _còn lại_ | | | | | _chưa điền — Phase 2_ |
 
 ## 9. ETL: thứ tự nạp, incremental, audit (R07, R28, R40) — Phase 3
 _chưa điền. Bảng audit dùng tên `gold.etl_audit` (chưa thiết kế cột)._
