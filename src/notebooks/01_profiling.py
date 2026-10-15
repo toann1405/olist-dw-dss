@@ -416,8 +416,8 @@ def profile_frames(spark: SparkSession, olist_dir: str) -> dict[str, DataFrame]:
     frames: dict[str, DataFrame] = {}
     for name in OLIST_FILES:
         path = f"{olist_dir}/{name}"
-        frame = read_csv(spark, path).cache()
-        frame.count()
+        # Serverless rejects DataFrame.cache() (PERSIST TABLE). Recompute on each action.
+        frame = read_csv(spark, path)
         frames[name] = frame
     return frames
 
@@ -892,8 +892,7 @@ def main() -> None:
         require_columns(frames[name], f"{olist_dir}/{name}", columns)
 
     deals_path = f"{funnel_dir}/{CLOSED_DEALS_FILE}"
-    deals = read_csv(spark, deals_path).cache()
-    deals.count()
+    deals = read_csv(spark, deals_path)
     require_columns(deals, deals_path, ["seller_id"])
 
     result: list[str] = []
@@ -901,10 +900,6 @@ def main() -> None:
     run_quality(frames, deals, result)
     run_gates(frames, deals, result)
     print_result_block(source, result)
-
-    for frame in frames.values():
-        frame.unpersist()
-    deals.unpersist()
 
 
 # COMMAND ----------
