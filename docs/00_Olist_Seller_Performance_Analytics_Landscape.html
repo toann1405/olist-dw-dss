@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Olist Seller Performance — Analytics Landscape</title>
+<style>
+:root{
+  --phase:#02457A;
+  --product:#018ABE;
+  --product-alt:#018ABE;
+  --category:#02457A;
+  --subcat:#02457A;
+  --kpihead:#018ABE;
+  --kpibody:#EBF4F7;
+  --insighthead:#02457A;
+  --insightbody:#D6E8EE;
+  --border:#97CADB;
+  --text:#01233D;
+  --muted:#50768D;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#F6FAFC;color:var(--text);font-family:Aptos,Arial,Helvetica,sans-serif}
+body{min-width:1680px}
+.canvas{position:relative;width:1920px;min-height:1180px;margin:0 auto;padding:16px 18px 26px 126px;background:#fff}
+.rail{position:absolute;left:15px;top:16px;width:82px}
+.rail-chip{min-height:27px;margin-bottom:14px;padding:5px 4px;border:1px solid var(--border);border-radius:5px;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.15;color:var(--phase);font-weight:700}
+.rail-panel{border:1px solid var(--border);border-radius:13px;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.25;color:var(--phase);font-weight:700}
+.rail-monitor{height:330px;margin-top:150px}.rail-insight{height:185px;margin-top:20px}
+.phase{height:28px;border-radius:4px;background:var(--phase);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;letter-spacing:.04em}
+.hierarchy,.monitor-grid,.insight-grid{display:grid;grid-template-columns:1.12fr 1.16fr 1.14fr 1.14fr 1.10fr 1.34fr;gap:30px}
+.hierarchy{margin-top:16px;align-items:start}
+.group-head{min-height:29px;padding:6px 8px;border-radius:4px;background:var(--product);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:700;line-height:1.15}
+.group-head.alt{background:var(--product)}
+.level-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:13px;margin-bottom:6px;text-align:left}
+.row{display:grid;gap:8px}.r1{grid-template-columns:1fr}.r2{grid-template-columns:repeat(2,1fr)}
+.cat{min-height:28px;padding:6px 6px;border-radius:4px;background:var(--category);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px;font-weight:700;line-height:1.15}
+.subcat{min-height:25px;padding:5px 6px;border-radius:4px;background:var(--subcat);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9.5px;font-weight:700;line-height:1.15}
+.white-space{height:120px}
+.monitoring-area{position:relative;min-height:365px}.monitor-grid{align-items:start}
+.kpi-col{display:grid;gap:22px;align-content:start}.offset1{padding-top:18px}.offset2{padding-top:40px}
+.kpi{border:1px solid var(--border);background:var(--kpibody);min-height:90px;border-radius:4px;overflow:hidden}
+.kpi-title{display:inline-block;min-width:105px;padding:6px 9px;background:var(--kpihead);border-right:1px solid rgba(0,0,0,0.06);border-bottom:1px solid rgba(0,0,0,0.06);font-size:10.5px;font-weight:700;color:#fff}
+.kpi ul{margin:8px 9px 9px 20px;padding:0;font-size:10px;line-height:1.43;color:var(--text)}
+.ownership{margin-top:26px;border-top:1px solid var(--border);padding-top:10px;text-align:center;font-size:10.5px;color:var(--muted)}
+.insight-area{margin-top:34px;min-height:180px}.insight-grid{align-items:start}
+.insight{border:1px solid var(--border);background:var(--insightbody);min-height:100px;border-radius:4px;overflow:hidden}
+.insight .head{display:inline-block;padding:6px 9px;background:var(--insighthead);color:#fff;border-right:1px solid rgba(0,0,0,0.06);border-bottom:1px solid rgba(0,0,0,0.06);font-size:10.5px;font-weight:700}
+.insight .head.alt{background:var(--insighthead)}
+.insight p{margin:8px 10px 10px;font-size:10px;line-height:1.45;color:var(--text)}
+.print-btn{position:fixed;right:20px;bottom:20px;border:1px solid var(--border);border-radius:6px;background:#fff;padding:8px 12px;font-size:12px;color:var(--text);cursor:pointer;box-shadow:0 2px 8px rgba(2,69,122,0.12)}
+@media print{@page{size:A3 landscape;margin:6mm}body{min-width:0}.canvas{width:100%;min-height:auto;padding:10px 10px 10px 112px}.print-btn{display:none}}
+</style>
+</head>
+<body>
+<main class="canvas">
+<aside class="rail">
+  <div class="rail-chip">Tầng</div>
+  <div class="rail-chip">Nhóm<br>nghiệp vụ</div>
+  <div class="rail-chip">Hạng mục</div>
+  <div class="rail-panel rail-monitor">Giám sát<br>KPI</div>
+  <div class="rail-panel rail-insight">Insight<br>nghiệp vụ</div>
+</aside>
+
+<section class="phase">OLIST SELLER PERFORMANCE — KHO DỮ LIỆU VÀ DSS</section>
+
+<section class="hierarchy">
+  <div>
+    <div class="group-head">Trải nghiệm đơn</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">Đơn trải nghiệm xấu</div>
+      <div class="cat">Giao so với ngày hẹn</div>
+      <div class="cat">Thời gian giao hàng</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-head">Bàn giao của seller</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">Đúng hạn shipping limit</div>
+      <div class="cat">Thời gian xử lý</div>
+      <div class="cat">Hủy và không giao được</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-head">Giá trị hàng</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">GMV theo price</div>
+      <div class="cat">Phí vận chuyển</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-head">Review của khách</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">Điểm review</div>
+      <div class="cat">Review tiêu cực ≤ 2</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-head">Cắt đa chiều</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">Địa lý và thời gian</div>
+      <div class="cat">Danh mục hàng</div>
+      <div class="cat">Funnel và tháng thưa</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="group-head">Chính sách can thiệp</div>
+    <div class="level-label">Hạng mục</div>
+    <div class="row r1">
+      <div class="cat">Phân hạng seller mỗi tháng</div>
+      <div class="cat">Ràng buộc X và N</div>
+      <div class="cat">So sánh P0, P1, P2</div>
+    </div>
+  </div>
+</section>
+
+<div class="white-space"></div>
+
+<section class="monitoring-area">
+  <div class="monitor-grid">
+    <div class="kpi-col offset1">
+      <div class="kpi"><div class="kpi-title">KPI trải nghiệm</div><ul>
+        <li>Tỷ lệ đơn xấu: review ≤ 2 hoặc giao trễ hẹn</li>
+        <li>Số đơn xấu theo seller-tháng</li>
+        <li>Tỷ lệ giao trễ so với ngày hẹn</li>
+        <li>Số ngày trễ trung bình và P90</li>
+        <li>Thời gian giao trung bình (nhận hàng − ngày mua)</li>
+      </ul></div>
+    </div>
+
+    <div class="kpi-col">
+      <div class="kpi"><div class="kpi-title">KPI bàn giao</div><ul>
+        <li>Tỷ lệ bàn giao trễ (giao vận chuyển &gt; hạn)</li>
+        <li>Số ngày xử lý trung bình (vận chuyển − duyệt)</li>
+        <li>Tỷ lệ hủy và unavailable</li>
+        <li>Số đơn và số item theo seller-tháng</li>
+        <li>Roll-up trễ: thành phố → bang → vùng</li>
+      </ul></div>
+    </div>
+
+    <div class="kpi-col offset1">
+      <div class="kpi"><div class="kpi-title">KPI GMV</div><ul>
+        <li>GMV = tổng price</li>
+        <li>GMV theo seller, danh mục, vùng, tháng</li>
+        <li>Tỷ trọng phí ship trên giá trị đơn</li>
+        <li>% GMV bị ảnh hưởng so với trần X = 10%</li>
+      </ul></div>
+    </div>
+
+    <div class="kpi-col offset2">
+      <div class="kpi"><div class="kpi-title">KPI review</div><ul>
+        <li>Điểm review trung bình</li>
+        <li>Tỷ lệ dòng review có điểm ≤ 2</li>
+        <li>Cắt Năm → Quý → Tháng → Ngày</li>
+        <li>Giữ review mới nhất theo thời điểm trả lời</li>
+        <li>Loại 1.278 đơn nhiều seller khỏi measure này</li>
+      </ul></div>
+    </div>
+
+    <div class="kpi-col">
+      <div class="kpi"><div class="kpi-title">KPI cắt chiều</div><ul>
+        <li>Trễ và review ≤ 2 theo bang seller</li>
+        <li>Seller nào trễ nhất trong một nhóm danh mục</li>
+        <li>Nguồn trễ: bang × quý, xoay sang danh mục × quý</li>
+        <li>Seller có closed deals so với seller không có</li>
+        <li>Tháng thưa so với cửa sổ 2017-02 → 2018-08</li>
+      </ul></div>
+    </div>
+
+    <div class="kpi-col offset1">
+      <div class="kpi"><div class="kpi-title">KPI quyết định</div><ul>
+        <li>Số đơn xấu dự kiến tháng tới</li>
+        <li>Số seller gắn cờ so với N = 40</li>
+        <li>% GMV bị ảnh hưởng so với X = 10%</li>
+        <li>Hạng: Bình thường / Theo dõi / Cảnh báo / Tạm ngưng</li>
+        <li>So sánh không can thiệp, ngưỡng KPI, điểm rủi ro</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="insight-area">
+  <div class="insight-grid">
+    <div class="insight"><div class="head">Trải nghiệm đơn</div><p>Đơn xấu tháng này đến từ review ≤ 2 hay từ giao trễ hẹn, và seller nào kéo tỷ lệ đó lên.</p></div>
+    <div class="insight"><div class="head">Bàn giao seller</div><p>Trễ nằm ở khâu seller bàn giao cho vận chuyển, hay chỉ phát sinh sau khi hàng đã rời seller.</p></div>
+    <div class="insight"><div class="head">Giá trị hàng</div><p>Seller bị gắn cờ có làm GMV bị ảnh hưởng vượt trần 10% của kỳ hay không.</p></div>
+    <div class="insight"><div class="head">Review khách</div><p>Tháng nào tỷ lệ review ≤ 2 nổi hơn các tháng quanh đó, sau khi đã bỏ đơn nhiều seller.</p></div>
+    <div class="insight"><div class="head">Cắt đa chiều</div><p>Trễ là vấn đề cả vùng, một thành phố, hay một nhóm danh mục. Tháng thưa có kéo lệch KPI cả kỳ không.</p></div>
+    <div class="insight"><div class="head">Chính sách tháng</div><p>Chính sách nào giảm đơn xấu tháng tới mà GMV bị ảnh hưởng vẫn ≤ 10% và số seller xử lý ≤ 40.</p></div>
+  </div>
+</section>
+
+<button class="print-btn" onclick="window.print()">In / Lưu PDF</button>
+</main>
+</body>
+</html>
