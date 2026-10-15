@@ -86,16 +86,16 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Local** (nội dung mô tả bảng sẽ tạo trên Cloud)
 
-- [ ] Sơ đồ kiến trúc tổng thể + lý do bottom-up data mart đặt ở Gold (R22, R02)
-- [ ] Liệt kê bảng Bronze và Silver; ánh xạ layer ↔ staging / integration / DW / data mart / metadata (R22, R45, R29)
-- [ ] Ghi tên catalog và schema (`bronze`, `silver`, `gold`, `dss`) theo kết quả S1 (R06, R45)
-- [ ] Thiết kế vật lý Delta: không partition vì ~100 nghìn đơn; nếu partition sau này thì theo cột lọc, không theo cột cardinality cao (R06, R45)
-- [ ] ERD fact constellation; khai báo granularity từng fact (R04, R23)
-- [ ] Hierarchy cho date, địa lý khách/seller, sản phẩm (R24)
-- [ ] Bus matrix, chọn surrogate key, member Unknown, SCD (R41, R04)
-- [ ] Source-to-target mapping + quy tắc làm sạch/biến đổi (R05, R29, R30)
-- [ ] Data dictionary; ước lượng số dòng từ profiling Cloud; ghi loại OLAP còn mở (ROLAP hoặc HOLAP) cho đến khi spike khóa (R29, R26)
-- [ ] Influence diagram bản nháp để kiểm tra DW đủ biến cho DSS (R36, R10)
+- [x] Sơ đồ kiến trúc tổng thể + lý do bottom-up data mart đặt ở Gold (R22, R02)
+- [x] Liệt kê bảng Bronze và Silver; ánh xạ layer ↔ staging / integration / DW / data mart / metadata (R22, R45, R29)
+- [x] Ghi tên catalog và schema (`bronze`, `silver`, `gold`, `dss`) theo kết quả S1 (R06, R45)
+- [x] Thiết kế vật lý Delta: không partition vì ~100 nghìn đơn; nếu partition sau này thì theo cột lọc, không theo cột cardinality cao (R06, R45)
+- [x] ERD fact constellation; khai báo granularity từng fact (R04, R23)
+- [x] Hierarchy cho date, địa lý khách/seller, sản phẩm (R24)
+- [x] Bus matrix, chọn surrogate key, member Unknown, SCD (R41, R04)
+- [x] Source-to-target mapping + quy tắc làm sạch/biến đổi (R05, R29, R30)
+- [x] Data dictionary; ước lượng số dòng từ profiling Cloud; ghi loại OLAP còn mở (ROLAP hoặc HOLAP) cho đến khi spike khóa (R29, R26)
+- [x] Influence diagram bản nháp để kiểm tra DW đủ biến cho DSS (R36, R10)
 
 **Sản phẩm:** `docs/DESIGN.md` đầy đủ.
 **DoD:** mọi cột fact/dim có nguồn và quy tắc; hợp đồng layer (R45) ghi trong DESIGN; cả nhóm review.

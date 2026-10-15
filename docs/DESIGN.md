@@ -1,78 +1,813 @@
 # DESIGN — Thiết kế DW, ETL mapping, data dictionary
 
-> **Trạng thái: khung (Phase 0).** Điền dần ở Phase 2–3. Bản sơ bộ nằm ở `SPEC.md` §5–6; khi mục nào ở đây được điền, SPEC chỉ giữ tóm tắt và trỏ về file này.
+> **Trạng thái: thiết kế Phase 2 đã khóa (15/10/2026).** DDL và ETL chưa viết. SPEC §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code.
+>
+> Nguồn dùng khi viết: `docs/SPEC.md` (số đo Volume trong §3, bản v0.4; quyết định Phase 2 ghi thêm ở v0.5), `docs/PLAN.md` Phase 2, `docs/PROGRESS_LOG.md` (mục 15/10/2026), `docs/TOPIC_EVALUATION.md` §1.2–1.4, header CSV trong `data/sample/` và `data/external/` (cùng tên cột với `data/raw/`). Không dùng `data/sample/` để ước lượng số dòng.
+>
+> Số đo chưa có trong SPEC §3 ghi **pending** ở §11. Phase 3 không được điền số đó từ trí nhớ. Luật biến đổi thì đã đủ để code.
 
-## 1. Kiến trúc và cách tiếp cận (R22) — Phase 2
-- Sơ đồ kiến trúc chi tiết (schema `bronze` / `silver` / `gold` / `dss`): _chưa điền_
-- Lý do bottom-up data mart (nằm ở Gold): _chưa điền_
+Grain đã khóa (SPEC §5, SPEC §10). Không đổi ở file này:
 
-## 2. Bus matrix (R04, R41) — Phase 2
+- `fact_order_item`: một dòng = một item của một đơn (`order_id`, `order_item_id`). Transaction fact.
+- `fact_order`: một dòng = một đơn. Accumulating snapshot.
+- `fact_seller_monthly`: một dòng = một seller × một tháng có bán. Periodic snapshot.
 
-| Business process / Fact | dim_date | dim_month | dim_customer | dim_seller | dim_product | dim_order_status | dim_payment_type |
-|---|---|---|---|---|---|---|---|
-| fact_order_item | ✔ | | ✔ | ✔ | ✔ | ✔ | |
-| fact_order | ✔ (role-playing ×5) | | ✔ | | | ✔ | ✔ |
-| fact_seller_monthly | | ✔ | | ✔ | | | |
+---
 
-_(bản nháp từ SPEC, xác nhận ở Phase 2)_
+## 1. Kiến trúc (R22, R02, R45)
 
-## 3. Khai báo granularity (R23) — Phase 2
+```mermaid
+flowchart LR
+  subgraph src [Nguon CSV]
+    olist[9 CSV Olist]
+    funnel[2 CSV Marketing Funnel]
+    ibge[ibge_state_region.csv]
+  end
+  subgraph vol [Volume]
+    vOlist["/Volumes/olist_catalog/bronze/raw/olist/"]
+    vFunnel["/Volumes/olist_catalog/bronze/raw/funnel/"]
+    vRef["/Volumes/olist_catalog/bronze/raw/ref/"]
+  end
+  olist --> vOlist
+  funnel --> vFunnel
+  ibge --> vRef
+  vOlist --> bronze[(bronze)]
+  vFunnel --> bronze
+  vRef --> bronze
+  bronze --> silver[(silver)]
+  silver --> gold[(gold star schema)]
+  gold --> olap[OLAP: cong cu chua chot]
+  gold --> dss[DSS Phase 5]
+  dss --> dssSchema[(schema dss)]
+  gold --> audit[(gold.etl_audit)]
+```
 
-| Fact | Granularity | Ước lượng số dòng | Ghi chú |
+File IBGE đã có ở `data/external/ibge_state_region.csv` (27 dòng, đếm file local 15/10/2026). Nhóm xác nhận file đã nằm ở `/Volumes/olist_catalog/bronze/raw/ref/`. Phiên thiết kế này không đọc Volume, nên không ghi số dòng mới trên Volume. Không đặt file này vào `funnel/`.
+
+**Vì sao là data mart bottom-up, không phải EDW top-down.** Nhóm có một quyết định lặp lại: mỗi tháng chọn chính sách phân hạng seller (SPEC §1, T1 đã chốt 15/10/2026). Kimball bottom-up dựng một data mart cho đúng chủ đề đó, dimension conformed để thêm mart sau. EDW top-down phủ mọi quy trình của sàn thì quá rộng so với 2–3 người và khoảng năm tuần. Gold vẫn là star schema / fact constellation, nên vẫn là DW phục vụ OLAP và DSS (điều kiện 3.1(a) của đề).
+
+| Schema | Vai trò | Hợp đồng vào / ra |
+|---|---|---|
+| `bronze` | Staging. Bản sao CSV, append-only | Vào: file trên Volume, mọi cột `string`, giữ nguyên chuỗi. Ra: cùng các cột đó cộng `_ingest_ts`, `_source_file`, `_batch_id`. Không join, không ép kiểu nghiệp vụ, không `trim`, không xóa dòng |
+| `silver` | Integration. Làm sạch, ép kiểu, chuẩn hóa, dedupe | Vào: Bronze. Ra: bảng grain đã nêu ở §2. Không publish fact |
+| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit` | Vào: Silver. Ra: 3 fact + 7 dimension. OLAP và DSS chỉ đọc Gold |
+| `dss` | Chỗ để dành cho đầu ra mô hình Phase 5 | Phase 2 không thiết kế bảng, không thiết kế feature view. SPEC đã đặt tên tương lai `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log`; cột của chúng chưa thuộc phase này |
+
+Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation (frontend OLAP) chưa chọn công cụ.
+
+Mô hình DSS sau này huấn luyện trên Gold, không trên Silver (SPEC §4, lệch có chủ đích).
+
+---
+
+## 2. Vật lý Delta và hợp đồng layer
+
+Catalog: `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `dss`. Định dạng: Delta. Không `PARTITIONED BY`.
+
+**Vì sao không partition.** Mart khoảng 100 nghìn đơn (đo 99.441 dòng `orders`). Partition theo `seller_id` hoặc `order_id` tạo quá nhiều file nhỏ. Nếu sau này có partition, chỉ theo cột lọc (ví dụ tháng mua), và phải sửa mục này trước khi thêm mệnh đề.
+
+Load: batch. Bronze append. Silver ghi đè bằng ảnh sạch của lần chạy (rebuild từ Bronze, không append). Gold `MERGE` theo grain. Chạy lại cùng grain không được nhân đôi dòng.
+
+### 2.1 Ba cột ingest trên mọi bảng Bronze
+
+| Cột | Kiểu | Null | Quy tắc |
 |---|---|---|---|
-| fact_order_item | 1 item của 1 đơn | chờ dữ liệu | |
-| fact_order | 1 đơn hàng | chờ dữ liệu | |
-| fact_seller_monthly | 1 seller × 1 tháng có hoạt động | chờ dữ liệu | |
+| `_ingest_ts` | TIMESTAMP | không | `current_timestamp()` lúc đọc file |
+| `_source_file` | STRING | không | Đường dẫn Volume của file |
+| `_batch_id` | STRING | không | Tham số batch của lần chạy. Không suy từ nội dung CSV |
 
-## 4. ERD / star schema — Phase 2
-_chưa điền (mermaid `erDiagram` hoặc hình trong `docs/report/`)_
+Mọi cột nghiệp vụ Bronze: `STRING`, giữ nguyên dữ liệu thô đúng như file CSV (không `trim`, không biến chuỗi toàn dấu cách thành null). Chỉ bỏ BOM và dấu ngoặc kép thừa ở tên cột (cùng quy tắc `normalize_columns` trong `01_profiling.py`). Không cast số. Zip và id giữ nguyên chuỗi, kể cả số 0 đầu.
 
-## 5. Hierarchy (R24) — Phase 2
+### 2.2 Bảng Bronze — grain một dòng CSV được append
 
-| Dimension | Các cấp | Cột |
+| Bảng | File | Grain | Dòng nguồn đã đo |
+|---|---|---|---|
+| `bronze.orders` | `olist/olist_orders_dataset.csv` | 1 dòng file | 99.441 |
+| `bronze.order_items` | `olist/olist_order_items_dataset.csv` | 1 dòng file | 112.650 |
+| `bronze.order_reviews` | `olist/olist_order_reviews_dataset.csv` | 1 dòng file | 99.224 |
+| `bronze.order_payments` | `olist/olist_order_payments_dataset.csv` | 1 dòng file | 103.886 |
+| `bronze.customers` | `olist/olist_customers_dataset.csv` | 1 dòng file | 99.441 |
+| `bronze.sellers` | `olist/olist_sellers_dataset.csv` | 1 dòng file | 3.095 |
+| `bronze.products` | `olist/olist_products_dataset.csv` | 1 dòng file | 32.951 |
+| `bronze.geolocation` | `olist/olist_geolocation_dataset.csv` | 1 dòng file | 1.000.163 |
+| `bronze.category_translation` | `olist/product_category_name_translation.csv` | 1 dòng file | 71 |
+| `bronze.closed_deals` | `funnel/olist_closed_deals_dataset.csv` | 1 dòng file | 842 |
+| `bronze.marketing_qualified_leads` | `funnel/olist_marketing_qualified_leads_dataset.csv` | 1 dòng file | 8.000 |
+| `bronze.state_region` | `ref/ibge_state_region.csv` | 1 dòng file | 27 (đếm file local 15/10/2026) |
+
+Số dòng Bronze tăng nếu nạp lại, vì append. Số trong bảng là kích thước file hiện tại, không phải số dòng sau nhiều batch.
+
+### 2.3 Bảng Silver — grain sau làm sạch
+
+Khi nhiều dòng Bronze cùng khóa grain: giữ dòng có `_ingest_ts` mới nhất, rồi `_batch_id` mới nhất. Nếu vẫn hòa, giữ một dòng bằng cách lấy chuỗi ghép các cột nghiệp vụ lớn nhất theo thứ tự từ điển. Không dừng batch.
+
+| Bảng | Grain | Quy tắc grain |
 |---|---|---|
-| dim_date | Năm → Quý → Tháng → Ngày | _chưa điền_ |
-| dim_customer / dim_seller | Vùng → Bang → Thành phố | Vùng = `region_name` trong `ibge_state_region.csv`, nối `state_code` = `customer_state` / `seller_state`. Bang và thành phố từ Olist |
-| dim_product | Nhóm danh mục → Danh mục → Sản phẩm | _chưa điền_ |
+| `silver.orders` | 1 `order_id` | Luật chọn bản ở trên. Số nhóm trùng `order_id` pending (§11) |
+| `silver.order_items` | 1 (`order_id`, `order_item_id`) | Cùng luật chọn bản. 0 item không có order (SPEC §3) |
+| `silver.order_reviews` | 1 (`order_id`, `review_id`) | Trong khóa đó: `review_answer_timestamp` mới nhất, timestamp null xếp sau, rồi `review_creation_date` mới nhất, rồi `_ingest_ts` mới nhất, rồi chuỗi ghép cột nghiệp vụ. `814` là số dòng thừa theo `review_id` trên file thô, không phải số dòng Silver của grain này. Số dòng Silver pending |
+| `silver.order_payments` | 1 (`order_id`, `payment_sequential`) | Luật chọn bản Bronze. Số nhóm trùng pending |
+| `silver.customers` | 1 `customer_id` | 99.441 id trên 99.441 dòng. Chưa gộp `customer_unique_id` |
+| `silver.sellers` | 1 `seller_id` | File có 3.095 dòng. Số `seller_id` trùng pending. Trùng thì cùng luật chọn bản |
+| `silver.products` | 1 `product_id` | Số `product_id` trùng pending |
+| `silver.geolocation_zip` | 1 zip prefix | Bỏ điểm ngoài bbox, rồi trung vị lat/lng và mode city/state. Zip không còn điểm trong bbox thì không có dòng. Số zip sau bbox pending |
+| `silver.category_translation` | 1 `product_category_name` | |
+| `silver.closed_deals` | 1 dòng deal | Không gộp theo `seller_id` ở Silver. 842 dòng nguồn. Gold mới chọn một deal (§6.3) |
+| `silver.marketing_qualified_leads` | 1 `mql_id` | Giữ để khỏi mất nguồn. Gold `dim_seller` không đọc bảng này. Số `mql_id` trùng pending |
+| `silver.state_region` | 1 `state_code` | 27 UF |
 
-## 6. Source-to-target mapping (R05, R29, R30) — Phase 2
+`fact_order` lấy một review mỗi đơn từ Silver: `review_answer_timestamp` mới nhất, rồi `review_creation_date` mới nhất, hòa thì `review_id` tăng dần.
 
-| Bảng đích | Cột đích | Bảng nguồn | Cột nguồn | Quy tắc biến đổi |
-|---|---|---|---|---|
-| `dim_customer`, `dim_seller` | region | `data/external/ibge_state_region.csv` | `region_name` | Nối `state_code` với `customer_state` hoặc `seller_state`. Đọc mọi id dạng chuỗi |
-| _còn lại_ | | | | _chưa điền — Phase 2_ |
+### 2.4 Bảng Gold
 
-## 7. Quy tắc làm sạch (R27) — Phase 1–2
-
-Số đo từ `01_profiling.py`, `SOURCE=volume`, 15/10/2026.
-
-| Quy tắc | Số dòng / nhóm bị ảnh hưởng | Ghi chú |
+| Bảng | Grain | Khóa MERGE |
 |---|---|---|
-| Geolocation: lọc bbox Brazil, trung vị lat/lng, mode city/state theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox | 0 lat/lng NULL |
-| Chuẩn hóa thành phố (lowercase, bỏ dấu, trim) | `geolocation_city`: 8.010 → 5.968 distinct sau khi bỏ dấu; 73.437 dòng có dấu. Customer/seller city không đổi | |
-| dim_customer theo `customer_unique_id` | 99.441 `customer_id`; 96.096 `customer_unique_id` | Map `customer_id` ở Silver |
-| Category thiếu → `unknown`; join bản dịch | 610 / 32.951 product thiếu category; 2 category không có dòng dịch | |
-| Timestamp NULL hoặc đảo thứ tự: giữ NULL + cờ; loại khỏi measure thời gian | NULL approved 160, carrier 1.783, customer 2.965. Đảo: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23 | G2: 9 đơn `delivered` thiếu một trong hai mốc giao |
-| Review: giữ dòng mới nhất theo `review_answer_timestamp` | 789 nhóm `review_id` trùng; 814 dòng thừa; 547 đơn nhiều review | 99.224 dòng thô |
-| Payment `not_defined` / 0 → unknown; đối soát price+freight vs payment | 3 `not_defined`; 9 value 0; 2 installments 0; 387 / 98.665 đơn lệch > 0,01 | |
-| Đọc id và zip dạng chuỗi | 0 zip ngắn hơn 5 ký tự | min_length = 5 trên customer, seller, geolocation |
-| Giữ cửa sổ mua hàng 2016-09-04 → 2018-10-17 | Tháng thưa: 2016-09=4, 2016-10=324, 2016-12=1, 2017-01=800, 2018-09=16, 2018-10=4; không có 2016-11. 19 tháng ≥ 1.000 đơn (2017-02 → 2018-08) | Không cắt khỏi kho |
-| Loại đơn nhiều seller khỏi measure trải nghiệm xấu | 1.278 / 98.666 đơn | G3 pass |
+| `gold.dim_date` | 1 ngày | `date_key` |
+| `gold.dim_month` | 1 tháng | `month_key` |
+| `gold.dim_customer` | 1 `customer_unique_id` | `customer_key` (tra theo natural key) |
+| `gold.dim_seller` | 1 `seller_id` | `seller_key` |
+| `gold.dim_product` | 1 `product_id` | `product_key` |
+| `gold.dim_order_status` | 1 trạng thái | `order_status_key` |
+| `gold.dim_payment_type` | 1 loại thanh toán | `payment_type_key` |
+| `gold.fact_order_item` | 1 (`order_id`, `order_item_id`) | hai cột grain |
+| `gold.fact_order` | 1 `order_id` | `order_id` |
+| `gold.fact_seller_monthly` | 1 seller × 1 tháng có ít nhất một item | (`seller_key`, `month_key`) |
+| `gold.etl_audit` | 1 dòng log cho 1 bảng đích của 1 batch | append, không MERGE đè lịch sử |
 
-## 8. Data dictionary (R29) — Phase 2–3
+`dim_date` là một bảng vật lý. Nhiều khóa ngoại trên fact là role-playing, không tạo nhiều bảng ngày.
 
-| Bảng | Cột | Kiểu | Khóa | Mô tả | Nguồn |
+Tháng thưa (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10) **ở lại** trong fact nếu tháng đó có đơn. Không có đơn tháng 2016-11 nên không có dòng fact tháng đó; `dim_date` vẫn có các ngày nằm giữa min và max của lịch. Không tạo dòng seller-tháng bằng 0 cho seller không bán trong tháng. Grain là “tháng có hoạt động”, không phải lưới seller × mọi tháng.
+
+---
+
+## 3. Mô hình Gold
+
+### 3.1 Ba loại fact
+
+| Fact | Nghĩa | Hệ quả khi nạp lại |
+|---|---|---|
+| `fact_order_item` | Transaction. Một sự kiện dòng hàng, measure cộng được ở mức dòng | MERGE sửa đúng dòng grain đó |
+| `fact_order` | Accumulating snapshot. Một đơn, nhiều mốc thời gian được điền dần | MERGE trên `order_id` cập nhật mốc và review khi Silver có giá trị mà Gold còn `-1` hoặc null (§9) |
+| `fact_seller_monthly` | Periodic snapshot. Ảnh seller trong tháng mua (`order_purchase_timestamp`) | MERGE tính lại cả tháng của các đơn vừa nạp hoặc vừa cập nhật mốc |
+
+### 3.2 Khóa và member Unknown
+
+Mọi dimension có surrogate key. Natural key (`seller_id`, `customer_unique_id`, `product_id`, …) là thuộc tính, không phải khóa fact.
+
+Member `-1` cài trước khi nạp fact, trên cả 7 dimension. Fact không bỏ dòng thiếu khóa. Khóa ngoại không khớp trỏ `-1`. Đếm số lần trỏ `-1` trong `gold.etl_audit.rows_unknown_fk`.
+
+Trên dòng `-1`: khóa chính bằng `-1`; natural key (`full_date`, `customer_unique_id`, `seller_id`, `product_id`, `mql_id`, `sdr_id`, `sr_id`) bằng null; cột chữ dùng để nhóm trên OLAP bằng `'Unknown'`; cột số, ngày và cờ bằng null, kể cả `is_weekend` và `has_closed_deal`.
+
+`payment_type` rỗng hoặc `not_defined` thành null ở Silver, rồi fact trỏ `payment_type_key = -1`. Không tạo thêm member có nhãn `'unknown'`. Sản phẩm có `product_id` nhưng thiếu category vẫn là một member dương; ba cột category của dòng đó bằng `'Unknown'`.
+
+| Dimension | Khóa | Cách sinh |
+|---|---|---|
+| `dim_date` | `date_key` INT | `year * 10000 + month * 100 + day`. Unknown = `-1` |
+| `dim_month` | `month_key` INT | `year * 100 + month`. Unknown = `-1` |
+| Các dimension còn lại | `*_key` BIGINT | Tra natural key. Chưa có thì `max(key) + 1`, bắt đầu từ 1. Không hash. Unknown = `-1` |
+
+### 3.3 Role-playing date và `dim_month`
+
+`dim_date` sinh mọi ngày từ ngày nhỏ nhất đến ngày lớn nhất trong các timestamp đã parse và còn lại trên cột chính thức của Silver (purchase, approved, carrier, customer, estimated, shipping limit, review). Không dùng lịch ngày lễ. Thuộc tính: ngày, năm, quý, tháng, ngày trong tháng, thứ (`dayofweek` Spark: 1 = Chủ Nhật … 7 = Thứ Bảy), `is_weekend` khi thứ là 1 hoặc 7.
+
+| Fact | Khóa ngoại tới `dim_date` | Timestamp nguồn |
+|---|---|---|
+| `fact_order_item` | `purchase_date_key`, `shipping_limit_date_key` | `order_purchase_timestamp`, `shipping_limit_date` |
+| `fact_order` | `purchase_date_key`, `approved_date_key`, `delivered_carrier_date_key`, `delivered_customer_date_key`, `estimated_date_key` | Năm mốc chính thức trên `silver.orders` |
+
+Timestamp null hoặc không parse được → khóa `-1`.
+
+Trên `silver.orders`, mốc đảo thứ tự thành null ở cột chính thức. Giá trị đã parse được giữ ở `raw_*`. So sánh đảo trên `raw_*`, không trên cột đã bị xóa, để các nhóm đã đo (carrier trước purchase 166, carrier trước approved 1.359, customer trước carrier 23) không mất vì cascade. `ts_inversion_flag = 1` khi có ít nhất một `raw_*` khác null nhưng cột chính thức tương ứng bị null vì đảo. Lên Gold, mốc đó đã null nên `*_date_key = -1` và measure thời gian bỏ qua. Cờ copy sang `fact_order`. `gold.etl_audit.rows_ts_inverted` đếm số dòng cờ bằng 1 khi nạp `silver.orders` và `fact_order`.
+
+`dim_month` là dimension rút từ `dim_date`: một dòng mỗi `year_month` có trong `dim_date`. `fact_seller_monthly.month_key` là tháng của `order_purchase_timestamp`.
+
+### 3.4 Hierarchy
+
+| Chiều | Cấp | Cột | Nguồn |
+|---|---|---|---|
+| Thời gian | Năm → Quý → Tháng → Ngày | `dim_date.year`, `quarter`, `month`, `full_date` | Timestamp đơn. Không ngày lễ |
+| Tháng | Năm → Quý → Tháng | `dim_month` | Rút từ `dim_date` |
+| Địa lý khách | Vùng → Bang → Thành phố | `region_name`, `state_code`, `city_name` | Một bộ địa chỉ mỗi người, §6.3. IBGE nối `state_code` = `customer_state` |
+| Địa lý seller | Vùng → Bang → Thành phố | cùng cấu trúc trên `dim_seller` | `sellers` + IBGE |
+| Sản phẩm | Nhóm danh mục → Danh mục → Sản phẩm | `category_group`, `category_en` / `category_pt`, `product_id` | Bảng nhóm bên dưới |
+| Seller | Phân khúc → Seller | `business_segment`, `seller_id` | Một dòng deal mỗi seller, §6.3. 380 / 3.095 seller trong items có deal (G6) |
+
+`has_closed_deal` trên `dim_seller` = có ít nhất một dòng `closed_deals` cùng `seller_id`. Segment null trên seller thật nghĩa là deal không ghi segment, hoặc seller không có deal (`has_closed_deal = 0`). Nhãn `'Unknown'` chỉ nằm trên dòng `-1`.
+
+**`category_group`.** Tám nhóm do nhóm đặt, cộng nhãn `'Unknown'` khi sản phẩm không có tên category. Category có tên nhưng không nằm trong bảy nhóm kia rơi vào `services_others`.
+
+| `category_group` | `category_pt` |
+|---|---|
+| `home_furniture_decor` | `cama_mesa_banho`, `moveis_decoracao`, `moveis_escritorio`, `moveis_sala`, `moveis_cozinha_area_de_servico_jantar_e_jardim`, `moveis_quarto`, `moveis_colchao_e_estofado`, `utilidades_domesticas`, `casa_conforto`, `casa_conforto_2`, `la_cuisine`, `portateis_cozinha_e_preparadores_de_alimentos`, `climatizacao`, `flores` |
+| `health_beauty_fashion` | `beleza_saude`, `perfumaria`, `relogios_presentes`, `fashion_bolsas_e_acessorios`, `fashion_calcados`, `fashion_roupa_masculina`, `fashion_roupa_feminina`, `fashion_roupa_infanto_juvenil`, `fashion_underwear_e_moda_praia`, `fashion_esporte`, `malas_acessorios`, `fraldas_higiene` |
+| `electronics_it_telephony` | `informatica_acessorios`, `pcs`, `tablets_impressao_imagem`, `telefonia`, `telefonia_fixa`, `eletronicos`, `audio`, `cine_foto`, `consoles_games`, `eletrodomesticos`, `eletrodomesticos_2`, `portateis_casa_forno_e_cafe`, `eletroportateis` |
+| `sports_leisure_toys` | `esporte_lazer`, `brinquedos`, `cool_stuff`, `instrumentos_musicais`, `artes`, `artes_e_artesanato`, `artigos_de_festas`, `artigos_de_natal` |
+| `auto_tools_construction` | `automotivo`, `ferramentas_jardim`, `construcao_ferramentas_construcao`, `construcao_ferramentas_iluminacao`, `construcao_ferramentas_jardim`, `construcao_ferramentas_seguranca`, `construcao_ferramentas_ferramentas`, `casa_construcao`, `sinalizacao_e_seguranca`, `agro_industria_e_comercio`, `industria_comercio_e_negocios` |
+| `books_stationery_media` | `papelaria`, `livros_interesse_geral`, `livros_tecnicos`, `livros_importados`, `cds_dvds_musicais`, `dvds_blu_ray`, `musica` |
+| `baby_pets_food_drinks` | `bebes`, `pet_shop`, `alimentos`, `alimentos_bebidas`, `bebidas` |
+| `services_others` | `seguros_e_servicos`, `market_place`, và mọi tên category khác không có trong bảy nhóm trên |
+
+**`size_band`.** Quy ước của nhóm, không phải phân vị đã đo.
+
+| Nhãn | Điều kiện, xét theo thứ tự |
+|---|---|
+| `'Unknown'` | `weight_g` null hoặc `volume_cm3` null hoặc một trong hai ≤ 0 |
+| `'bulky'` | `weight_g` ≥ 10.000 hoặc `volume_cm3` ≥ 30.000 |
+| `'medium'` | chưa bulky, và (`weight_g` ≥ 2.000 hoặc `volume_cm3` ≥ 8.000) |
+| `'small'` | `weight_g` < 2.000 và `volume_cm3` < 8.000 |
+
+`volume_cm3 = length_cm * height_cm * width_cm` khi cả ba khác null, else null.
+
+### 3.5 SCD
+
+**SCD Type 1** trên mọi dimension. Mỗi natural key một dòng hiện tại. Nạp lại thì ghi đè thuộc tính. Không có `effective_from`, `effective_to`, `is_current`.
+
+R41 (SCD Type 2 cho `dim_seller`) vẫn là điểm cộng, chưa làm. Nguồn Olist và Marketing Funnel không lưu lịch sử đổi thuộc tính seller. Nếu sau này làm điểm cộng, fact phải trỏ bản seller đúng ngày mua, và phải sửa mục này trước khi thêm cột hiệu lực.
+
+### 3.6 Measure — công thức
+
+Tiền: `DECIMAL(18,2)`. Số ngày kiểu thời lượng (`delivery_days`, `seller_handling_days`): `DOUBLE` = hiệu timestamp tính bằng giây / 86400. Số ngày kiểu lịch (`estimated_days`, `delay_days`): `DOUBLE` = `DATEDIFF` trên `TO_DATE`. Cờ: `INT` 0/1, null khi không tính được. Tỷ lệ: `DOUBLE`, **không SUM**. OLAP tính lại tỷ lệ từ tử số và mẫu số.
+
+Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằng ngày lịch. Cột `order_estimated_delivery_date` không được ghi là luôn `00:00:00`; SPEC không đo thành phần giờ của cột đó.
+
+| Measure | Mức | Công thức |
+|---|---|---|
+| `price`, `freight_value` | item | Cast từ Silver. GMV chỉ cộng `price` (TOPIC_EVALUATION §1.2). `freight_value` là phí ship khách trả |
+| `seller_ship_late_flag` | item | Official `order_delivered_carrier_date` khác null, `shipping_limit_date` khác null, và `shipping_limit_date` ≥ `order_purchase_timestamp`. Khi đó 1 nếu carrier > hạn giao, 0 nếu carrier ≤ hạn giao. Ngược lại null |
+| `seller_handling_days` | item | `(official carrier − official approved)` giây / 86400 khi cả hai khác null. Ngược lại null |
+| `delivery_days` | item và đơn | `(official customer − purchase)` giây / 86400 khi official customer khác null. Ngược lại null. Cờ trễ không dùng số này |
+| `estimated_days` | đơn | `DATEDIFF(TO_DATE(official estimated), TO_DATE(purchase))` khi official estimated khác null. Ngược lại null |
+| `delay_days` | item và đơn | `DATEDIFF(TO_DATE(official customer), TO_DATE(official estimated))` khi cả hai official khác null. Ngược lại null |
+| `late_delivery_flag` / `late_flag` | item và đơn | 1 khi `delay_days` > 0. 0 khi `delay_days` ≤ 0. Null khi `delay_days` null. Trên item, cờ lặp lại từ đơn |
+| `distance_km` | item | Haversine giữa trung vị lat/lng của zip seller và zip khách. Bán kính 6371 km. Đổi độ sang radian. Null nếu một trong hai zip không có tọa độ Silver |
+| `items_value`, `freight_total` | đơn | `sum(price)`, `sum(freight_value)` của item thuộc đơn. Đơn không có item: 0 |
+| `payment_total` | đơn | `sum(payment_value)`. Không xóa 387 đơn lệch quá 0,01 so với price+freight; chỉ ghi nhận ở §7 |
+| `n_items` | đơn | số dòng item |
+| `n_sellers` | đơn | `count distinct seller_id` trên item |
+| `review_score` | đơn | Điểm của review được chọn ở §2.3. Null khi đơn không có review |
+| `negative_review_flag` | đơn | 1 khi điểm đã chọn ≤ 2. 0 khi điểm khác null và > 2. Null khi không có điểm |
+| `bad_experience_flag` | đơn | Null khi `n_sellers` > 1. Khi `n_sellers` = 1: 1 nếu `negative_review_flag` = 1 hoặc `late_flag` = 1; 0 nếu `late_flag` = 0 và không có review xấu (`negative_review_flag` = 0 hoặc điểm null); null nếu `late_flag` null và không có review xấu |
+| `gmv` | seller-tháng | `sum(price)` item của seller trong tháng mua. Kể cả đơn nhiều seller |
+| `n_orders`, `n_items` | seller-tháng | Số đơn phân biệt và số item của seller trong tháng mua |
+| `late_ship_count` | seller-tháng | Item của seller trong tháng có `seller_ship_late_flag` = 1. Kể cả đơn nhiều seller |
+| `late_ship_eligible` | seller-tháng | Item có cờ này khác null, gồm cả 0 và 1 |
+| `late_ship_rate` | seller-tháng | `late_ship_count / late_ship_eligible` khi mẫu > 0, else null |
+| `late_delivery_count`, `late_delivery_eligible`, `late_delivery_rate` | seller-tháng | Theo đơn phân biệt của seller, dùng `late_flag`. Kể cả đơn nhiều seller. Đây không phải measure trải nghiệm xấu |
+| `review_score_sum`, `review_count`, `avg_review` | seller-tháng | Chỉ đơn `n_sellers` = 1 và có điểm. `avg_review` = sum/count khi count > 0, else null |
+| `negative_review_count`, `negative_review_eligible`, `negative_review_rate` | seller-tháng | Cùng tập đơn một seller có điểm. Tử là `negative_review_flag` = 1 |
+| `bad_experience_count`, `bad_experience_eligible`, `bad_experience_rate` | seller-tháng | Tử: cờ = 1. Mẫu: cờ khác null. Đơn nhiều seller đã null nên không vào mẫu |
+| `cancel_count`, `cancel_eligible`, `cancel_rate` | seller-tháng | Tử: đơn phân biệt có `order_status` thuộc `canceled` hoặc `unavailable` (TOPIC_EVALUATION §1.2). Mẫu: mọi đơn phân biệt của seller trong tháng |
+| `handling_days_sum`, `handling_days_count`, `avg_handling_days` | seller-tháng | Tổng và số item có `seller_handling_days` khác null. Trung bình = sum/count khi count > 0, else null |
+
+Tháng của snapshot là tháng `order_purchase_timestamp`, cùng cách G1 đã dùng.
+
+`fact_seller_monthly` lưu cả tử số, mẫu số và tỷ lệ. Cột tỷ lệ chỉ để đọc nhanh. Mọi roll-up phải cộng tử và mẫu rồi chia lại.
+
+**Cộng được và không cộng được.**
+
+- `price`, `freight_value`, `gmv`, `items_value`, `freight_total`, `payment_total` cộng được ở đúng grain của chúng.
+- `late_delivery_flag` trên `fact_order_item` lặp cờ của đơn. Không `SUM` theo item. Lấy từ `fact_order`, hoặc `MAX` trong một đơn.
+- `n_orders`, `late_delivery_count`, `late_delivery_eligible`, các cột đếm review, trải nghiệm xấu và hủy trên `fact_seller_monthly` không cộng qua seller. Đơn nhiều seller nằm ở nhiều seller, cộng ngang sẽ đếm trùng.
+- 1.278 đơn nhiều seller dùng chung một `order_delivered_carrier_date` cấp đơn. Hạn chế này ghi ở §7.
+
+**Câu 4 (drill-across).** Không join `fact_order` thẳng vào grain item. Bước 1: từ `fact_order_item` lọc khách Norte/Nordeste, quý, `size_band = 'bulky'`, rồi `SELECT DISTINCT order_id, seller_key`. Bước 2: nối kết quả với `fact_order` theo `order_id` và với `dim_seller` theo `seller_key`, rồi tính tỷ lệ `late_flag` và `negative_review_flag` theo đơn cho từng bang seller.
+
+### 3.7 Thanh toán chính của đơn
+
+`fact_order.payment_type_key` là một loại thanh toán cho cả đơn.
+
+1. Bỏ dòng Silver có `payment_type` null.
+2. Nhóm các dòng còn lại theo (`order_id`, `payment_type`).
+3. Hạng nhóm: `SUM(payment_value)` giảm dần, rồi `MIN(CAST(payment_sequential AS INT))` tăng dần (cast lỗi xếp sau), rồi `payment_type` tăng dần.
+4. Nhóm hạng 1 là loại chính. Không còn dòng hợp lệ thì `payment_type_key = -1`.
+
+`payment_total` vẫn là tổng mọi `payment_value` của đơn, kể cả dòng loại null.
+
+---
+
+## 4. ERD và bus matrix (R04, R23, R24)
+
+```mermaid
+erDiagram
+  dim_date ||--o{ fact_order_item : "purchase, shipping_limit"
+  dim_customer ||--o{ fact_order_item : customer_key
+  dim_seller ||--o{ fact_order_item : seller_key
+  dim_product ||--o{ fact_order_item : product_key
+  dim_order_status ||--o{ fact_order_item : order_status_key
+  dim_date ||--o{ fact_order : "5 moc thoi gian"
+  dim_customer ||--o{ fact_order : customer_key
+  dim_order_status ||--o{ fact_order : order_status_key
+  dim_payment_type ||--o{ fact_order : payment_type_key
+  dim_month ||--o{ fact_seller_monthly : month_key
+  dim_seller ||--o{ fact_seller_monthly : seller_key
+  fact_order ||--o{ fact_order_item : "order_id suy bien"
+```
+
+Cardinality trên hình là “một thành viên dimension — nhiều dòng fact”. Thành viên `-1` vẫn là một dòng dimension. `order_id` trên cả hai fact là khóa suy biến để nối chòm sao, không phải surrogate của `fact_order`.
+
+`dim_month` không nối `fact_order_item`. Muốn tháng thì lấy từ `purchase_date_key` → `dim_date.month_key`.
+
+### Bus matrix
+
+| Fact | dim_date | dim_month | dim_customer | dim_seller | dim_product | dim_order_status | dim_payment_type |
+|---|---|---|---|---|---|---|---|
+| `fact_order_item` | Có — mua và hạn giao | Qua `dim_date` | Có | Có | Có | Có | Không |
+| `fact_order` | Có — 5 vai | Qua `dim_date` | Có | Không | Không | Có | Có |
+| `fact_seller_monthly` | Không | Có | Không | Có | Không | Không | Không |
+
+Ma trận khớp câu hỏi đã chốt (SPEC §3):
+
+| Câu | Fact dùng | Dimension |
+|---|---|---|
+| 1. Bàn giao trễ theo vùng → bang → thành phố | `fact_order_item` | seller, ngày mua hoặc hạn giao. Tỷ lệ lấy tử/mẫu, không cộng cờ |
+| 2. Review ≤ 2 theo năm → quý → tháng → ngày | `fact_order` | `purchase_date_key` |
+| 3. Giao trễ trong một nhóm danh mục, theo seller | `fact_order_item` | product, seller. Lọc `category_group` §3.4. Cờ giao trễ không SUM theo item |
+| 4. Khách Norte/Nordeste, quý, hàng cồng kềnh | Drill-across §3.6 | customer, date, product (`size_band`), rồi `fact_order` và seller |
+| 5. Bang seller × quý, xoay sang nhóm danh mục × quý | `fact_order_item` | seller, date, product |
+| 6. Trải nghiệm xấu theo seller-tháng | `fact_seller_monthly` | seller, month |
+| 7–8. GMV và số seller so với X=10, N=40 | `fact_seller_monthly` cung cấp GMV và danh sách seller-tháng. Danh sách “bị gắn cờ” là kết quả chính sách ở Phase 5, không phải cột Gold | |
+| 9. Có `closed_deals` hay không | `fact_seller_monthly` × `dim_seller.has_closed_deal` | |
+| 10. Tháng thưa so với 2017-02 → 2018-08 | `fact_order` hoặc `fact_seller_monthly` × `dim_month` | |
+
+---
+
+## 5. Ước lượng số dòng
+
+Nguồn: file đầy đủ, script 10/10/2026 (`data/README.md`) và profiling Volume 15/10/2026 (SPEC §3, PROGRESS_LOG). Không lấy từ sample 5.000 đơn.
+
+| Đối tượng | Đã đo | Kỳ vọng sau biến đổi | Ghi chú |
+|---|---|---|---|
+| `bronze.orders` / `silver.orders` | 99.441 dòng | Silver pending nếu `order_id` trùng | SPEC không ghi số nhóm trùng |
+| `bronze.order_items` / `fact_order_item` | 112.650 | Pending nếu (`order_id`, `order_item_id`) trùng. 0 item mồ côi | |
+| `bronze.order_reviews` | 99.224 | 99.224 − 814 = **98.410** `review_id` nếu chỉ khử theo `review_id` | 789 nhóm trùng, 814 dòng thừa trên file thô |
+| Đơn có hơn một dòng review trên file thô | 547 đơn | Đây là số trước dedupe | Không phải số đơn còn nhiều review sau Silver |
+| `silver.order_reviews` grain (`order_id`, `review_id`) | | **Pending** | Grain mới không suy từ 98.410 |
+| `bronze.order_payments` | 103.886 | Silver pending nếu `payment_sequential` trùng trong đơn | |
+| `bronze.customers` | 99.441 | Silver 99.441 dòng `customer_id` | 96.096 `customer_unique_id` |
+| `gold.dim_customer` | 96.096 người | 96.097 kể cả `-1` | Một bộ địa chỉ theo §6.3 |
+| `bronze.sellers` / `dim_seller` | 3.095 | **3.096 kể cả `-1` nếu `seller_id` duy nhất, else pending** | 380 seller khớp deal. 3.095 − 380 = 2.715 là hiệu số, không phải số đo riêng |
+| `bronze.products` / `dim_product` | 32.951 | **32.952 kể cả `-1` nếu `product_id` duy nhất, else pending** | 610 thiếu category |
+| `bronze.geolocation` | 1.000.163 | Silver zip **pending**. Trần trước bbox: 19.015 zip | 31 điểm ngoài bbox. Chưa đếm zip mất hết điểm |
+| `bronze.category_translation` | 71 | 71 | 2 category không có bản dịch. Một tên đã thấy ở sample: `portateis_cozinha_e_preparadores_de_alimentos`. Tên kia không ghi vì không có trong repo |
+| `bronze.closed_deals` | 842 | Silver 842 | Không suy ra 842 seller |
+| `bronze.marketing_qualified_leads` | 8.000 | Silver pending nếu `mql_id` trùng | |
+| `bronze.state_region` | 27 | 27 | Số local. Không đo lại trên Volume trong phiên này |
+| `fact_order` | 99.441 đơn nguồn | 99.441 nếu `order_id` duy nhất, else pending | Trong đó 98.666 đơn có item (mẫu số G3). 775 đơn không item vẫn là một dòng fact, tiền item = 0 |
+| `fact_seller_monthly` | 173 seller đạt ngưỡng G1 | **Pending** số cặp seller-tháng | G1 không phải số dòng fact |
+| `dim_date` / `dim_month` | Mua hàng 2016-09-04 → 2018-10-17 | **Pending** độ dài lịch | Max của mốc giao và ngày hẹn không được ghi trong SPEC |
+
+`98.665` trong SPEC §3 là số đơn vừa có item vừa có payment (inner join trong `01_profiling.py`). Không dùng số đó làm số đơn có payment.
+
+---
+
+## 6. Source-to-target và từ điển cột
+
+Một dòng dưới đây là một cột đích. Kiểu, nguồn, quy tắc, null, vai trò khóa nằm cùng dòng. Cột ingest Bronze dùng chung §2.1, có trên cả 12 bảng, không lặp lại từng bảng.
+
+Quy ước ép kiểu Silver:
+
+- Id và zip: STRING. `trim`, chuỗi rỗng → null. Không cast số.
+- Timestamp: `to_timestamp(chuỗi, 'yyyy-MM-dd HH:mm:ss')`. Lỗi parse → null. Parse lỗi không bật `ts_inversion_flag`.
+- Tiền và số đo: cast sau khi chuỗi rỗng đã thành null. Lỗi cast → null và đếm vào `rows_rejected`. Giá trị ngoài miền CHECK §9 cũng đưa về null và đếm `rows_rejected` trước khi MERGE.
+- Thành phố: `trim`, lowercase, rồi `translate` với đúng bảng trong `01_profiling.py`: `áàâãäåéèêëíìîïóòôõöúùûüçñ` → `aaaaaaeeeeiiiiooooouuuucn`.
+- Bang: `trim`, uppercase, nối `silver.state_region.state_code`. Không khớp → `region_name` null.
+
+### 6.1 Bronze — cột nghiệp vụ
+
+Mỗi cột dưới đây là STRING, được phép null, không phải khóa bảng Delta. Nguồn là cột cùng tên trong file §2.2. Quy tắc: giữ nguyên chuỗi gốc từ CSV. `trim` và chuỗi rỗng thành null chỉ xảy ra khi sang Silver.
+
+`bronze.orders`: `order_id`, `customer_id`, `order_status`, `order_purchase_timestamp`, `order_approved_at`, `order_delivered_carrier_date`, `order_delivered_customer_date`, `order_estimated_delivery_date`.
+
+`bronze.order_items`: `order_id`, `order_item_id`, `product_id`, `seller_id`, `shipping_limit_date`, `price`, `freight_value`.
+
+`bronze.order_reviews`: `review_id`, `order_id`, `review_score`, `review_comment_title`, `review_comment_message`, `review_creation_date`, `review_answer_timestamp`.
+
+`bronze.order_payments`: `order_id`, `payment_sequential`, `payment_type`, `payment_installments`, `payment_value`.
+
+`bronze.customers`: `customer_id`, `customer_unique_id`, `customer_zip_code_prefix`, `customer_city`, `customer_state`.
+
+`bronze.sellers`: `seller_id`, `seller_zip_code_prefix`, `seller_city`, `seller_state`.
+
+`bronze.products`: `product_id`, `product_category_name`, `product_name_lenght`, `product_description_lenght`, `product_photos_qty`, `product_weight_g`, `product_length_cm`, `product_height_cm`, `product_width_cm`. Giữ lỗi chính tả `lenght` của file nguồn.
+
+`bronze.geolocation`: `geolocation_zip_code_prefix`, `geolocation_lat`, `geolocation_lng`, `geolocation_city`, `geolocation_state`. Header file raw có ngoặc kép; bỏ trước khi đặt tên cột.
+
+`bronze.category_translation`: `product_category_name`, `product_category_name_english`.
+
+`bronze.closed_deals`: `mql_id`, `seller_id`, `sdr_id`, `sr_id`, `won_date`, `business_segment`, `lead_type`, `lead_behaviour_profile`, `has_company`, `has_gtin`, `average_stock`, `business_type`, `declared_product_catalog_size`, `declared_monthly_revenue`.
+
+`bronze.marketing_qualified_leads`: `mql_id`, `first_contact_date`, `landing_page_id`, `origin`.
+
+`bronze.state_region`: `state_id`, `state_code`, `state_name`, `region_id`, `region_code`, `region_name`. Header đối chiếu file local 15/10/2026.
+
+### 6.2 Silver
+
+Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
+
+| Bảng | Cột | Kiểu | Null | Vai trò | Quy tắc |
 |---|---|---|---|---|---|
-| `ibge_state_region` | `state_id` | string | | Mã IBGE của UF | API localidades/estados, 15/10/2026 |
-| `ibge_state_region` | `state_code` | string | duy nhất (27 giá trị) | Sigla UF, khóa nối với Olist | cùng nguồn |
-| `ibge_state_region` | `state_name` | string | | Tên bang | cùng nguồn |
-| `ibge_state_region` | `region_id` | string | | Mã vùng IBGE 1–5 | cùng nguồn |
-| `ibge_state_region` | `region_code` | string | | N, NE, SE, S, CO | cùng nguồn |
-| `ibge_state_region` | `region_name` | string | | Norte, Nordeste, Sudeste, Sul, Centro-Oeste | cùng nguồn |
-| _còn lại_ | | | | | _chưa điền — Phase 2_ |
+| `orders` | `order_id` | STRING | không | grain | `trim`. Rỗng thì dòng không vào grain, đếm `rows_rejected` |
+| `orders` | `customer_id` | STRING | có | FK logic | `trim`, rỗng → null |
+| `orders` | `order_status` | STRING | có | thuộc tính | `trim`, lowercase. Không suy ra trạng thái khác |
+| `orders` | `order_purchase_timestamp` | TIMESTAMP | có | mốc gốc | Parse. Script local 10/10/2026 ghi non-null 99.441/99.441 (`PROGRESS_LOG`) |
+| `orders` | `raw_approved_at` | TIMESTAMP | có | vết | Giá trị parse, kể cả khi cột chính thức bị xóa |
+| `orders` | `raw_delivered_carrier_date` | TIMESTAMP | có | vết | Giá trị parse |
+| `orders` | `raw_delivered_customer_date` | TIMESTAMP | có | vết | Giá trị parse |
+| `orders` | `raw_estimated_delivery_date` | TIMESTAMP | có | vết | Giá trị parse |
+| `orders` | `order_approved_at` | TIMESTAMP | có | mốc chính thức | `raw_approved_at` nếu `raw_approved_at` ≥ purchase, else null |
+| `orders` | `order_delivered_carrier_date` | TIMESTAMP | có | mốc chính thức | `raw_delivered_carrier_date` nếu ≥ purchase và (`raw_approved_at` null hoặc raw carrier ≥ `raw_approved_at`). Else null. Bắt 166 và 1.359 dòng đã đo |
+| `orders` | `order_delivered_customer_date` | TIMESTAMP | có | mốc chính thức | `raw_delivered_customer_date` nếu ≥ purchase và (`raw_delivered_carrier_date` null hoặc raw customer ≥ raw carrier). Else null. So với raw carrier, không với cột carrier đã null. Bắt 23 dòng đã đo |
+| `orders` | `order_estimated_delivery_date` | TIMESTAMP | có | mốc chính thức | `raw_estimated_delivery_date` nếu ≥ purchase, else null. SPEC không ghi số dòng estimated trước purchase |
+| `orders` | `ts_inversion_flag` | INT | không | cờ | 1 nếu một `raw_*` khác null mà cột chính thức tương ứng bị null vì đảo. Else 0 |
+| `order_items` | `order_id` | STRING | không | grain | `trim` |
+| `order_items` | `order_item_id` | STRING | không | grain | `trim`. Giữ STRING |
+| `order_items` | `product_id` | STRING | có | FK logic | `trim`, rỗng → null |
+| `order_items` | `seller_id` | STRING | có | FK logic | `trim`, rỗng → null |
+| `order_items` | `shipping_limit_date` | TIMESTAMP | có | mốc | Parse |
+| `order_items` | `price` | DECIMAL(18,2) | có | measure | Cast. Âm → null và `rows_rejected` cộng 1 |
+| `order_items` | `freight_value` | DECIMAL(18,2) | có | measure | Cast. Âm → null và `rows_rejected` cộng 1 |
+| `order_reviews` | `order_id` | STRING | không | grain | `trim`. Rỗng → reject |
+| `order_reviews` | `review_id` | STRING | không | grain | `trim`. Rỗng → reject |
+| `order_reviews` | `review_score` | INT | có | measure | Cast. Ngoài 1–5 → null và đếm `rows_rejected` |
+| `order_reviews` | `review_comment_title` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này |
+| `order_reviews` | `review_comment_message` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này (SPEC §1: không NLP) |
+| `order_reviews` | `review_creation_date` | TIMESTAMP | có | mốc chọn dòng | Parse |
+| `order_reviews` | `review_answer_timestamp` | TIMESTAMP | có | mốc chọn dòng | Parse. Dùng trước `review_creation_date` khi dedupe |
+| `order_payments` | `order_id` | STRING | không | grain | `trim` |
+| `order_payments` | `payment_sequential` | STRING | không | grain | `trim`. Giữ STRING |
+| `order_payments` | `payment_type` | STRING | có | thuộc tính | `trim`, lowercase. Rỗng hoặc `not_defined` → null. Không điền `'unknown'` |
+| `order_payments` | `payment_installments` | INT | có | thuộc tính | Cast. Giá trị 0 giữ nguyên |
+| `order_payments` | `payment_value` | DECIMAL(18,2) | có | measure | Cast. Giá trị 0 giữ nguyên. Âm → null và đếm `rows_rejected` |
+| `customers` | `customer_id` | STRING | không | grain | `trim` |
+| `customers` | `customer_unique_id` | STRING | có | natural key của dim | `trim`, rỗng → null |
+| `customers` | `customer_zip_code_prefix` | STRING | có | zip | `trim`, rỗng → null. Không cast số |
+| `customers` | `customer_city` | STRING | có | thành phố | Quy tắc thành phố ở đầu §6 |
+| `customers` | `customer_state` | STRING | có | bang | Uppercase |
+| `customers` | `region_id` | STRING | có | vùng | Left join `state_region`. Không khớp → null |
+| `customers` | `region_code` | STRING | có | vùng | Left join `state_region` |
+| `customers` | `region_name` | STRING | có | vùng | Left join `state_region` |
+| `sellers` | `seller_id` | STRING | không | grain | `trim` |
+| `sellers` | `seller_zip_code_prefix` | STRING | có | zip | `trim`, rỗng → null |
+| `sellers` | `seller_city` | STRING | có | thành phố | Cùng quy tắc khách |
+| `sellers` | `seller_state` | STRING | có | bang | Uppercase |
+| `sellers` | `region_id` | STRING | có | vùng | Left join IBGE |
+| `sellers` | `region_code` | STRING | có | vùng | Left join IBGE |
+| `sellers` | `region_name` | STRING | có | vùng | Left join IBGE |
+| `products` | `product_id` | STRING | không | grain | `trim` |
+| `products` | `product_category_name` | STRING | có | danh mục PT | `trim`, rỗng → null. Chưa điền `'Unknown'` ở Silver |
+| `products` | `product_name_lenght` | INT | có | thuộc tính | Cast. Giữ tên cột nguồn |
+| `products` | `product_description_lenght` | INT | có | thuộc tính | Cast. Giữ tên cột nguồn |
+| `products` | `product_photos_qty` | INT | có | thuộc tính | Cast |
+| `products` | `product_weight_g` | INT | có | khối lượng | Cast |
+| `products` | `product_length_cm` | INT | có | kích thước | Cast |
+| `products` | `product_height_cm` | INT | có | kích thước | Cast |
+| `products` | `product_width_cm` | INT | có | kích thước | Cast |
+| `products` | `category_name_en` | STRING | có | bản dịch | Left join translation. Không có dòng dịch → null. Gold mới áp nhãn thay thế |
+| `geolocation_zip` | `zip_prefix` | STRING | không | grain | `geolocation_zip_code_prefix` sau `trim` |
+| `geolocation_zip` | `lat` | DOUBLE | có | tọa độ | Bỏ điểm lat/lng null hoặc ngoài bbox lat [-34, 6], lng [-74, -28] (hằng số trong `01_profiling.py`). Trung vị `percentile(col, 0.5)` trên điểm còn lại. 31 điểm ngoài bbox đã đo, vào `rows_rejected` |
+| `geolocation_zip` | `lng` | DOUBLE | có | tọa độ | Cùng tập điểm với `lat` |
+| `geolocation_zip` | `city_name` | STRING | có | mode | Mode của city đã bỏ dấu. Nhiều giá trị cùng tần suất cao nhất: chuỗi nhỏ nhất theo thứ tự từ điển |
+| `geolocation_zip` | `state_code` | STRING | có | mode | Mode của state uppercase. Hòa giống `city_name` |
+| `category_translation` | `product_category_name` | STRING | không | grain | `trim` |
+| `category_translation` | `product_category_name_english` | STRING | có | thuộc tính | `trim`, rỗng → null |
+| `closed_deals` | `mql_id` | STRING | có | thuộc tính | `trim` |
+| `closed_deals` | `seller_id` | STRING | có | FK logic | `trim`, rỗng → null |
+| `closed_deals` | `sdr_id` | STRING | có | thuộc tính | `trim` |
+| `closed_deals` | `sr_id` | STRING | có | thuộc tính | `trim` |
+| `closed_deals` | `won_date` | TIMESTAMP | có | mốc | Parse |
+| `closed_deals` | `business_segment` | STRING | có | thuộc tính | `trim`, rỗng → null |
+| `closed_deals` | `lead_type` | STRING | có | thuộc tính | `trim`, rỗng → null |
+| `closed_deals` | `lead_behaviour_profile` | STRING | có | thuộc tính | `trim`, rỗng → null |
+| `closed_deals` | `has_company` | STRING | có | thuộc tính | Giữ STRING. Không đoán mã yes/no |
+| `closed_deals` | `has_gtin` | STRING | có | thuộc tính | Giữ STRING |
+| `closed_deals` | `average_stock` | STRING | có | thuộc tính | Giữ STRING |
+| `closed_deals` | `business_type` | STRING | có | thuộc tính | `trim`, rỗng → null |
+| `closed_deals` | `declared_product_catalog_size` | STRING | có | thuộc tính | Giữ STRING |
+| `closed_deals` | `declared_monthly_revenue` | STRING | có | thuộc tính | Giữ STRING |
+| `marketing_qualified_leads` | `mql_id` | STRING | không | grain | `trim` |
+| `marketing_qualified_leads` | `first_contact_date` | TIMESTAMP | có | mốc | Parse. Không đưa lên `dim_seller` |
+| `marketing_qualified_leads` | `landing_page_id` | STRING | có | thuộc tính | `trim` |
+| `marketing_qualified_leads` | `origin` | STRING | có | thuộc tính | `trim` |
+| `state_region` | `state_id` | STRING | có | tra cứu | `trim` |
+| `state_region` | `state_code` | STRING | không | grain | `trim`, uppercase. 27 giá trị trên file local |
+| `state_region` | `state_name` | STRING | có | tra cứu | `trim` |
+| `state_region` | `region_id` | STRING | có | tra cứu | `trim` |
+| `state_region` | `region_code` | STRING | có | tra cứu | `trim` |
+| `state_region` | `region_name` | STRING | có | tra cứu | `trim` |
 
-## 9. ETL: thứ tự nạp, incremental, audit (R07, R28, R40) — Phase 3
-_chưa điền. Bảng audit dùng tên `gold.etl_audit` (chưa thiết kế cột)._
+### 6.3 Dimension Gold
 
-## 10. Thiết kế dữ liệu cho DSS (R31) — Phase 5
-_Feature view (ví dụ `dss.v_seller_features`) chỉ dựa trên `gold.*`. Bảng kết quả `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` — chưa điền._
+Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không cộng dòng `-1`.
+
+| Bảng | Cột | Kiểu | Null | Vai trò | Nguồn và quy tắc |
+|---|---|---|---|---|---|
+| `dim_date` | `date_key` | INT | không | PK | §3.2. Dòng `-1` giữ `-1` |
+| `dim_date` | `full_date` | DATE | có | natural | Ngày lịch. Null chỉ trên dòng `-1` |
+| `dim_date` | `year` | INT | có | hierarchy | Năm của `full_date`. Null trên `-1` |
+| `dim_date` | `quarter` | INT | có | hierarchy | 1–4. Null trên `-1` |
+| `dim_date` | `month` | INT | có | hierarchy | 1–12. Null trên `-1` |
+| `dim_date` | `day_of_month` | INT | có | thuộc tính | Null trên `-1` |
+| `dim_date` | `day_of_week` | INT | có | thứ | Spark `dayofweek`, 1 = Chủ Nhật. Null trên `-1` |
+| `dim_date` | `is_weekend` | INT | có | cờ | 1 khi `day_of_week` thuộc {1, 7}, else 0. Null trên `-1` |
+| `dim_date` | `month_key` | INT | có | FK logic | Cùng công thức `dim_month`. Null trên `-1` |
+| `dim_month` | `month_key` | INT | không | PK | §3.2 |
+| `dim_month` | `year` | INT | có | hierarchy | Null trên `-1` |
+| `dim_month` | `quarter` | INT | có | hierarchy | Null trên `-1` |
+| `dim_month` | `month` | INT | có | hierarchy | Null trên `-1` |
+| `dim_month` | `year_month` | STRING | không | nhãn | `yyyy-MM`. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `customer_key` | BIGINT | không | PK | §3.2 |
+| `dim_customer` | `customer_unique_id` | STRING | có | natural | Một dòng một id. Null trên `-1` |
+| `dim_customer` | `zip_prefix` | STRING | có | địa lý | Địa chỉ của đơn mới nhất: `ROW_NUMBER() OVER (PARTITION BY customer_unique_id ORDER BY order_purchase_timestamp DESC NULLS LAST, customer_id ASC) = 1`. Không có đơn → null. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `city_name` | STRING | có | hierarchy | Cùng dòng địa chỉ. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `state_code` | STRING | có | hierarchy | Cùng dòng địa chỉ. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `region_id` | STRING | có | hierarchy | Cùng dòng địa chỉ. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `region_code` | STRING | có | hierarchy | Cùng dòng địa chỉ. Dòng `-1`: `'Unknown'` |
+| `dim_customer` | `region_name` | STRING | có | hierarchy | Cùng dòng địa chỉ. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `seller_key` | BIGINT | không | PK | §3.2 |
+| `dim_seller` | `seller_id` | STRING | có | natural | `silver.sellers`. Null trên `-1` |
+| `dim_seller` | `zip_prefix` | STRING | có | hierarchy | Từ Silver sau khi một dòng một `seller_id`. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `city_name` | STRING | có | hierarchy | Từ Silver. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `state_code` | STRING | có | hierarchy | Từ Silver. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `region_id` | STRING | có | hierarchy | Từ Silver. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `region_code` | STRING | có | hierarchy | Từ Silver. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `region_name` | STRING | có | hierarchy | Từ Silver. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `has_closed_deal` | INT | có | cờ | 1 nếu có ≥ 1 dòng deal cùng `seller_id`, else 0. Null trên `-1` |
+| `dim_seller` | `mql_id` | STRING | có | deal | Dòng deal có `won_date` sớm nhất, hòa thì `mql_id` tăng dần. Không deal → null. Null trên `-1` |
+| `dim_seller` | `sdr_id` | STRING | có | deal | Cùng dòng deal vừa chọn |
+| `dim_seller` | `sr_id` | STRING | có | deal | Cùng dòng deal vừa chọn |
+| `dim_seller` | `won_date` | DATE | có | ngày ký | Phần ngày của `won_date` trên dòng deal vừa chọn. Phase 5 tính tuổi bằng `COALESCE(won_date, ngày mua sớm nhất trên fact_order_item)`. Không lưu tuổi trên dim |
+| `dim_seller` | `business_segment` | STRING | có | phân khúc | Cùng dòng deal. Không deal → null, không điền `'Unknown'`. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `lead_type` | STRING | có | deal | Cùng dòng deal. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `business_type` | STRING | có | deal | Cùng dòng deal. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `lead_behaviour_profile` | STRING | có | deal | Cùng dòng deal. Dòng `-1`: `'Unknown'` |
+| `dim_seller` | `has_company` | STRING | có | deal | Cùng dòng deal, giữ STRING |
+| `dim_seller` | `has_gtin` | STRING | có | deal | Cùng dòng deal, giữ STRING |
+| `dim_seller` | `average_stock` | STRING | có | deal | Cùng dòng deal, giữ STRING |
+| `dim_seller` | `declared_product_catalog_size` | STRING | có | deal | Cùng dòng deal, giữ STRING |
+| `dim_seller` | `declared_monthly_revenue` | STRING | có | deal | Cùng dòng deal, giữ STRING |
+| `dim_product` | `product_key` | BIGINT | không | PK | §3.2 |
+| `dim_product` | `product_id` | STRING | có | natural | Null trên `-1`. Thiếu category không đổi khóa này |
+| `dim_product` | `category_pt` | STRING | không | danh mục | `product_category_name`, thiếu thì `'Unknown'`. Dòng `-1`: `'Unknown'` |
+| `dim_product` | `category_en` | STRING | không | danh mục EN | Bản dịch nếu có dòng. Category có tên nhưng không có dòng dịch: bằng chính chuỗi nguồn, trừ `portateis_cozinha_e_preparadores_de_alimentos` → `portable_kitchen_food_preparers` (nhãn nhóm đặt, không phải cột nguồn). Thiếu tên category: `'Unknown'` |
+| `dim_product` | `category_group` | STRING | không | nhóm | §3.4. Thiếu tên category: `'Unknown'` |
+| `dim_product` | `weight_g` | INT | có | khối lượng | `product_weight_g` |
+| `dim_product` | `length_cm` | INT | có | kích thước | `product_length_cm` |
+| `dim_product` | `height_cm` | INT | có | kích thước | `product_height_cm` |
+| `dim_product` | `width_cm` | INT | có | kích thước | `product_width_cm` |
+| `dim_product` | `name_length` | INT | có | thuộc tính | Đổi tên từ `product_name_lenght` |
+| `dim_product` | `description_length` | INT | có | thuộc tính | Đổi tên từ `product_description_lenght` |
+| `dim_product` | `photos_qty` | INT | có | thuộc tính | `product_photos_qty` |
+| `dim_product` | `volume_cm3` | INT | có | thể tích | §3.4 |
+| `dim_product` | `size_band` | STRING | không | cồng kềnh | §3.4. Dòng `-1`: `'Unknown'` |
+| `dim_order_status` | `order_status_key` | BIGINT | không | PK | §3.2 |
+| `dim_order_status` | `order_status` | STRING | không | natural | Distinct lowercase từ Silver, cộng dòng `-1` = `'Unknown'`. SPEC không liệt kê danh sách giá trị, file này cũng không liệt kê |
+| `dim_payment_type` | `payment_type_key` | BIGINT | không | PK | §3.2 |
+| `dim_payment_type` | `payment_type` | STRING | không | natural | Distinct `payment_type` khác null trên Silver, cộng dòng `-1` = `'Unknown'`. Không tạo member `'unknown'`. SPEC không ghi phân bố giá trị, file này không liệt kê tên loại |
+
+### 6.4 Fact Gold
+
+| Bảng | Cột | Kiểu | Null | Vai trò | Nguồn và quy tắc |
+|---|---|---|---|---|---|
+| `fact_order_item` | `order_id` | STRING | không | grain, khóa suy biến | Silver item |
+| `fact_order_item` | `order_item_id` | STRING | không | grain | Silver item |
+| `fact_order_item` | `purchase_date_key` | INT | không | FK `dim_date` | Ngày của `order_purchase_timestamp`. Null → `-1` |
+| `fact_order_item` | `shipping_limit_date_key` | INT | không | FK `dim_date` | Ngày của `shipping_limit_date`. Null → `-1` |
+| `fact_order_item` | `customer_key` | BIGINT | không | FK | `orders.customer_id` → `customer_unique_id` → dim. Đứt khâu nào → `-1` |
+| `fact_order_item` | `seller_key` | BIGINT | không | FK | Không khớp → `-1` |
+| `fact_order_item` | `product_key` | BIGINT | không | FK | Không khớp → `-1` |
+| `fact_order_item` | `order_status_key` | BIGINT | không | FK | Status của đơn, không của item. Không khớp → `-1` |
+| `fact_order_item` | `price` | DECIMAL(18,2) | có | measure cộng | Silver |
+| `fact_order_item` | `freight_value` | DECIMAL(18,2) | có | measure cộng | Silver |
+| `fact_order_item` | `seller_ship_late_flag` | INT | có | cờ 0/1 | §3.6. Carrier lấy từ đơn, hạn giao lấy từ item |
+| `fact_order_item` | `seller_handling_days` | DOUBLE | có | thời lượng | §3.6. Trung bình, không SUM |
+| `fact_order_item` | `delivery_days` | DOUBLE | có | thời lượng | §3.6. Lặp từ đơn |
+| `fact_order_item` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6. Lặp từ đơn. Không SUM |
+| `fact_order_item` | `late_delivery_flag` | INT | có | cờ | Cùng `late_flag` của đơn, lặp trên mỗi item. Không SUM |
+| `fact_order_item` | `distance_km` | DOUBLE | có | khoảng cách | §3.6. Trung bình, không SUM |
+| `fact_order` | `order_id` | STRING | không | grain | Mọi đơn Silver, kể cả đơn không item |
+| `fact_order` | `purchase_date_key` | INT | không | FK | Ngày purchase. Null → `-1` |
+| `fact_order` | `approved_date_key` | INT | không | FK | Ngày official approved. Null → `-1` |
+| `fact_order` | `delivered_carrier_date_key` | INT | không | FK | Ngày official carrier. Null → `-1` |
+| `fact_order` | `delivered_customer_date_key` | INT | không | FK | Ngày official customer. Null → `-1` |
+| `fact_order` | `estimated_date_key` | INT | không | FK | Ngày official estimated. Null → `-1` |
+| `fact_order` | `customer_key` | BIGINT | không | FK | Cùng đường với item. Không khớp → `-1` |
+| `fact_order` | `order_status_key` | BIGINT | không | FK | Không khớp → `-1` |
+| `fact_order` | `payment_type_key` | BIGINT | không | FK | §3.7. Không có dòng hợp lệ → `-1` |
+| `fact_order` | `items_value` | DECIMAL(18,2) | không | measure cộng | §3.6. Không có item thì 0 |
+| `fact_order` | `freight_total` | DECIMAL(18,2) | không | measure cộng | §3.6. Không có item thì 0 |
+| `fact_order` | `payment_total` | DECIMAL(18,2) | không | measure cộng | §3.6. Không có payment thì 0 |
+| `fact_order` | `n_items` | INT | không | đếm | 0 nếu không có item |
+| `fact_order` | `n_sellers` | INT | không | đếm | 0 nếu không có item |
+| `fact_order` | `delivery_days` | DOUBLE | có | thời lượng | §3.6 |
+| `fact_order` | `estimated_days` | DOUBLE | có | số ngày lịch | §3.6 |
+| `fact_order` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6 |
+| `fact_order` | `late_flag` | INT | có | cờ | §3.6 |
+| `fact_order` | `review_score` | INT | có | điểm | §2.3 và §3.6 |
+| `fact_order` | `negative_review_flag` | INT | có | cờ | §3.6 |
+| `fact_order` | `bad_experience_flag` | INT | có | cờ | §3.6 |
+| `fact_order` | `ts_inversion_flag` | INT | không | cờ | Copy `silver.orders.ts_inversion_flag` |
+| `fact_seller_monthly` | `seller_key` | BIGINT | không | grain FK | Seller có ≥ 1 item trong tháng mua |
+| `fact_seller_monthly` | `month_key` | INT | không | grain FK | Tháng của `order_purchase_timestamp` |
+| `fact_seller_monthly` | `seller_id` | STRING | không | khóa suy biến | Để đối soát không phụ thuộc surrogate |
+| `fact_seller_monthly` | `year_month` | STRING | không | khóa suy biến | `yyyy-MM` của tháng mua |
+| `fact_seller_monthly` | `n_orders` | INT | không | đếm | §3.6. Không cộng qua seller |
+| `fact_seller_monthly` | `n_items` | INT | không | đếm | §3.6 |
+| `fact_seller_monthly` | `gmv` | DECIMAL(18,2) | không | GMV | `sum(price)` |
+| `fact_seller_monthly` | `late_ship_count` | INT | không | tử | §3.6 |
+| `fact_seller_monthly` | `late_ship_eligible` | INT | không | mẫu | §3.6. Gồm cờ 0 và cờ 1 |
+| `fact_seller_monthly` | `late_ship_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
+| `fact_seller_monthly` | `late_delivery_count` | INT | không | tử | Đơn phân biệt, `late_flag` = 1 |
+| `fact_seller_monthly` | `late_delivery_eligible` | INT | không | mẫu | Đơn phân biệt, `late_flag` khác null |
+| `fact_seller_monthly` | `late_delivery_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null. Không cộng qua seller |
+| `fact_seller_monthly` | `review_score_sum` | INT | không | tử | Chỉ đơn một seller có điểm |
+| `fact_seller_monthly` | `review_count` | INT | không | mẫu | Cùng tập đó |
+| `fact_seller_monthly` | `avg_review` | DOUBLE | có | tỷ lệ | sum/count khi count > 0, else null |
+| `fact_seller_monthly` | `negative_review_count` | INT | không | tử | `negative_review_flag` = 1 trong tập có điểm, đơn một seller |
+| `fact_seller_monthly` | `negative_review_eligible` | INT | không | mẫu | Bằng `review_count` |
+| `fact_seller_monthly` | `negative_review_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
+| `fact_seller_monthly` | `bad_experience_count` | INT | không | tử | `bad_experience_flag` = 1 |
+| `fact_seller_monthly` | `bad_experience_eligible` | INT | không | mẫu | Cờ khác null |
+| `fact_seller_monthly` | `bad_experience_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
+| `fact_seller_monthly` | `cancel_count` | INT | không | tử | Đơn `canceled` hoặc `unavailable` |
+| `fact_seller_monthly` | `cancel_eligible` | INT | không | mẫu | Mọi đơn phân biệt của seller trong tháng |
+| `fact_seller_monthly` | `cancel_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
+| `fact_seller_monthly` | `handling_days_sum` | DOUBLE | không | tử | Tổng `seller_handling_days` khác null. 0 khi không có item hợp lệ |
+| `fact_seller_monthly` | `handling_days_count` | INT | không | mẫu | Số item có handling days |
+| `fact_seller_monthly` | `avg_handling_days` | DOUBLE | có | trung bình | sum/count khi count > 0, else null |
+
+### 6.5 `gold.etl_audit`
+
+Append-only. Một dòng cho mỗi bảng đích trong một batch.
+
+`rows_read = rows_loaded + rows_deduplicated + rows_rejected`.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `audit_id` | BIGINT | không | `max + 1` trong lần ghi |
+| `batch_id` | STRING | không | Cùng `_batch_id` |
+| `layer` | STRING | không | `bronze`, `silver`, hoặc `gold` |
+| `target_table` | STRING | không | Tên bảng đích |
+| `source_name` | STRING | không | Tên file hoặc bảng nguồn. Fact: xem bên dưới |
+| `rows_read` | BIGINT | không | Dòng đọc ở grain nguồn của bước đó |
+| `rows_loaded` | BIGINT | không | Dòng ghi vào đích ở grain đích. Dimension không cộng dòng `-1` |
+| `rows_deduplicated` | BIGINT | không | Dòng giảm vì khử trùng hoặc gộp grain. Bronze = 0 |
+| `rows_rejected` | BIGINT | không | Chỉ dòng hỏng, lỗi ép kiểu, ngoài miền, hoặc ngoài bbox. Không gồm dedupe. 31 điểm ngoài bbox là số đã đo cho `geolocation` |
+| `rows_unknown_fk` | BIGINT | có | Số khóa ngoại `-1` trên fact của batch. Null nếu đích không phải fact |
+| `rows_ts_inverted` | BIGINT | có | Số dòng `ts_inversion_flag` = 1 khi đích là `silver.orders` hoặc `fact_order`. Null với bảng khác |
+| `sum_price_source` | DECIMAL(18,2) | có | Tổng `price` nguồn khi đích là item. Else null |
+| `sum_price_target` | DECIMAL(18,2) | có | Tổng `price` trên fact item sau MERGE của phần batch. Phải bằng nguồn, trừ dòng reject |
+| `watermark_value` | STRING | có | Giá trị `watermark_cutoff_ts` của lần chạy. Null với bảng không lọc theo mốc này |
+| `loaded_at` | TIMESTAMP | không | Thời điểm ghi audit |
+
+`rows_read` của ba fact:
+
+- `fact_order_item`: `source_name = 'silver.order_items'`. `rows_read` = số dòng item Silver trong phạm vi batch.
+- `fact_order`: `source_name = 'silver.orders'`. `rows_read` = số đơn Silver trong phạm vi batch, gồm đơn mới và đơn cũ được cập nhật mốc hoặc review.
+- `fact_seller_monthly`: `source_name = 'gold.fact_order_item'`. `rows_read` = số dòng item thuộc các `month_key` được tính lại. `rows_loaded` = số cặp (`seller_key`, `month_key`). Phần chênh sau khi trừ `rows_rejected` là `rows_deduplicated`.
+
+Không ghi sẵn các hiệu số chưa đo (số dòng review theo grain mới, số zip sau bbox, số seller-tháng).
+
+---
+
+## 7. Quy tắc làm sạch đã đo (R27)
+
+Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 2.
+
+| Quy tắc | Số đã ghi trong SPEC §3 | Cách nằm trong thiết kế |
+|---|---|---|
+| Geolocation: bbox, trung vị, mode theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox; 0 lat/lng null | `silver.geolocation_zip`. 31 điểm vào `rows_rejected`. Số zip sau bbox pending |
+| Bỏ dấu thành phố | Geo city 8.010 → 5.968 distinct; 73.437 dòng có dấu. Customer/seller city không đổi sau bỏ dấu | Vẫn chuẩn hóa cả ba |
+| `dim_customer` theo `customer_unique_id` | 99.441 `customer_id`; 96.096 người | Silver giữ `customer_id`. Gold một người một dòng. Địa chỉ: đơn mới nhất, hòa thì `customer_id` tăng dần |
+| Category thiếu → `'Unknown'` | 610 / 32.951 thiếu tên; 2 category không có bản dịch | Product vẫn giữ khóa dương. Ba cột category = `'Unknown'` khi thiếu tên. Category có tên nhưng không có dòng dịch: `category_en` = chuỗi nguồn, trừ `portateis_cozinha_e_preparadores_de_alimentos` → `portable_kitchen_food_preparers`. `category_group` theo §3.4 |
+| Timestamp null hoặc đảo | Null approved 160, carrier 1.783, customer 2.965. Đảo trên raw: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 9 đơn `delivered` thiếu một trong hai mốc (96.478 − 96.469) | Cột chính thức null, `raw_*` giữ vết, `ts_inversion_flag`, `rows_ts_inverted`. Measure thời gian chỉ dùng cột chính thức |
+| Review | 789 nhóm `review_id`; 814 dòng thừa; 98.410 `review_id` nếu khử theo `review_id` (99.224 − 814). 547 đơn có hơn một dòng review trên file thô, trước dedupe | Silver grain (`order_id`, `review_id`), số dòng pending. `fact_order` một điểm mỗi đơn |
+| Payment lạ | 3 `not_defined`; 9 value 0; 2 installments 0; 387 / 98.665 đơn lệch > 0,01 | `not_defined` và rỗng → null, FK `-1`, nhãn `'Unknown'`. Giữ số 0. Không xóa đơn lệch |
+| Zip dạng chuỗi | 0 zip ngắn hơn 5; min length 5 | STRING suốt pipeline |
+| Cửa sổ 2016-09-04 → 2018-10-17 | Tháng thưa đã liệt kê ở §2.4. 19 tháng ≥ 1.000 đơn | Không cắt |
+| Loại đơn nhiều seller khỏi trải nghiệm xấu và review trách nhiệm | 1.278 / 98.666 | `bad_experience_flag` và tỷ lệ review trên snapshot. Không loại khỏi GMV, cờ bàn giao trễ, hay cờ giao trễ |
+| Một mốc bàn giao cho cả đơn | 1.278 đơn nhiều seller | Nguồn chỉ có `order_delivered_carrier_date` ở cấp đơn. Mọi seller trong đơn đó dùng chung mốc này khi tính `seller_ship_late_flag` |
+
+---
+
+## 8. Sẵn sàng OLAP và DSS
+
+**Loại OLAP: còn mở.** ROLAP (SQL warehouse đọc Gold) hoặc HOLAP (Power BI Import + Gold). Không chọn MOLAP. **Không chọn** Power BI Desktop, Databricks AI/BI, hay Streamlit ở phase này. Cả hai mục chờ spike S2–S3.
+
+Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
+
+### Influence diagram (bản nháp, R36)
+
+Chưa thiết kế feature view. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
+
+```mermaid
+flowchart LR
+  D1[Nguong diem rui ro] --> T((Hang seller))
+  D2[Nguong KPI cung] --> T
+  D3[Bien phap theo hang] --> E
+  U1([Lich su hieu suat tu Gold]) --> P((Diem rui ro))
+  U2([Mua vu]) --> Q((Don du kien))
+  U3([Hieu qua can thiep]) --> E((Don xau tranh duoc))
+  U4([Ty le chuyen don]) --> G
+  P --> T
+  P --> R1
+  Q --> R1
+  T --> E
+  T --> G{{GMV bi anh huong}}
+  T --> R3{{So seller can xu ly}}
+  Q --> G
+  E --> R1{{Don trai nghiem xau du kien}}
+```
+
+| Biến M1 cần | Có trên Gold |
+|---|---|
+| Tỷ lệ bàn giao trễ | `fact_seller_monthly.late_ship_rate` và tử/mẫu. Cửa sổ 3 tháng do Phase 5 tự cộng, không lưu sẵn |
+| Điểm review | `avg_review`, `review_score` |
+| GMV | `gmv` = tổng `price` |
+| Số đơn | `n_orders`. Không cộng qua seller |
+| Vùng | `dim_seller.region_name` |
+| Danh mục | `dim_product.category_en` và `category_group` |
+| Khoảng cách trung bình | `fact_order_item.distance_km`, Phase 5 tự lấy trung bình. Không để sẵn trên snapshot tháng |
+| Tuổi seller | `dim_seller.won_date` khi có deal. Phase 5 dùng `COALESCE(won_date, ngày mua sớm nhất trên fact_order_item)`. 380 / 3.095 seller khớp deal. 2.715 là hiệu 3.095 − 380, không phải một lần đếm riêng. Độ phủ `won_date` 12,3% là hạn chế của Marketing Funnel |
+
+X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải cột Gold.
+
+---
+
+## 9. Hợp đồng cho người viết DDL và ETL (Phase 3)
+
+Thứ tự: Bronze append → Silver rebuild → dimension (chèn `-1` trước) → `fact_order` và `fact_order_item` → `fact_seller_monthly` → `etl_audit`.
+
+**Incremental (R28).** Tham số ví dụ `watermark_cutoff_ts`.
+
+- Silver đơn, item, payment, review: rebuild các đơn có `order_purchase_timestamp` ≤ cutoff. Giữ `order_status` đúng chuỗi nguồn. Không điền `shipped`, `approved`, hay `created`. Mốc giao và review của đơn đã lọt cutoff giữ nguyên, kể cả khi mốc đó muộn hơn cutoff.
+- Silver khách, seller, sản phẩm, zip, dịch, deal, MQL, bang-vùng: rebuild toàn bộ ảnh sạch từ Bronze của lần chạy, vì các bảng này không có mốc mua.
+- `fact_order_item`: MERGE item của đơn mới trong kỳ (purchase sau cutoff cũ và ≤ cutoff mới). Lần đầu: mọi đơn ≤ cutoff.
+- `fact_order`: MERGE đơn mới, cộng các đơn đã có trong Gold mà Silver nay có approved, carrier, customer hoặc review trong khi Gold còn `*_date_key = -1` hoặc `review_score` null.
+- `fact_seller_monthly`: tính lại các tháng mua của hai tập đơn đó.
+- Không dùng CDF hay Auto Loader.
+
+### CHECK miền giá trị
+
+Đây là ràng buộc từng dòng. Ngưỡng tỷ lệ null của `distance_km` và `price` không đặt, vì chưa đo.
+
+| Bảng | Tên | Biểu thức |
+|---|---|---|
+| `fact_order_item` | `chk_foi_money` | `price IS NULL OR price >= 0`, và `freight_value IS NULL OR freight_value >= 0` |
+| `fact_order_item` | `chk_foi_flags` | `seller_ship_late_flag` và `late_delivery_flag` mỗi cờ null hoặc thuộc {0, 1} |
+| `fact_order` | `chk_fo_amounts_counts` | `items_value >= 0 AND freight_total >= 0 AND payment_total >= 0 AND n_items >= 0 AND n_sellers >= 0` |
+| `fact_order` | `chk_fo_review` | `review_score IS NULL OR review_score BETWEEN 1 AND 5` |
+| `fact_order` | `chk_fo_flags` | `late_flag`, `negative_review_flag`, `bad_experience_flag` mỗi cờ null hoặc thuộc {0, 1}, và `ts_inversion_flag IN (0, 1)` |
+| `fact_seller_monthly` | `chk_fsm_totals` | `n_orders >= 1 AND n_items >= 1 AND gmv >= 0` |
+| `fact_seller_monthly` | `chk_fsm_num_den` | `late_ship_count >= 0 AND late_ship_eligible >= late_ship_count` và cùng dạng đó cho late delivery, negative review, bad experience, cancel. `review_count >= 0`. `review_score_sum >= 0`. `handling_days_count >= 0 AND handling_days_sum >= 0`. Không ràng `handling_days_sum` ≤ `handling_days_count` vì tổng số ngày có thể lớn hơn số item |
+| `fact_seller_monthly` | `chk_fsm_rates` | Mỗi tỷ lệ null hoặc trong [0, 1]. `avg_review` null hoặc trong [1, 5] |
+
+Khóa grain và khóa ngoại: `NOT NULL`. Khóa ngoại phải tồn tại trong dimension, kể cả `-1`.
+
+Ngưỡng DQ giữ lại từ G2: trong các đơn `order_status = 'delivered'`, tỷ lệ thiếu một mốc giao (`delivered_carrier_date_key = -1` hoặc `delivered_customer_date_key = -1`) ≤ 5%. Đây là kiểm đếm sau load, không phải `CHECK` một dòng.
+
+Việc Phase 3 phải kiểm:
+
+| Kiểm tra | Kỳ vọng |
+|---|---|
+| Grain không trùng | 0 dòng trùng khóa MERGE |
+| FK | Mọi FK fact khác null và tồn tại trong dimension, kể cả `-1` |
+| Unknown | Dòng fact thiếu natural key vẫn còn, đếm ở `rows_unknown_fk`. Không có member `'unknown'` thứ hai |
+| SCD | Type 1. Không tạo cột hiệu lực |
+| Timestamp | Mốc đảo null trên cột chính thức, còn ở `raw_*`. `rows_ts_inverted` đếm cờ 1. Measure thời gian dùng cột chính thức |
+| Review | Grain Silver là (`order_id`, `review_id`). `fact_order` một điểm mỗi đơn. Không dừng batch khi hòa |
+| Giá | `sum(price)` item nguồn của batch = `sum_price_target` sau khi trừ reject |
+| Đọc / nạp / loại | `rows_read = rows_loaded + rows_deduplicated + rows_rejected` |
+| Zip và id | Kiểu STRING đến Gold |
+| Đơn nhiều seller | Vẫn nằm trong fact item, GMV, cờ bàn giao và cờ giao trễ. Chỉ null ở `bad_experience_flag` và ở mẫu review trách nhiệm |
+| Tháng thưa | Còn nếu có đơn. Không bịa dòng seller-tháng bằng 0 |
+| IBGE | Đọc `/Volumes/olist_catalog/bronze/raw/ref/ibge_state_region.csv`. Không thay bằng file bịa |
+| Incremental | Demo hai lần cutoff. `order_status` không bị sửa. Đơn mua sau cutoff không có trong Silver đơn |
+
+`dss` không có DDL nghiệp vụ ở Phase 3 ngoài schema rỗng nếu cần chỗ để dành. Không tạo feature view.
+
+---
+
+## 10. Ánh xạ cột — phạm vi đã phủ
+
+Đã có nguồn hoặc công thức cho mọi cột đã đặt tên ở §6, gồm:
+
+- 12 bảng Bronze × cột file §6.1, cộng 3 cột ingest.
+- Mọi cột Silver §6.2, gồm `raw_*` và `ts_inversion_flag`.
+- 7 dimension, 3 fact, `gold.etl_audit`.
+
+Không còn cột fact hoặc dimension thiếu luật biến đổi.
+
+---
+
+## 11. Số đo còn pending
+
+Các mục dưới đây không chặn DDL. Phase 3 ghi số khi chạy, không điền trước.
+
+| Mục | Vì sao pending |
+|---|---|
+| Số nhóm khóa trùng của `order_id`, (`order_id`, `order_item_id`), (`order_id`, `payment_sequential`), `mql_id`, `seller_id`, `product_id` | Notebook có thống kê nhưng SPEC §3 không ghi số |
+| Số dòng `silver.order_reviews` theo grain (`order_id`, `review_id`) | 98.410 chỉ là số `review_id` nếu khử theo `review_id`. Grain mới chưa đếm |
+| Số zip `silver.geolocation_zip` sau bbox | 19.015 là số zip trước khi bỏ 31 điểm ngoài bbox |
+| Số cặp `fact_seller_monthly` | 173 là số seller đạt ngưỡng G1, không phải số dòng fact |
+| Max của từng timestamp giao, hẹn, hạn ship, review | SPEC chỉ ghi min/max của `order_purchase_timestamp` |
+
+OPEN-1 đến OPEN-7 của bản thiết kế trước đã đóng: nhóm danh mục, `size_band`, địa chỉ khách, thanh toán chính, một deal mỗi seller, SCD Type 1, file IBGE trên Volume. Chi tiết nằm ở §3 và §6.

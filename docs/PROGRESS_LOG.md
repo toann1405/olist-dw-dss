@@ -10,15 +10,24 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 1 tài liệu đã khóa từ số Volume (15/10/2026). T1, X=10, N=40 đã chốt. Việc tiếp theo là Phase 2 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026). T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
-| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE chưa upload `ref/` trên Volume |
-| Việc tiếp theo | Phase 2: viết `docs/DESIGN.md` (fact, grain, hierarchy, source-to-target). Upload `ibge_state_region.csv` vào `/Volumes/olist_catalog/bronze/raw/ref/` |
+| Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
+| Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
 | Cập nhật | 15/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 15/10/2026 — Phase 2 — Khóa thiết kế DW
+- **Đã làm:** viết lại `docs/DESIGN.md` thành hợp đồng Phase 3. Sửa các lỗi thiết kế đã rà (cờ bàn giao có đủ 0/1/null, mốc đảo thành null kèm `raw_*` và `ts_inversion_flag`, grain review `(order_id, review_id)`, từ điển từng cột, Bronze giữ chuỗi gốc, nhãn `'Unknown'`, audit tách dedupe và reject, CHECK miền giá trị, 99.224 − 814 = 98.410, 547 là số đơn nhiều dòng review trên file thô). Khóa luật nhóm: 8 `category_group` (thêm `eletroportateis`), `size_band`, địa chỉ khách, một deal, thanh toán chính, SCD Type 1, cờ trải nghiệm xấu, so sánh ngày và timestamp, incremental theo `watermark_cutoff_ts` không sửa `order_status`.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không chạy profiling. Không đọc lại Volume nên không ghi số dòng IBGE mới.
+- **Số giữ pending:** khóa trùng, số dòng review theo grain mới, số zip sau bbox, số seller-tháng, max của các mốc ngoài ngày mua.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.5), `docs/PLAN.md` (10 mục Phase 2), `docs/PROGRESS_LOG.md`.
+- **Quyết định:** ghi thêm ở SPEC §10. Dòng quyết định cũ giữ nguyên. R41 SCD2 vẫn là điểm cộng, chưa làm.
+- **RTM:** R04, R05, R22, R23, R24, R29, R45 sang đã xong phần thiết kế. R02 và R36 giữ đang làm (DDL thuộc Phase 3; influence diagram vẫn là bản nháp).
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
 
 ### 15/10/2026 — Phase 1 — Ghi số đo Volume và chốt T1, X, N
 - **Đã làm:** ghi kết quả `01_profiling.py` Run All trên Databricks (`SOURCE=volume`, `NOT_OFFICIAL=no`). Không viết ETL. Không upload Volume.
