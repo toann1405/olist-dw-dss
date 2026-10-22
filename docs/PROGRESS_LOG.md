@@ -10,15 +10,46 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 1 tài liệu đã khóa từ số Volume (15/10/2026). T1, X=10, N=40 đã chốt. Việc tiếp theo là Phase 2 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026), bổ sung luật 22/10/2026. T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
-| Blocker | Không có blocker Cloud. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE chưa upload `ref/` trên Volume |
-| Việc tiếp theo | Phase 2: viết `docs/DESIGN.md` (fact, grain, hierarchy, source-to-target). Upload `ibge_state_region.csv` vào `/Volumes/olist_catalog/bronze/raw/ref/` |
-| Cập nhật | 15/10/2026 |
+| Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
+| Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
+| Cập nhật | 22/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 22/10/2026 — Phase 2 — Khóa grain review và review dùng chung
+- **Đã làm:** `silver.order_reviews` giữ (`review_id`, `order_id`), chỉ cast và bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
+- **Quyết định trong ngày, đã ghi SPEC §10:** GMV loại đơn `canceled` và `unavailable`; `n_orders_placed` / `n_orders_valid`, `n_items_placed` / `n_items_valid`, `aov`; `seller_ship_late_flag` null khi hủy và bằng 1 khi quá hạn chưa bàn giao; `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`; luật review ở mục này.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không sửa `TOPIC_EVALUATION.md`. Không đo số đơn có seller_set nhiều seller. Câu 1,6% tháng 3/2018 ghi là [GIẢ ĐỊNH].
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** Phase 3, DDL và ETL. Sau Gold, sensitivity check top-40 cho review dùng chung.
+
+### 22/10/2026 — Phase 2 — Chốt snapshot, volume M1 và cờ giao trễ
+- **Đã làm:** đóng ba điểm còn mở sau lần chỉnh GMV. `snapshot_date` lấy từ `watermark_cutoff_ts`; mỗi lần nạp tính lại `seller_ship_late_flag` khi cờ còn null hoặc đơn chưa có carrier. M1 dùng `n_orders_valid`. Đơn hủy ra khỏi `late_flag` và mẫu `late_delivery_*`. Thêm callout ở mục G3, không sửa câu kết quả cũ.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không đo lại.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/TOPIC_EVALUATION.md`, `docs/PROGRESS_LOG.md`.
+- **Quyết định:** SPEC §10, ngày 22/10/2026. Dòng tách `snapshot_date` khỏi watermark được đánh dấu thay thế cùng ngày.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
+
+### 22/10/2026 — Phase 2 — Bổ sung luật đơn nhiều seller, cờ trễ, SCD và địa chỉ
+- **Đã làm:** đối chiếu bốn quyết định với SPEC, DESIGN, TOPIC_EVALUATION. Chỗ đã khớp thì giữ. Bổ sung chỗ còn lệch: review của đơn nhiều seller để null trên `fact_order` (không chỉ ở snapshot tháng); `seller_ship_late_flag` khi thiếu carrier sau ngày chốt và khi đơn hủy; `dim_seller` SCD2-ready; địa chỉ khách chuyển từ `dim_customer` sang `fact_order`.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không chạy profiling. Không đo thêm số đơn thiếu carrier hay số đơn hủy.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.6), `docs/TOPIC_EVALUATION.md`, `docs/PLAN.md` (một câu ở mục Phase 1: đơn nhiều seller để null, không xóa), `docs/PROGRESS_LOG.md`.
+- **Quyết định:** ghi thêm SPEC §10. Dòng địa chỉ 15/10 đánh dấu thay thế. Dòng SCD1 15/10 giữ vì vẫn đúng. R41 vẫn là điểm cộng, chưa làm.
+- **RTM:** R04, R23, R24, R29 giữ ☑ (phần thiết kế). R41 giữ ☐.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
+
+### 15/10/2026 — Phase 2 — Khóa thiết kế DW
+- **Đã làm:** viết lại `docs/DESIGN.md` thành hợp đồng Phase 3. Sửa các lỗi thiết kế đã rà (cờ bàn giao có đủ 0/1/null, mốc đảo thành null kèm `raw_*` và `ts_inversion_flag`, grain review `(order_id, review_id)`, từ điển từng cột, Bronze giữ chuỗi gốc, nhãn `'Unknown'`, audit tách dedupe và reject, CHECK miền giá trị, 99.224 − 814 = 98.410, 547 là số đơn nhiều dòng review trên file thô). Khóa luật nhóm: 8 `category_group` (thêm `eletroportateis`), `size_band`, địa chỉ khách, một deal, thanh toán chính, SCD Type 1, cờ trải nghiệm xấu, so sánh ngày và timestamp, incremental theo `watermark_cutoff_ts` không sửa `order_status`.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không chạy profiling. Không đọc lại Volume nên không ghi số dòng IBGE mới.
+- **Số giữ pending:** khóa trùng, số dòng review theo grain mới, số zip sau bbox, số seller-tháng, max của các mốc ngoài ngày mua.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.5), `docs/PLAN.md` (10 mục Phase 2), `docs/PROGRESS_LOG.md`.
+- **Quyết định:** ghi thêm ở SPEC §10. Dòng quyết định cũ giữ nguyên. R41 SCD2 vẫn là điểm cộng, chưa làm.
+- **RTM:** R04, R05, R22, R23, R24, R29, R45 sang đã xong phần thiết kế. R02 và R36 giữ đang làm (DDL thuộc Phase 3; influence diagram vẫn là bản nháp).
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
 
 ### 15/10/2026 — Phase 1 — Ghi số đo Volume và chốt T1, X, N
 - **Đã làm:** ghi kết quả `01_profiling.py` Run All trên Databricks (`SOURCE=volume`, `NOT_OFFICIAL=no`). Không viết ETL. Không upload Volume.
