@@ -231,7 +231,7 @@ Tiền: `DECIMAL(18,2)`. Số ngày kiểu thời lượng (`delivery_days`, `se
 
 Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằng ngày lịch. Cột `order_estimated_delivery_date` không được ghi là luôn `00:00:00`; SPEC không đo thành phần giờ của cột đó.
 
-**Ngày chốt dữ liệu** là tham số nạp `snapshot_date` (DATE), không phải cột Gold và không phải literal rải trong từng công thức. Giá trị mặc định khi nạp đủ dataset đã đo là `DATE '2018-10-17'`: phần ngày của max `order_purchase_timestamp` (2018-10-17 17:30:18, SPEC §1). Tham số này đứng riêng với `watermark_cutoff_ts`. Khi carrier thật sự thiếu, hạn có `TO_DATE(shipping_limit_date) < snapshot_date` là quá hạn chưa bàn giao; hạn bằng hoặc sau `snapshot_date` là chưa đến hạn.
+**Ngày chốt dữ liệu** là `snapshot_date` = `TO_DATE(watermark_cutoff_ts)` của lần nạp đó, không phải cột Gold. Full load mặc định `DATE '2018-10-17'`, phần ngày của max `order_purchase_timestamp` (2018-10-17 17:30:18, SPEC §1). Khi carrier thật sự thiếu, hạn có `TO_DATE(shipping_limit_date) < snapshot_date` là quá hạn chưa bàn giao; hạn bằng hoặc sau `snapshot_date` là chưa đến hạn. Mỗi lần nạp tính lại `seller_ship_late_flag` cho item mà cờ còn null, hoặc đơn chưa có carrier chính thức (§9).
 
 | Measure | Mức | Công thức |
 |---|---|---|
@@ -241,7 +241,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `delivery_days` | item và đơn | `(official customer − purchase)` giây / 86400 khi official customer khác null. Ngược lại null. Cờ trễ không dùng số này |
 | `estimated_days` | đơn | `DATEDIFF(TO_DATE(official estimated), TO_DATE(purchase))` khi official estimated khác null. Ngược lại null |
 | `delay_days` | item và đơn | `DATEDIFF(TO_DATE(official customer), TO_DATE(official estimated))` khi cả hai official khác null. Ngược lại null |
-| `late_delivery_flag` / `late_flag` | đơn; bản copy trên item | Grain của cờ là đơn. 1 khi `delay_days` > 0. 0 khi `delay_days` ≤ 0. Null khi thiếu official customer hoặc official estimated (`delay_days` null). Trên item, cờ chỉ lặp từ đơn. Không SUM |
+| `late_delivery_flag` / `late_flag` | đơn; bản copy trên item | Grain của cờ là đơn. `NULL` khi `order_status` thuộc `canceled` hoặc `unavailable`, nên đơn này ở ngoài mẫu `late_delivery_eligible`. Đơn còn lại: 1 khi `delay_days` > 0; 0 khi `delay_days` ≤ 0; null khi thiếu official customer hoặc official estimated (`delay_days` null). Trên item, cờ chỉ lặp từ đơn. Không SUM |
 | `distance_km` | item | Haversine giữa trung vị lat/lng của zip seller và zip khách của đúng đơn (`fact_order.customer_zip_prefix`). Bán kính 6371 km. Đổi độ sang radian. Null nếu một trong hai zip không có tọa độ Silver |
 | `items_value`, `freight_total` | đơn | `sum(price)`, `sum(freight_value)` của item thuộc đơn, mọi `order_status`. Đơn không có item: 0. Bộ lọc `canceled` / `unavailable` chỉ áp khi cộng `gmv`, không xóa `items_value` của đơn hủy |
 | `payment_total` | đơn | `sum(payment_value)`. Không xóa 387 đơn lệch quá 0,01 so với price+freight; chỉ ghi nhận ở §7 |
@@ -259,7 +259,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `late_ship_count` | seller-tháng | Item của seller trong tháng có `seller_ship_late_flag` = 1. Kể cả đơn nhiều seller |
 | `late_ship_eligible` | seller-tháng | Item có cờ này khác null, gồm cả 0 và 1 |
 | `late_ship_rate` | seller-tháng | `late_ship_count / late_ship_eligible` khi mẫu > 0, else null |
-| `late_delivery_count`, `late_delivery_eligible`, `late_delivery_rate` | seller-tháng | Theo đơn phân biệt của seller, dùng `late_flag`. Kể cả đơn nhiều seller. Đây không phải measure trải nghiệm xấu |
+| `late_delivery_count`, `late_delivery_eligible`, `late_delivery_rate` | seller-tháng | Theo đơn phân biệt của seller, dùng `late_flag`. Đơn `canceled` hoặc `unavailable` có cờ null nên không vào tử và không vào mẫu. Kể cả đơn nhiều seller không thuộc hai trạng thái đó. Đây không phải measure trải nghiệm xấu |
 | `review_score_sum`, `review_count`, `avg_review` | seller-tháng | Chỉ đơn `n_sellers` = 1 và có điểm. `avg_review` = sum/count khi count > 0, else null |
 | `negative_review_count`, `negative_review_eligible`, `negative_review_rate` | seller-tháng | Cùng tập đơn một seller có điểm. Tử là `negative_review_flag` = 1 |
 | `bad_experience_count`, `bad_experience_eligible`, `bad_experience_rate` | seller-tháng | Tử: cờ = 1. Mẫu: cờ khác null. Đơn nhiều seller đã null nên không vào mẫu |
@@ -277,7 +277,7 @@ Tháng của snapshot là tháng `order_purchase_timestamp`, cùng cách G1 đã
 - `n_orders_placed` và `n_orders_valid` không cộng qua seller. Đơn nhiều seller nằm ở nhiều seller, cộng ngang sẽ đếm đơn hai lần. Cùng lý do với `late_delivery_count`, `late_delivery_eligible`, các cột đếm review, trải nghiệm xấu và `cancel_count` / `cancel_eligible`. `aov` không SUM.
 - 1.278 đơn nhiều seller dùng chung một `order_delivered_carrier_date` cấp đơn. Không xóa các đơn đó. Hạn chế này ghi ở §7.
 
-**Câu 4 (drill-across).** Địa chỉ khách nằm trên `fact_order`, không trên `dim_customer`. Bước 1: từ `fact_order` lọc `customer_region_name` thuộc Norte hoặc Nordeste và quý mua, lấy `order_id`. Bước 2: nối `fact_order_item`, giữ `size_band = 'bulky'`, rồi `SELECT DISTINCT order_id, seller_key`. Bước 3: nối lại `fact_order` và `dim_seller`. Tỷ lệ `late_flag` lấy mẫu là đơn có cờ khác null, kể cả đơn nhiều seller. Tỷ lệ `negative_review_flag` lấy mẫu là đơn có cờ khác null; đơn nhiều seller đã null nên ra khỏi mẫu.
+**Câu 4 (drill-across).** Địa chỉ khách nằm trên `fact_order`, không trên `dim_customer`. Bước 1: từ `fact_order` lọc `customer_region_name` thuộc Norte hoặc Nordeste và quý mua, lấy `order_id`. Bước 2: nối `fact_order_item`, giữ `size_band = 'bulky'`, rồi `SELECT DISTINCT order_id, seller_key`. Bước 3: nối lại `fact_order` và `dim_seller`. Tỷ lệ `late_flag` lấy mẫu là đơn có cờ khác null, kể cả đơn nhiều seller. Đơn `canceled` hoặc `unavailable` đã null nên ra khỏi mẫu. Tỷ lệ `negative_review_flag` lấy mẫu là đơn có cờ khác null; đơn nhiều seller đã null nên ra khỏi mẫu.
 
 ### 3.7 Thanh toán chính của đơn
 
@@ -582,11 +582,11 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_order_item` | `order_status_key` | BIGINT | không | FK | Status của đơn, không của item. Không khớp → `-1` |
 | `fact_order_item` | `price` | DECIMAL(18,2) | có | measure cộng | Silver |
 | `fact_order_item` | `freight_value` | DECIMAL(18,2) | có | measure cộng | Silver |
-| `fact_order_item` | `seller_ship_late_flag` | INT | có | cờ 0/1 | §3.6. Carrier lấy từ đơn, hạn giao lấy từ item. Ngày chốt là tham số `snapshot_date` |
+| `fact_order_item` | `seller_ship_late_flag` | INT | có | cờ 0/1 | §3.6. Carrier lấy từ đơn, hạn giao lấy từ item. `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`. Mỗi lần nạp tính lại cờ còn null hoặc đơn chưa có carrier |
 | `fact_order_item` | `seller_handling_days` | DOUBLE | có | thời lượng | §3.6. Trung bình, không SUM |
 | `fact_order_item` | `delivery_days` | DOUBLE | có | thời lượng | §3.6. Lặp từ đơn |
 | `fact_order_item` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6. Lặp từ đơn. Không SUM |
-| `fact_order_item` | `late_delivery_flag` | INT | có | cờ | Cùng `late_flag` của đơn, lặp trên mỗi item. Không SUM |
+| `fact_order_item` | `late_delivery_flag` | INT | có | cờ | Cùng `late_flag` của đơn, lặp trên mỗi item. Null khi đơn `canceled` hoặc `unavailable`. Không SUM |
 | `fact_order_item` | `distance_km` | DOUBLE | có | khoảng cách | §3.6. Trung bình, không SUM |
 | `fact_order` | `order_id` | STRING | không | grain | Mọi đơn Silver, kể cả đơn không item |
 | `fact_order` | `purchase_date_key` | INT | không | FK | Ngày purchase. Null → `-1` |
@@ -611,7 +611,7 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_order` | `delivery_days` | DOUBLE | có | thời lượng | §3.6 |
 | `fact_order` | `estimated_days` | DOUBLE | có | số ngày lịch | §3.6 |
 | `fact_order` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6 |
-| `fact_order` | `late_flag` | INT | có | cờ | §3.6 |
+| `fact_order` | `late_flag` | INT | có | cờ | §3.6. Null khi đơn `canceled` hoặc `unavailable`, hoặc thiếu một mốc so ngày |
 | `fact_order` | `review_score` | INT | có | điểm | §2.3 và §3.6 |
 | `fact_order` | `negative_review_flag` | INT | có | cờ | §3.6 |
 | `fact_order` | `bad_experience_flag` | INT | có | cờ | §3.6 |
@@ -629,8 +629,8 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_seller_monthly` | `late_ship_count` | INT | không | tử | §3.6 |
 | `fact_seller_monthly` | `late_ship_eligible` | INT | không | mẫu | §3.6. Gồm cờ 0 và cờ 1 |
 | `fact_seller_monthly` | `late_ship_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
-| `fact_seller_monthly` | `late_delivery_count` | INT | không | tử | Đơn phân biệt, `late_flag` = 1 |
-| `fact_seller_monthly` | `late_delivery_eligible` | INT | không | mẫu | Đơn phân biệt, `late_flag` khác null |
+| `fact_seller_monthly` | `late_delivery_count` | INT | không | tử | Đơn phân biệt, `late_flag` = 1. Đơn `canceled` hoặc `unavailable` không vào |
+| `fact_seller_monthly` | `late_delivery_eligible` | INT | không | mẫu | Đơn phân biệt, `late_flag` khác null. Đơn `canceled` hoặc `unavailable` ở ngoài mẫu |
 | `fact_seller_monthly` | `late_delivery_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null. Không cộng qua seller |
 | `fact_seller_monthly` | `review_score_sum` | INT | không | tử | Chỉ đơn một seller có điểm |
 | `fact_seller_monthly` | `review_count` | INT | không | mẫu | Cùng tập đó |
@@ -699,7 +699,7 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 | Cửa sổ 2016-09-04 → 2018-10-17 | Tháng thưa đã liệt kê ở §2.4. 19 tháng ≥ 1.000 đơn | Không cắt |
 | Đơn nhiều seller: review và trải nghiệm xấu để null | 1.278 / 98.666 | Không xóa đơn. `n_sellers` > 1. `review_score`, `negative_review_flag`, `bad_experience_flag` null nên đơn ra khỏi mẫu. `gmv`, `n_orders_valid`, `n_items_valid` vẫn tính `price` và số dòng của seller trên đơn đó khi đơn không thuộc `canceled` hoặc `unavailable`. `n_orders_placed` và `n_items_placed` đếm cả đơn hủy. Cờ bàn giao và cờ giao trễ vẫn tính |
 | Một mốc bàn giao cho cả đơn | 1.278 đơn nhiều seller | Nguồn chỉ có `order_delivered_carrier_date` ở cấp đơn. Mọi seller trong đơn đó dùng chung mốc này khi tính `seller_ship_late_flag`, nên cờ kém tin cậy hơn đơn một seller |
-| Thiếu carrier so với ngày chốt; đơn hủy | Chưa đo ở phiên 22/10/2026 | `seller_ship_late_flag` = 1 khi carrier thật sự thiếu và `TO_DATE(shipping_limit_date) < snapshot_date`. Hạn từ `snapshot_date` trở đi thì null. Mặc định full load: `snapshot_date = DATE '2018-10-17'`. `canceled` và `unavailable` thì null, ghi nhận qua `cancel_rate` với mẫu `n_orders_placed`. Carrier null vì đảo timestamp thì cờ null |
+| Thiếu carrier so với ngày chốt; đơn hủy | Chưa đo ở phiên 22/10/2026 | `seller_ship_late_flag` = 1 khi carrier thật sự thiếu và `TO_DATE(shipping_limit_date) < snapshot_date`. Hạn từ `snapshot_date` trở đi thì null. `snapshot_date` = `TO_DATE(watermark_cutoff_ts)` của lần nạp. Full load mặc định `DATE '2018-10-17'`. Mỗi lần nạp tính lại cờ cho item còn null hoặc đơn chưa có carrier chính thức. `canceled` và `unavailable` thì null, ghi nhận qua `cancel_rate` với mẫu `n_orders_placed`. Carrier null vì đảo timestamp thì cờ null |
 
 ---
 
@@ -737,7 +737,7 @@ flowchart LR
 | Tỷ lệ bàn giao trễ | `fact_seller_monthly.late_ship_rate` và tử/mẫu. Cửa sổ 3 tháng do Phase 5 tự cộng, không lưu sẵn |
 | Điểm review | `avg_review`, `review_score` |
 | GMV | `gmv` = tổng `price` của item thuộc đơn không `canceled` và không `unavailable`, trong tháng mua. Kể cả đơn nhiều seller |
-| Số đơn | `n_orders_placed` (mọi status, mẫu `cancel_rate`) và `n_orders_valid` (mẫu `aov`). Không cộng hai cột này qua seller |
+| Số đơn | `n_orders_placed` (mọi status, mẫu `cancel_rate`) và `n_orders_valid` (mẫu `aov`). Không cộng hai cột này qua seller. M1 dùng `n_orders_valid` cho volume và ngưỡng số đơn tối thiểu, vì `cancel_rate` đã đo việc hủy riêng |
 | AOV | `aov` = `gmv / n_orders_valid` khi mẫu > 0, else null. Không SUM |
 | Vùng | `dim_seller.region_name` |
 | Danh mục | `dim_product.category_en` và `category_group` |
@@ -756,10 +756,10 @@ Thứ tự: Bronze append → Silver rebuild → dimension (chèn `-1` trước)
 
 - Silver đơn, item, payment, review: rebuild các đơn có `order_purchase_timestamp` ≤ cutoff. Giữ `order_status` đúng chuỗi nguồn. Không điền `shipped`, `approved`, hay `created`. Mốc giao và review của đơn đã lọt cutoff giữ nguyên, kể cả khi mốc đó muộn hơn cutoff.
 - Silver khách, seller, sản phẩm, zip, dịch, deal, MQL, bang-vùng: rebuild toàn bộ ảnh sạch từ Bronze của lần chạy, vì các bảng này không có mốc mua.
-- `fact_order_item`: MERGE item của đơn mới trong kỳ (purchase sau cutoff cũ và ≤ cutoff mới). Lần đầu: mọi đơn ≤ cutoff.
+- `snapshot_date` = `TO_DATE(watermark_cutoff_ts)` của lần nạp. Full load mặc định `DATE '2018-10-17'`.
+- `fact_order_item`: MERGE item của đơn mới trong kỳ (purchase sau cutoff cũ và ≤ cutoff mới). Lần đầu: mọi đơn ≤ cutoff. Mỗi lần nạp còn tính lại `seller_ship_late_flag` cho item đã có trong Gold mà cờ còn null, hoặc đơn chưa có carrier chính thức.
 - `fact_order`: MERGE đơn mới, cộng các đơn đã có trong Gold mà Silver nay có approved, carrier, customer hoặc review trong khi Gold còn `*_date_key = -1` hoặc `review_score` null.
-- `fact_seller_monthly`: tính lại các tháng mua của hai tập đơn đó.
-- `snapshot_date` là tham số riêng, không gán bằng phần ngày của `watermark_cutoff_ts`. Full load dùng `DATE '2018-10-17'`.
+- `fact_seller_monthly`: tính lại các tháng mua của đơn mới, của đơn vừa cập nhật mốc hoặc review, và của item vừa tính lại `seller_ship_late_flag`.
 - Không dùng CDF hay Auto Loader.
 
 ### CHECK miền giá trị

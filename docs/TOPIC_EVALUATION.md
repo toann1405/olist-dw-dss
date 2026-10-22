@@ -78,6 +78,11 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 |---|---|---|---|---|
 | G1 | Số seller có ≥ 10 item/tháng trong ≥ 6 tháng | ≥ 150 seller | Hạ ngưỡng sang quý, hoặc chuyển sang T2 | **pass** 173 / 3.095 |
 | G2 | % đơn đã giao có đủ `delivered_carrier_date` và `delivered_customer_date` | ≥ 95% | Loại đơn thiếu mốc, ghi vào hạn chế | **pass** 96.469 / 96.478 (0,999907) |
+
+> **G3 — cập nhật 22/10/2026.** Dòng kết quả bên dưới giữ nguyên. Định nghĩa GMV, cột đếm và cờ trễ sau cổng này nằm ở DESIGN §3.6 và SPEC §10.
+
+| Mã | Kiểm tra | Ngưỡng đề xuất (nhóm chốt) | Nếu không đạt | Kết quả Volume 15/10/2026 |
+|---|---|---|---|---|
 | G3 | % đơn có > 1 seller | ≤ 5% | Quy tắc quy trách nhiệm (chia đều / loại) | **pass** 1.278 / 98.666 (0,012953). Không xóa đơn. Review và `bad_experience_flag` để null; GMV, `n_items`, `n_orders` vẫn tính |
 | G4 | Tỷ lệ review ≤ 2 trên tổng review | 5–25% (đủ để mô hình học) | Đổi biến mục tiêu sang "trễ hạn" | **pass** 14.575 / 99.224 (0,146890) |
 | G5 | Số tháng có ≥ 1.000 đơn | ≥ 15 tháng | Giới hạn phạm vi thời gian | **pass** 19 / 25 tháng. 19 tháng ≥ 1.000 đơn liền 2017-02 → 2018-08 |

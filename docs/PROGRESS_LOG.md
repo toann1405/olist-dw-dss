@@ -20,6 +20,13 @@
 
 ## Nhật ký
 
+### 22/10/2026 — Phase 2 — Chốt snapshot, volume M1 và cờ giao trễ
+- **Đã làm:** đóng ba điểm còn mở sau lần chỉnh GMV. `snapshot_date` lấy từ `watermark_cutoff_ts`; mỗi lần nạp tính lại `seller_ship_late_flag` khi cờ còn null hoặc đơn chưa có carrier. M1 dùng `n_orders_valid`. Đơn hủy ra khỏi `late_flag` và mẫu `late_delivery_*`. Thêm callout ở mục G3, không sửa câu kết quả cũ.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không đo lại.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/TOPIC_EVALUATION.md`, `docs/PROGRESS_LOG.md`.
+- **Quyết định:** SPEC §10, ngày 22/10/2026. Dòng tách `snapshot_date` khỏi watermark được đánh dấu thay thế cùng ngày.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
+
 ### 22/10/2026 — Phase 2 — Bổ sung luật đơn nhiều seller, cờ trễ, SCD và địa chỉ
 - **Đã làm:** đối chiếu bốn quyết định với SPEC, DESIGN, TOPIC_EVALUATION. Chỗ đã khớp thì giữ. Bổ sung chỗ còn lệch: review của đơn nhiều seller để null trên `fact_order` (không chỉ ở snapshot tháng); `seller_ship_late_flag` khi thiếu carrier sau ngày chốt và khi đơn hủy; `dim_seller` SCD2-ready; địa chỉ khách chuyển từ `dim_customer` sang `fact_order`.
 - **Không làm:** không viết DDL, ETL, notebook, test. Không chạy profiling. Không đo thêm số đơn thiếu carrier hay số đơn hủy.
