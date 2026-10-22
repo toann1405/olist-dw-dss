@@ -4,7 +4,7 @@
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
 | Phiên bản | v0.6 — 22/10/2026 |
-| Trạng thái | **Kiến trúc Databricks medallion.** S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt. X=10, N=40. Phase 2 thiết kế đã khóa trong `docs/DESIGN.md`, bổ sung 22/10/2026 (đơn nhiều seller, cờ trễ, SCD2-ready, địa chỉ khách trên `fact_order`, `gmv` loại đơn hủy, đếm placed/valid, `snapshot_date`). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Bảng bang → vùng ở `data/external/ibge_state_region.csv` và đã nằm ở `/Volumes/olist_catalog/bronze/raw/ref/` (nhóm xác nhận 15/10/2026; phiên thiết kế không đọc lại Volume) |
+| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 (ETL). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Hợp đồng schema: `docs/DESIGN.md` |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -90,7 +90,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 3. *5 phép OLAP, granularity, influence diagram, what-if, 3 subsystem DSS:* **đề không ghi trực tiếp**; file phân tích xếp phần lớn là "nên có". SPEC nâng thành BB\* theo yêu cầu nội bộ nhóm — không phải tiêu chí chấm điểm công bố.
 4. *Thư mục OLAP:* file phân tích dùng `src/olap/`; repo dùng `src/sql/olap_queries/` (chỉ khác cách tổ chức).
 5. *Lịch:* slide Ch0/Introduction có mốc khác; theo đề (ban hành 10/09/2026) như file phân tích đã chọn.
-6. *DBMS:* SPEC v0.1 chốt PostgreSQL (schema `staging` / `dw` / `dss`). File phân tích không chọn DBMS; đề PDF không quy định công cụ hay DBMS (file phân tích, Phần 1). Databricks được phép. Khái niệm staging trên slide ánh xạ sang Bronze; Gold là DW. Quyết định PostgreSQL **thay thế ngày 10/10/2026** (xem §10).
+6. *DBMS:* SPEC v0.1 chốt PostgreSQL (schema `staging` / `dw` / `dss`). File phân tích không chọn DBMS; đề PDF không quy định công cụ hay DBMS (file phân tích, Phần 1). Databricks được phép. Khái niệm staging trên slide ánh xạ sang Bronze; Gold là DW. Quyết định PostgreSQL ngày 10/10/2026 được thay cùng ngày bởi Databricks (xem §10).
 
 ---
 
@@ -112,7 +112,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Marketing Funnel by Olist (`closed_deals`, nối qua `seller_id`; license CC BY-NC-SA 4.0) | Thuộc tính seller: business_segment, lead_type, ngày ký → hierarchy/thuộc tính dim_seller, biến "tuổi" seller cho mô hình |
 | Bảng bang (UF) → vùng: `data/external/ibge_state_region.csv` (snapshot API IBGE 15/10/2026, 27 dòng) | Cấp "Vùng" cho hierarchy địa lý. Nối `state_code` với `customer_state` / `seller_state` |
 
-**Đưa nguồn lên lakehouse:** 9 CSV Olist và 2 CSV Marketing Funnel nằm trong một Unity Catalog Volume. Spike S1 (13/10/2026) đọc `olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột `string`): 99,441 dòng. Catalog `olist_catalog`. Đường dẫn `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Bảng bang → vùng có bản local `data/external/ibge_state_region.csv` (27 dòng, đếm 15/10/2026) và nhóm xác nhận đã nằm ở `/Volumes/olist_catalog/bronze/raw/ref/`, không đặt trong `funnel/`. Phiên thiết kế 15/10/2026 không đọc lại Volume nên không ghi số dòng mới trên Volume. Các bước: `data/README.md` §5.
+**Đưa nguồn lên lakehouse:** 9 CSV Olist và 2 CSV Marketing Funnel nằm trong một Unity Catalog Volume. Spike S1 (13/10/2026) đọc `olist_orders_dataset.csv` bằng `spark.read` (header, mọi cột `string`): 99.441 dòng. Catalog `olist_catalog`. Đường dẫn `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Bảng bang → vùng có bản local `data/external/ibge_state_region.csv` (27 dòng, đếm 15/10/2026) và nhóm xác nhận đã nằm ở `/Volumes/olist_catalog/bronze/raw/ref/`, không đặt trong `funnel/`. Phiên thiết kế 15/10/2026 không đọc lại Volume nên không ghi số dòng mới trên Volume. Các bước: `data/README.md` §5.
 
 **Bằng chứng tích hợp nhiều bảng/nguồn (R30):** (1) mỗi fact cần ≥ 4 bảng nguồn để nạp; (2) bảng source-to-target mapping trong `DESIGN.md` ghi nguồn từng cột; (3) bảng `gold.etl_audit` ghi số dòng đọc/nạp/loại theo từng nguồn; (4) measure phái sinh liên nguồn (khoảng cách cần geolocation × customers × sellers; điểm rủi ro cần items × reviews × orders).
 
@@ -180,7 +180,7 @@ flowchart LR
 | Metadata | Comment bảng/cột Gold trên Unity Catalog (R47); nhật ký nạp `gold.etl_audit` |
 | Presentation | Frontend OLAP đọc Gold (công cụ chờ spike); đầu ra DSS ở schema `dss` |
 
-**Công nghệ** (đề không ràng buộc công nghệ). Tính năng của Databricks Free Edition chưa được nhóm kiểm chứng đều mang nhãn **[GIẢ ĐỊNH]** và gắn spike. Quyết định PostgreSQL ngày 10/10/2026 được **thay thế ngày 10/10/2026**.
+**Công nghệ** (đề không ràng buộc công nghệ). Tính năng của Databricks Free Edition chưa được nhóm kiểm chứng đều mang nhãn **[GIẢ ĐỊNH]** và gắn spike. Quyết định PostgreSQL ngày 10/10/2026 được thay cùng ngày bởi kiến trúc medallion trên Databricks.
 
 | Hạng mục | Đã chốt | Còn mở (spike) | Không dùng + lý do |
 |---|---|---|---|
@@ -328,9 +328,9 @@ flowchart LR
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
 | `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (T1 chốt 15/10/2026; G1–G6 đã đo trên Volume) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.5: Phase 2 thiết kế đã khóa. Còn mở: thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.6: Phase 2 thiết kế đã khóa 22/10/2026. Còn mở: thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
-| `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2, 15/10/2026. DDL thuộc Phase 3) |
+| `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2 khóa 22/10/2026. DDL thuộc Phase 3) |
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
 | `docs/report/` | Nháp báo cáo, hình | 6–7 | ☐ |
 | `data/README.md` | Nguồn, license, cách tải, mô tả file, upload Volume | 0 | ☑ |

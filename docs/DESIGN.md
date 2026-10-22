@@ -1,6 +1,6 @@
 # DESIGN — Thiết kế DW, ETL mapping, data dictionary
 
-> **Trạng thái: thiết kế Phase 2 đã khóa (15/10/2026), bổ sung 22/10/2026.** DDL và ETL chưa viết. SPEC §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code. Bổ sung 22/10: đơn nhiều seller không xóa, luật `late_flag` và `seller_ship_late_flag`, `dim_seller` SCD2-ready, địa chỉ khách trên `fact_order`, `gmv` loại đơn hủy, cột đếm placed/valid, `aov`, tham số `snapshot_date`.
+> **Trạng thái: thiết kế Phase 2 đã khóa 22/10/2026.** DDL và ETL chưa viết. SPEC v0.6 §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code.
 >
 > Nguồn dùng khi viết: `docs/SPEC.md` (số đo Volume trong §3; quyết định Phase 2 ở v0.5, bổ sung v0.6 ngày 22/10/2026), `docs/PLAN.md` Phase 2, `docs/PROGRESS_LOG.md`, `docs/TOPIC_EVALUATION.md` §1.2–1.4, header CSV trong `data/sample/` và `data/external/` (cùng tên cột với `data/raw/`). Không dùng `data/sample/` để ước lượng số dòng.
 >
@@ -316,7 +316,7 @@ Cardinality trên hình là “một thành viên dimension — nhiều dòng fa
 
 `dim_month` không nối `fact_order_item`. Muốn tháng thì lấy từ `purchase_date_key` → `dim_date.month_key`.
 
-### Bus matrix
+### 4.1 Bus matrix
 
 | Fact | dim_date | dim_month | dim_customer | dim_seller | dim_product | dim_order_status | dim_payment_type |
 |---|---|---|---|---|---|---|---|
@@ -718,7 +718,7 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 | Geolocation: bbox, trung vị, mode theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox; 0 lat/lng null | `silver.geolocation_zip`: một dòng mỗi prefix, `percentile_approx` 0.5, bbox lat [-34, 6] và lng [-74, -28]. 31 điểm ngoài bbox đã đo với khung này. `silver.geolocation_city` là fallback (`city_norm`, state). Khách và seller: zip → city → null, cột `geo_match_level`. Không điền 0 |
 | Bỏ dấu thành phố | Geo city 8.010 → 5.968 distinct; 73.437 dòng có dấu. Customer/seller city không đổi sau bỏ dấu | Vẫn chuẩn hóa cả ba |
 | `dim_customer` theo `customer_unique_id` | 99.441 `customer_id`; 96.096 người | Silver giữ `customer_id`. Gold một người một dòng, không địa chỉ. Địa chỉ của từng đơn nằm trên `fact_order` |
-| Category thiếu → `'Unknown'` | 610 / 32.951 thiếu tên; 2 category không có bản dịch | Product vẫn giữ khóa dương. `category_pt` và `category_en` = `COALESCE(..., 'Unknown')` ở §6.4, không null. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume: thiếu dịch → `category_en = 'pc_gamer'`. Tên null → `'Unknown'`, cùng `category_group` và dòng `-1`. Không đặt nhãn tiếng Anh riêng cho `portateis_cozinha_e_preparadores_de_alimentos` |
+| Category thiếu → `'Unknown'` | 610 / 32.951 thiếu tên; 2 category không có bản dịch | Product vẫn giữ khóa dương. `category_pt` và `category_en` = `COALESCE(..., 'Unknown')` ở §6.3, không null. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume: thiếu dịch → `category_en = 'pc_gamer'`. Tên null → `'Unknown'`, cùng `category_group` và dòng `-1`. Không đặt nhãn tiếng Anh riêng cho `portateis_cozinha_e_preparadores_de_alimentos` |
 | Timestamp null hoặc đảo | Null approved 160, carrier 1.783, customer 2.965. Đảo trên raw: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 9 đơn `delivered` thiếu một trong hai mốc (96.478 − 96.469) | Cột chính thức null, `raw_*` giữ vết, `ts_inversion_flag`, `rows_ts_inverted`. Measure thời gian chỉ dùng cột chính thức |
 | Review trùng cùng `review_id` | 789 `review_id` gắn nhiều đơn; 814 dòng thừa; 98.410 `review_id` nếu chỉ khử theo `review_id` (99.224 − 814) | `silver.order_reviews` grain (`review_id`, `order_id`): cast, bỏ dòng trùng y hệt, rồi giữ một dòng nếu cùng khóa khác giá trị: `ROW_NUMBER() OVER (PARTITION BY review_id, order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, _ingest_ts DESC, _batch_id DESC) = 1`. Số nhóm lệch ghi `rows_conflict_groups`, chỉ cảnh báo. [GIẢ ĐỊNH] Olist chưa xác nhận nguyên nhân. Đỉnh tháng 3/2018 khoảng 1,6% review. Cần sensitivity check top-40 sau khi build Gold |
 | 547 đơn có nhiều review | 547 đơn trên file thô, trước dedupe | `silver.order_reviews_dedup` giữ một dòng mỗi `order_id`: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id, _ingest_ts DESC, _batch_id DESC) = 1`. `fact_order` chỉ đọc bảng này. Không lấy trung bình điểm. Chọn bản cuối có thể bỏ một review sớm báo trễ; nhánh `late_flag` của `bad_experience_flag` vẫn tính |
@@ -737,9 +737,9 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 **Loại OLAP: còn mở.** ROLAP (SQL warehouse đọc Gold) hoặc HOLAP (Power BI Import + Gold). Không chọn MOLAP. **Không chọn** Power BI Desktop, Databricks AI/BI, hay Streamlit ở phase này. Cả hai mục chờ spike S2–S3.
 
-Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
+Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4.1 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
 
-### Influence diagram (bản nháp, R36)
+### 8.1 Influence diagram (bản nháp, R36)
 
 Chưa thiết kế feature view. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
 
