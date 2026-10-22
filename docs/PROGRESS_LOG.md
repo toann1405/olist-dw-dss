@@ -10,7 +10,7 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026), bổ sung luật 22/10/2026. T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa 22/10/2026. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
 | Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
 | Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
@@ -20,8 +20,14 @@
 
 ## Nhật ký
 
+### 22/10/2026 — Phase 2 — Chiều: tie-break, seller-tháng, geolocation, category
+- **Đã làm:** cửa sổ review thêm `NULLS LAST` và tie-break `_ingest_ts`, `_batch_id`. Tháng seller-tháng theo `order_purchase_timestamp`. `min_orders` mặc định 5 là tham số DSS, không lọc Gold. Geolocation một dòng mỗi prefix, fallback theo thành phố, haversine bỏ null. Category fallback `'Unknown'`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume.
+- **Không làm:** không viết DDL hay ETL.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
+
 ### 22/10/2026 — Phase 2 — Khóa grain review và review dùng chung
-- **Đã làm:** `silver.order_reviews` giữ (`review_id`, `order_id`), chỉ cast và bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
+- **Đã làm:** `silver.order_reviews` giữ một dòng mỗi (`review_id`, `order_id`) bằng `ROW_NUMBER`, không chỉ bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
 - **Quyết định trong ngày, đã ghi SPEC §10:** GMV loại đơn `canceled` và `unavailable`; `n_orders_placed` / `n_orders_valid`, `n_items_placed` / `n_items_valid`, `aov`; `seller_ship_late_flag` null khi hủy và bằng 1 khi quá hạn chưa bàn giao; `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`; luật review ở mục này.
 - **Không làm:** không viết DDL, ETL, notebook, test. Không sửa `TOPIC_EVALUATION.md`. Không đo số đơn có seller_set nhiều seller. Câu 1,6% tháng 3/2018 ghi là [GIẢ ĐỊNH].
 - **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
