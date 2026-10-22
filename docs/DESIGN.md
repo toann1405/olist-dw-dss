@@ -165,7 +165,7 @@ Trên dòng `-1`: khóa chính bằng `-1`; natural key (`full_date`, `customer_
 |---|---|---|
 | `dim_date` | `date_key` INT | `year * 10000 + month * 100 + day`. Unknown = `-1` |
 | `dim_month` | `month_key` INT | `year * 100 + month`. Unknown = `-1` |
-| Các dimension còn lại | `*_key` BIGINT | Tra natural key. Chưa có thì `max(key) + 1`, bắt đầu từ 1. Không hash. Unknown = `-1` |
+| Các dimension còn lại | `*_key` BIGINT | Tra natural key. Khóa mới cấp theo `ORDER BY` natural key tăng dần, rồi `max(key) + 1` theo thứ tự đó, bắt đầu từ 1. Cùng tập natural key thì rerun ra cùng surrogate. Không hash. Unknown = `-1` |
 
 ### 3.3 Role-playing date và `dim_month`
 

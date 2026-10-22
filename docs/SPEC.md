@@ -217,7 +217,7 @@ Công thức ở DESIGN §3.6. `gmv` loại đơn `canceled` và `unavailable`. 
 | `dim_product` | category_pt, category_en, category_group, khối lượng, thể tích, size_band | **Nhóm danh mục → Danh mục → Sản phẩm** |
 | `dim_order_status`, `dim_payment_type` | trạng thái; phương thức thanh toán | — |
 
-- Surrogate key cho mọi dimension; member `-1`, nhãn hiển thị `'Unknown'`. Thiết kế Phase 3 mặc định **SCD Type 1** trên mọi dimension. `dim_seller` SCD2-ready (`effective_from`, `effective_to`, `is_current`) nhưng vẫn một dòng mỗi `seller_id`, vì nguồn không có lịch sử. SCD Type 2 thật (nhiều phiên bản) vẫn là **điểm cộng** (R41), chưa làm.
+- Surrogate key cho mọi dimension. Khóa mới cấp theo `ORDER BY` natural key tăng dần để rerun ra cùng key. Member `-1`, nhãn hiển thị `'Unknown'`. Thiết kế Phase 3 mặc định **SCD Type 1** trên mọi dimension. `dim_seller` SCD2-ready (`effective_from`, `effective_to`, `is_current`) nhưng vẫn một dòng mỗi `seller_id`, vì nguồn không có lịch sử. SCD Type 2 thật (nhiều phiên bản) vẫn là **điểm cộng** (R41), chưa làm.
 - Địa chỉ khách gắn với đơn (`customer_id`) và đặt trên `fact_order`. `dim_customer` chỉ là người.
 - **Vị trí vật lý:** `olist_catalog.gold.fact_order_item`, `olist_catalog.gold.fact_order`, `olist_catalog.gold.fact_seller_monthly`, và các dimension `olist_catalog.gold.dim_*` liệt kê ở bảng trên. Catalog `olist_catalog` (S1, 13/10/2026). Bảng chưa tạo.
 - **Thiết kế vật lý Delta:** dữ liệu nhỏ (~100 nghìn đơn) nên không partition. Nếu partition sau này thì partition theo cột dùng để lọc, không theo cột cardinality cao.
