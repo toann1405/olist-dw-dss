@@ -10,15 +10,23 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026). T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026), bổ sung luật 22/10/2026. T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
 | Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
 | Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
-| Cập nhật | 15/10/2026 |
+| Cập nhật | 22/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 22/10/2026 — Phase 2 — Bổ sung luật đơn nhiều seller, cờ trễ, SCD và địa chỉ
+- **Đã làm:** đối chiếu bốn quyết định với SPEC, DESIGN, TOPIC_EVALUATION. Chỗ đã khớp thì giữ. Bổ sung chỗ còn lệch: review của đơn nhiều seller để null trên `fact_order` (không chỉ ở snapshot tháng); `seller_ship_late_flag` khi thiếu carrier sau ngày chốt và khi đơn hủy; `dim_seller` SCD2-ready; địa chỉ khách chuyển từ `dim_customer` sang `fact_order`.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không chạy profiling. Không đo thêm số đơn thiếu carrier hay số đơn hủy.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.6), `docs/TOPIC_EVALUATION.md`, `docs/PLAN.md` (một câu ở mục Phase 1: đơn nhiều seller để null, không xóa), `docs/PROGRESS_LOG.md`.
+- **Quyết định:** ghi thêm SPEC §10. Dòng địa chỉ 15/10 đánh dấu thay thế. Dòng SCD1 15/10 giữ vì vẫn đúng. R41 vẫn là điểm cộng, chưa làm.
+- **RTM:** R04, R23, R24, R29 giữ ☑ (phần thiết kế). R41 giữ ☐.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
 
 ### 15/10/2026 — Phase 2 — Khóa thiết kế DW
 - **Đã làm:** viết lại `docs/DESIGN.md` thành hợp đồng Phase 3. Sửa các lỗi thiết kế đã rà (cờ bàn giao có đủ 0/1/null, mốc đảo thành null kèm `raw_*` và `ts_inversion_flag`, grain review `(order_id, review_id)`, từ điển từng cột, Bronze giữ chuỗi gốc, nhãn `'Unknown'`, audit tách dedupe và reject, CHECK miền giá trị, 99.224 − 814 = 98.410, 547 là số đơn nhiều dòng review trên file thô). Khóa luật nhóm: 8 `category_group` (thêm `eletroportateis`), `size_band`, địa chỉ khách, một deal, thanh toán chính, SCD Type 1, cờ trải nghiệm xấu, so sánh ngày và timestamp, incremental theo `watermark_cutoff_ts` không sửa `order_status`.
