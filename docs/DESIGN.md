@@ -110,7 +110,8 @@ Khi nhiều dòng Bronze cùng khóa grain: giữ dòng có `_ingest_ts` mới n
 | `silver.customers` | 1 `customer_id` | 99.441 id trên 99.441 dòng. Chưa gộp `customer_unique_id` |
 | `silver.sellers` | 1 `seller_id` | File có 3.095 dòng. Số `seller_id` trùng pending. Trùng thì cùng luật chọn bản |
 | `silver.products` | 1 `product_id` | Số `product_id` trùng pending |
-| `silver.geolocation_zip` | 1 zip prefix | Bỏ điểm ngoài bbox, rồi trung vị lat/lng và mode city/state. Zip không còn điểm trong bbox thì không có dòng. Số zip sau bbox pending |
+| `silver.geolocation_zip` | 1 `geolocation_zip_code_prefix` | Bỏ điểm ngoài bbox lat [-34, 6], lng [-74, -34], rồi `percentile_approx` 0.5 cho lat/lng và mode `city_norm`/state. Zip không còn điểm trong bbox thì không có dòng. Số zip sau bbox pending |
+| `silver.geolocation_city` | 1 (`city_norm`, `state_code`) | Cùng các điểm đã qua bbox. Trung vị lat/lng để fallback khi zip không khớp |
 | `silver.category_translation` | 1 `product_category_name` | |
 | `silver.closed_deals` | 1 dòng deal | Không gộp theo `seller_id` ở Silver. 842 dòng nguồn. Gold mới chọn một deal (§6.3) |
 | `silver.marketing_qualified_leads` | 1 `mql_id` | Giữ để khỏi mất nguồn. Gold `dim_seller` không đọc bảng này. Số `mql_id` trùng pending |
@@ -243,7 +244,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `estimated_days` | đơn | `DATEDIFF(TO_DATE(official estimated), TO_DATE(purchase))` khi official estimated khác null. Ngược lại null |
 | `delay_days` | item và đơn | `DATEDIFF(TO_DATE(official customer), TO_DATE(official estimated))` khi cả hai official khác null. Ngược lại null |
 | `late_delivery_flag` / `late_flag` | đơn; bản copy trên item | Grain của cờ là đơn. `NULL` khi `order_status` thuộc `canceled` hoặc `unavailable`, nên đơn này ở ngoài mẫu `late_delivery_eligible`. Đơn còn lại: 1 khi `delay_days` > 0; 0 khi `delay_days` ≤ 0; null khi thiếu official customer hoặc official estimated (`delay_days` null). Trên item, cờ chỉ lặp từ đơn. Không SUM |
-| `distance_km` | item | Haversine giữa trung vị lat/lng của zip seller và zip khách của đúng đơn (`fact_order.customer_zip_prefix`). Bán kính 6371 km. Đổi độ sang radian. Null nếu một trong hai zip không có tọa độ Silver |
+| `distance_km` | item | Haversine (km) giữa tọa độ seller và tọa độ khách của đúng đơn, sau fallback §6.2. Bán kính 6371 km. Đổi độ sang radian. Null nếu một trong hai bên thiếu tọa độ. Không điền 0. Trung bình theo seller-tháng bỏ qua null và không lưu trên `fact_seller_monthly` |
 | `items_value`, `freight_total` | đơn | `sum(price)`, `sum(freight_value)` của item thuộc đơn, mọi `order_status`. Đơn không có item: 0. Bộ lọc `canceled` / `unavailable` chỉ áp khi cộng `gmv`, không xóa `items_value` của đơn hủy |
 | `payment_total` | đơn | `sum(payment_value)`. Không xóa 387 đơn lệch quá 0,01 so với price+freight; chỉ ghi nhận ở §7 |
 | `n_items` | đơn | Số dòng item của đơn, mọi status. Khác `n_items_placed` và `n_items_valid` |
@@ -378,7 +379,7 @@ Quy ước ép kiểu Silver:
 - Id và zip: STRING. `trim`, chuỗi rỗng → null. Không cast số.
 - Timestamp: `to_timestamp(chuỗi, 'yyyy-MM-dd HH:mm:ss')`. Lỗi parse → null. Parse lỗi không bật `ts_inversion_flag`.
 - Tiền và số đo: cast sau khi chuỗi rỗng đã thành null. Lỗi cast → null và đếm vào `rows_rejected`. Giá trị ngoài miền CHECK §9 cũng đưa về null và đếm `rows_rejected` trước khi MERGE.
-- Thành phố: `trim`, lowercase, rồi `translate` với đúng bảng trong `01_profiling.py`: `áàâãäåéèêëíìîïóòôõöúùûüçñ` → `aaaaaaeeeeiiiiooooouuuucn`.
+- Thành phố, gọi là `city_norm`: `trim`, lowercase, rồi `translate` với đúng bảng trong `01_profiling.py`: `áàâãäåéèêëíìîïóòôõöúùûüçñ` → `aaaaaaeeeeiiiiooooouuuucn`. Mọi cột city của khách, seller, geolocation và Gold dùng chuỗi này.
 - Bang: `trim`, uppercase, nối `silver.state_region.state_code`. Không khớp → `region_name` null.
 
 ### 6.1 Bronze — cột nghiệp vụ
@@ -452,6 +453,9 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `customers` | `customer_zip_code_prefix` | STRING | có | zip | `trim`, rỗng → null. Không cast số |
 | `customers` | `customer_city` | STRING | có | thành phố | Quy tắc thành phố ở đầu §6 |
 | `customers` | `customer_state` | STRING | có | bang | Uppercase |
+| `customers` | `lat` | DOUBLE | có | tọa độ | Fallback §6.2: zip, rồi (`city_norm`, state), rồi null. Không điền 0 |
+| `customers` | `lng` | DOUBLE | có | tọa độ | Cùng mức với `lat` |
+| `customers` | `geo_match_level` | STRING | không | mức khớp | `zip`, `city`, hoặc `none` |
 | `customers` | `region_id` | STRING | có | vùng | Left join `state_region`. Không khớp → null |
 | `customers` | `region_code` | STRING | có | vùng | Left join `state_region` |
 | `customers` | `region_name` | STRING | có | vùng | Left join `state_region` |
@@ -459,6 +463,9 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `sellers` | `seller_zip_code_prefix` | STRING | có | zip | `trim`, rỗng → null |
 | `sellers` | `seller_city` | STRING | có | thành phố | Cùng quy tắc khách |
 | `sellers` | `seller_state` | STRING | có | bang | Uppercase |
+| `sellers` | `lat` | DOUBLE | có | tọa độ | Cùng fallback khách. Không điền 0 |
+| `sellers` | `lng` | DOUBLE | có | tọa độ | Cùng mức với `lat` |
+| `sellers` | `geo_match_level` | STRING | không | mức khớp | `zip`, `city`, hoặc `none` |
 | `sellers` | `region_id` | STRING | có | vùng | Left join IBGE |
 | `sellers` | `region_code` | STRING | có | vùng | Left join IBGE |
 | `sellers` | `region_name` | STRING | có | vùng | Left join IBGE |
@@ -473,10 +480,14 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `products` | `product_width_cm` | INT | có | kích thước | Cast |
 | `products` | `category_name_en` | STRING | có | bản dịch | Left join translation. Không có dòng dịch → null. Gold mới áp nhãn thay thế |
 | `geolocation_zip` | `zip_prefix` | STRING | không | grain | `geolocation_zip_code_prefix` sau `trim` |
-| `geolocation_zip` | `lat` | DOUBLE | có | tọa độ | Bỏ điểm lat/lng null hoặc ngoài bbox lat [-34, 6], lng [-74, -28] (hằng số trong `01_profiling.py`). Trung vị `percentile(col, 0.5)` trên điểm còn lại. 31 điểm ngoài bbox đã đo, vào `rows_rejected` |
+| `geolocation_zip` | `lat` | DOUBLE | có | tọa độ | Bỏ điểm lat/lng null hoặc ngoài bbox lat [-34, 6], lng [-74, -34]. Trung vị `percentile_approx(col, 0.5)` trên điểm còn lại. 31 điểm ngoài bbox đã đo với khung cũ lng đến -28 trong `01_profiling.py`; số điểm ngoài khung mới chưa đo. Điểm loại vẫn vào `rows_rejected` |
 | `geolocation_zip` | `lng` | DOUBLE | có | tọa độ | Cùng tập điểm với `lat` |
-| `geolocation_zip` | `city_name` | STRING | có | mode | Mode của city đã bỏ dấu. Nhiều giá trị cùng tần suất cao nhất: chuỗi nhỏ nhất theo thứ tự từ điển |
+| `geolocation_zip` | `city_name` | STRING | có | mode | Mode của `city_norm`. Nhiều giá trị cùng tần suất cao nhất: chuỗi nhỏ nhất theo thứ tự từ điển |
 | `geolocation_zip` | `state_code` | STRING | có | mode | Mode của state uppercase. Hòa giống `city_name` |
+| `geolocation_city` | `city_norm` | STRING | không | grain | `city_norm` của điểm đã qua bbox |
+| `geolocation_city` | `state_code` | STRING | không | grain | State uppercase của cùng điểm |
+| `geolocation_city` | `lat` | DOUBLE | có | tọa độ | `percentile_approx` 0.5. Không điền 0 |
+| `geolocation_city` | `lng` | DOUBLE | có | tọa độ | Cùng tập điểm với `lat` |
 | `category_translation` | `product_category_name` | STRING | không | grain | `trim` |
 | `category_translation` | `product_category_name_english` | STRING | có | thuộc tính | `trim`, rỗng → null |
 | `closed_deals` | `mql_id` | STRING | có | thuộc tính | `trim` |
@@ -505,6 +516,8 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `state_region` | `region_name` | STRING | có | tra cứu | `trim` |
 
 `silver.order_reviews` cast kiểu, bỏ dòng trùng y hệt, và chọn một dòng khi cùng (`review_id`, `order_id`) khác giá trị, theo cửa sổ ở §2.3. `silver.order_reviews_dedup` lấy các cột nghiệp vụ còn lại, đúng một dòng mỗi `order_id`, cũng theo §2.3. `fact_order` không đọc `silver.order_reviews`.
+
+Tọa độ khách và seller, trên `silver.customers` và `silver.sellers`: khớp `geolocation_zip` theo zip; không có thì khớp `geolocation_city` theo (`city_norm`, state); không có thì lat/lng null và `geo_match_level = 'none'`. Không điền 0. Hai bảng tra cứu đúng một dòng mỗi khóa nên join không được nhân dòng.
 
 ### 6.3 Dimension Gold
 
@@ -672,6 +685,11 @@ Append-only. Một dòng cho mỗi bảng đích trong một batch.
 | `rows_unknown_fk` | BIGINT | có | Số khóa ngoại `-1` trên fact của batch. Null nếu đích không phải fact |
 | `rows_ts_inverted` | BIGINT | có | Số dòng `ts_inversion_flag` = 1 khi đích là `silver.orders` hoặc `fact_order`. Null với bảng khác |
 | `rows_conflict_groups` | BIGINT | có | Số nhóm (`review_id`, `order_id`) có hơn một dòng khác giá trị, trước khi chọn một bản, khi đích là `silver.order_reviews`. Null với bảng khác. Cảnh báo, không làm batch fail và không cộng vào `rows_rejected` |
+| `rows_geo_prefix_dup` | BIGINT | có | Số prefix có hơn một dòng trên `silver.geolocation_zip`. Kỳ vọng 0. Null với bảng khác. Cảnh báo, không fail |
+| `rows_geo_fanout` | BIGINT | có | Số dòng tăng thêm khi nối `silver.customers` hoặc `silver.sellers` với geolocation. Kỳ vọng 0. Null với bảng khác. Cảnh báo, không fail |
+| `geo_match_zip_rate` | DOUBLE | có | Tỷ lệ `geo_match_level = 'zip'` trên bảng khách hoặc seller vừa nạp. Null với bảng khác. Cảnh báo |
+| `geo_match_city_rate` | DOUBLE | có | Tỷ lệ mức `city`. Null với bảng khác. Cảnh báo |
+| `geo_match_none_rate` | DOUBLE | có | Tỷ lệ mức `none`. Null với bảng khác. Cảnh báo |
 | `sum_price_source` | DECIMAL(18,2) | có | Tổng `price` nguồn khi đích là item. Else null |
 | `sum_price_target` | DECIMAL(18,2) | có | Tổng `price` trên fact item sau MERGE của phần batch. Phải bằng nguồn, trừ dòng reject |
 | `watermark_value` | STRING | có | Giá trị `watermark_cutoff_ts` của lần chạy. Null với bảng không lọc theo mốc này |
@@ -693,7 +711,7 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 | Quy tắc | Số đã ghi trong SPEC §3 | Cách nằm trong thiết kế |
 |---|---|---|
-| Geolocation: bbox, trung vị, mode theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox; 0 lat/lng null | `silver.geolocation_zip`. 31 điểm vào `rows_rejected`. Số zip sau bbox pending |
+| Geolocation: bbox, trung vị, mode theo zip | 1.000.163 dòng; 19.015 zip; 17.972 zip nhiều dòng; tối đa 1.146 dòng/zip; 31 điểm ngoài bbox; 0 lat/lng null | `silver.geolocation_zip`: một dòng mỗi prefix, `percentile_approx` 0.5, bbox lat [-34, 6] và lng [-74, -34]. 31 điểm là số đã đo với khung cũ lng đến -28. `silver.geolocation_city` là fallback (`city_norm`, state). Khách và seller: zip → city → null, cột `geo_match_level`. Không điền 0 |
 | Bỏ dấu thành phố | Geo city 8.010 → 5.968 distinct; 73.437 dòng có dấu. Customer/seller city không đổi sau bỏ dấu | Vẫn chuẩn hóa cả ba |
 | `dim_customer` theo `customer_unique_id` | 99.441 `customer_id`; 96.096 người | Silver giữ `customer_id`. Gold một người một dòng, không địa chỉ. Địa chỉ của từng đơn nằm trên `fact_order` |
 | Category thiếu → `'Unknown'` | 610 / 32.951 thiếu tên; 2 category không có bản dịch | Product vẫn giữ khóa dương. Ba cột category = `'Unknown'` khi thiếu tên. Category có tên nhưng không có dòng dịch: `category_en` = chuỗi nguồn, trừ `portateis_cozinha_e_preparadores_de_alimentos` → `portable_kitchen_food_preparers`. `category_group` theo §3.4 |
@@ -749,7 +767,7 @@ flowchart LR
 | AOV | `aov` = `gmv / n_orders_valid` khi mẫu > 0, else null. Không SUM |
 | Vùng | `dim_seller.region_name` |
 | Danh mục | `dim_product.category_en` và `category_group` |
-| Khoảng cách trung bình | `fact_order_item.distance_km`, Phase 5 tự lấy trung bình. Không để sẵn trên snapshot tháng |
+| Khoảng cách trung bình | `fact_order_item.distance_km` theo haversine sau fallback. Phase 5 / `dss.v_seller_features` lấy trung bình seller-tháng và bỏ qua null. Không để sẵn trên snapshot tháng |
 | Tuổi seller | `dim_seller.won_date` khi có deal. Phase 5 dùng `COALESCE(won_date, ngày mua sớm nhất trên fact_order_item)`. 380 / 3.095 seller khớp deal. 2.715 là hiệu 3.095 − 380, không phải một lần đếm riêng. Độ phủ `won_date` 12,3% là hạn chế của Marketing Funnel |
 
 X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải cột Gold.
@@ -800,6 +818,7 @@ Việc Phase 3 phải kiểm:
 | SCD | Type 1, ghi đè. `dim_seller` có `effective_from`, `effective_to`, `is_current` nhưng mỗi `seller_id` một dòng, `is_current = 1`. Không sinh lịch sử |
 | Timestamp | Mốc đảo null trên cột chính thức, còn ở `raw_*`. `rows_ts_inverted` đếm cờ 1. Measure thời gian dùng cột chính thức |
 | Review | `silver.order_reviews` một dòng mỗi (`review_id`, `order_id`) theo cửa sổ §2.3. Nhóm khóa khác giá trị đếm ở `rows_conflict_groups`, không fail. `silver.order_reviews_dedup` một `order_id` theo cửa sổ §2.3. `fact_order` chỉ đọc bảng dedupe. Không trung bình điểm. Không xóa review tạo trước ngày nhận. Review dùng chung nhiều seller ra khỏi measure review, không thêm cột |
+| Geolocation | `silver.geolocation_zip` unique theo prefix (`rows_geo_prefix_dup`, kỳ vọng 0). Join khách/seller không nhân dòng (`rows_geo_fanout`, kỳ vọng 0). Tỷ lệ `geo_match_level` ghi ba cột rate. Cả ba chỉ cảnh báo |
 | Giá | `sum(price)` item nguồn của batch = `sum(price)` trên `fact_order_item` sau khi trừ reject. Không đối soát tổng này với tổng `gmv`, vì `gmv` bỏ đơn `canceled` và `unavailable` |
 | Đọc / nạp / loại | `rows_read = rows_loaded + rows_deduplicated + rows_rejected` |
 | Zip và id | Kiểu STRING đến Gold |
@@ -832,7 +851,7 @@ Các mục dưới đây không chặn DDL. Phase 3 ghi số khi chạy, không 
 |---|---|
 | Số nhóm khóa trùng của `order_id`, (`order_id`, `order_item_id`), (`order_id`, `payment_sequential`), `mql_id`, `seller_id`, `product_id` | Notebook có thống kê nhưng SPEC §3 không ghi số |
 | Số dòng `silver.order_reviews` theo (`review_id`, `order_id`) và số dòng `silver.order_reviews_dedup` | 98.410 chỉ là số `review_id` nếu khử theo `review_id`. Hai grain mới chưa đếm. Số đơn có seller_set nhiều hơn một seller chưa đo |
-| Số zip `silver.geolocation_zip` sau bbox | 19.015 là số zip trước khi bỏ 31 điểm ngoài bbox |
+| Số zip `silver.geolocation_zip` sau bbox | 19.015 là số zip trước khi bỏ điểm ngoài khung. 31 điểm đo với khung cũ lng đến -28. Số zip sau khung lng đến -34 chưa đo |
 | Số cặp `fact_seller_monthly` | 173 là số seller đạt ngưỡng G1, không phải số dòng fact |
 | Max của từng timestamp giao, hẹn, hạn ship, review | SPEC chỉ ghi min/max của `order_purchase_timestamp` |
 
