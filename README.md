@@ -2,9 +2,11 @@
 
 Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)**: a data warehouse, an OLAP dashboard, and a decision support system on the **Olist Brazilian E-Commerce** dataset (Kaggle).
 
-**Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS). It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit. Final lock is after gates G1–G6 (start of Phase 1). If those gates fail, the topic switches to T2 Delivery Promise on the same warehouse.
+**Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS), locked on 15/10/2026 after gates G1–G6. It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit.
 
-**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog (schemas `bronze` / `silver` / `gold` / `dss`), PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels): it reads Gold and writes `dss.*`. The OLAP frontend is still open (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Local rerun path: pyspark + delta-spark on `data/sample/`.
+**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels). The OLAP frontend is still open (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Local rerun path: pyspark + delta-spark on `data/sample/`.
+
+**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Gold is a Kimball star schema: `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
 
 ## Read this first
 1. [README.md](README.md) (this file)
@@ -43,8 +45,8 @@ olist-dw-dss/
    python src/notebooks/00_verify_and_sample.py
    ```
 2. Copy `.env.example` to `.env` and fill in the Databricks variables. `DATABRICKS_TOKEN` stays empty in `.env.example`. Do not commit `.env`.
-3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Bronze → Silver → Gold ETL is filled in during Phase 3–6.
+3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Bronze → Silver → Gold ETL is filled in during Phase 3.
 4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): filled in after spike S6.
 
 ## Status
-Phase 0 is in place. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open. Topic T1 stays conditional on gates G1–G6. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+Phase 2 (warehouse design) is locked. Next is Phase 3 (ETL). Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
