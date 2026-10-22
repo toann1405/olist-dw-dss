@@ -267,7 +267,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `cancel_count`, `cancel_eligible`, `cancel_rate` | seller-tháng | Tử: đơn phân biệt có `order_status` thuộc `canceled` hoặc `unavailable` (TOPIC_EVALUATION §1.2). `cancel_eligible` = `n_orders_placed`. `cancel_rate` = `cancel_count / n_orders_placed` khi `n_orders_placed` > 0, else null. Đơn này có `seller_ship_late_flag` null vì không có ngày hủy, và được ghi nhận qua tỷ lệ này |
 | `handling_days_sum`, `handling_days_count`, `avg_handling_days` | seller-tháng | Tổng và số item có `seller_handling_days` khác null. Trung bình = sum/count khi count > 0, else null |
 
-Tháng của snapshot là tháng `order_purchase_timestamp`, cùng cách G1 đã dùng. Một dòng seller-tháng tồn tại khi seller có ít nhất một item trong tháng đó (`n_orders_placed` ≥ 1), kể cả khi mọi đơn đều `canceled` hoặc `unavailable` và `gmv` = 0.
+Tháng của snapshot là tháng `order_purchase_timestamp`. Một dòng seller-tháng tồn tại khi seller có ít nhất một item trong tháng đó (`n_orders_placed` ≥ 1), kể cả khi mọi đơn đều `canceled` hoặc `unavailable` và `gmv` = 0. Gold không lọc seller theo số đơn: mọi seller-tháng có item đều có dòng. Ngưỡng xếp hạng `min_orders` (mặc định 5 trên `n_orders_valid`) áp ở lớp DSS, trên `dss.v_seller_features` hoặc UI, không phải điều kiện nạp fact. Ngưỡng G1 (≥ 10 item/tháng trong ≥ 6 tháng) chỉ dùng để chọn tập train M1, không xóa dòng Gold.
 
 `fact_seller_monthly` lưu cả tử số, mẫu số và tỷ lệ. Cột tỷ lệ và `aov` chỉ để đọc nhanh. Mọi roll-up phải cộng tử và mẫu rồi chia lại. `aov` tính lại từ `gmv` và `n_orders_valid`.
 
@@ -621,7 +621,7 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_order` | `bad_experience_flag` | INT | có | cờ | §3.6 |
 | `fact_order` | `ts_inversion_flag` | INT | không | cờ | Copy `silver.orders.ts_inversion_flag` |
 | `fact_seller_monthly` | `seller_key` | BIGINT | không | grain FK | Seller có ≥ 1 item trong tháng mua |
-| `fact_seller_monthly` | `month_key` | INT | không | grain FK | Tháng của `order_purchase_timestamp` |
+| `fact_seller_monthly` | `month_key` | INT | không | grain FK | Tháng của `order_purchase_timestamp`. Gold không bỏ seller-tháng dưới `min_orders` |
 | `fact_seller_monthly` | `seller_id` | STRING | không | khóa suy biến | Để đối soát không phụ thuộc surrogate |
 | `fact_seller_monthly` | `year_month` | STRING | không | khóa suy biến | `yyyy-MM` của tháng mua |
 | `fact_seller_monthly` | `n_orders_placed` | INT | không | đếm | Mọi đơn phân biệt, mọi status. Mẫu của `cancel_rate`. Không cộng qua seller |
@@ -745,7 +745,7 @@ flowchart LR
 | Tỷ lệ bàn giao trễ | `fact_seller_monthly.late_ship_rate` và tử/mẫu. Cửa sổ 3 tháng do Phase 5 tự cộng, không lưu sẵn |
 | Điểm review | `avg_review`, `review_score` |
 | GMV | `gmv` = tổng `price` của item thuộc đơn không `canceled` và không `unavailable`, trong tháng mua. Kể cả đơn nhiều seller |
-| Số đơn | `n_orders_placed` (mọi status, mẫu `cancel_rate`) và `n_orders_valid` (mẫu `aov`). Không cộng hai cột này qua seller. M1 dùng `n_orders_valid` cho volume và ngưỡng số đơn tối thiểu, vì `cancel_rate` đã đo việc hủy riêng |
+| Số đơn | `n_orders_placed` (mọi status, mẫu `cancel_rate`) và `n_orders_valid` (mẫu `aov`). Không cộng hai cột này qua seller. M1 dùng `n_orders_valid` cho volume. `min_orders` mặc định 5 là tham số DSS trên cột này, không phải bộ lọc Gold. Tập train M1 dùng ngưỡng G1 (≥ 10 item/tháng trong ≥ 6 tháng), khác `min_orders` |
 | AOV | `aov` = `gmv / n_orders_valid` khi mẫu > 0, else null. Không SUM |
 | Vùng | `dim_seller.region_name` |
 | Danh mục | `dim_product.category_en` và `category_group` |

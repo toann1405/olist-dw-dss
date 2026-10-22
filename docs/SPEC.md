@@ -279,7 +279,7 @@ Truy vấn viết bằng Spark SQL trên Gold. Công cụ màn hình OLAP chờ 
 
 | Loại | Biến |
 |---|---|
-| Decision variables | Ngưỡng điểm rủi ro cho từng hạng (θ₁, θ₂, θ₃); ngưỡng KPI cứng (late_ship_rate, avg_review); số đơn tối thiểu để xét, đo bằng `n_orders_valid`; biện pháp cho từng hạng |
+| Decision variables | Ngưỡng điểm rủi ro cho từng hạng (θ₁, θ₂, θ₃); ngưỡng KPI cứng (late_ship_rate, avg_review); `min_orders`: số đơn hợp lệ (`n_orders_valid`) tối thiểu của seller trong tháng để được xếp hạng. Là tham số DSS, mặc định 5, người dùng chỉnh được; xem lại sau khi profile phân phối `n_orders_valid` trên Gold. Biện pháp cho từng hạng |
 | Uncontrollable variables | Nhu cầu tháng tới / hệ số mùa vụ s (Q_i = Q̄_i·s); hiệu quả can thiệp e_k; tỷ lệ chuyển đơn r khi tạm ngưng; hiệu suất vận chuyển; cơ cấu danh mục và địa lý |
 | Intermediate | p_i (từ M1), đơn dự kiến Q_i, hạng của seller |
 | Result variables | Số/tỷ lệ đơn trải nghiệm xấu dự kiến; GMV bị ảnh hưởng (%); số seller mỗi hạng; tỷ lệ giao trễ dự kiến |
@@ -395,6 +395,7 @@ flowchart LR
 | `seller_ship_late_flag` grain item. Đơn `canceled` hoặc `unavailable` → null và chỉ vào `cancel_rate`, vì dataset không có ngày hủy. `shipping_limit_date` null, hạn sớm hơn `order_purchase_timestamp`, hoặc carrier chính thức null vì đảo timestamp (raw carrier khác null) → null. Carrier chính thức khác null: `1` nếu timestamp carrier > `shipping_limit_date`, else `0`. Carrier thật sự thiếu (official và raw đều null) và `TO_DATE(shipping_limit_date) < snapshot_date` → `1`; hạn từ `snapshot_date` trở đi → null. `snapshot_date` là tham số DATE của lần nạp, không phải cột Gold. Full load của dataset đã đo dùng `DATE '2018-10-17'`, phần ngày của max `order_purchase_timestamp`. Không gán tham số này bằng `watermark_cutoff_ts`. Đơn nhiều seller dùng chung một mốc carrier cấp đơn nên cờ kém tin cậy hơn | 22/10/2026 — **câu tách `snapshot_date` khỏi watermark thay thế cùng ngày 22/10/2026**. Luật cờ giữ |
 | `snapshot_date` = `TO_DATE(watermark_cutoff_ts)` của mỗi lần nạp. Full load mặc định `DATE '2018-10-17'`. Mỗi lần nạp tính lại `seller_ship_late_flag` cho item còn null hoặc đơn chưa có carrier chính thức | 22/10/2026 |
 | M1: đặc trưng volume và ngưỡng số đơn tối thiểu dùng `n_orders_valid`. `cancel_rate` đã đo việc hủy riêng | 22/10/2026 |
+| Tháng của `fact_seller_monthly` là tháng `order_purchase_timestamp`. Gold giữ mọi seller-tháng có ít nhất một item, không lọc theo số đơn. `min_orders` mặc định 5 là tham số DSS (số `n_orders_valid` tối thiểu để xếp hạng), người dùng chỉnh được, xem lại sau khi profile phân phối trên Gold. Ngưỡng G1 (≥ 10 item/tháng trong ≥ 6 tháng) chỉ để chọn tập train M1 | 22/10/2026 |
 | `late_flag` và `late_delivery_count` / `late_delivery_eligible` / `late_delivery_rate`: đơn `canceled` hoặc `unavailable` thì cờ null và ở ngoài mẫu. Bản copy trên item lặp cờ của đơn | 22/10/2026 |
 | Một deal trên `dim_seller`: `won_date` sớm nhất, hòa thì `mql_id` tăng dần | 15/10/2026 |
 | Thanh toán chính: nhóm (`order_id`, `payment_type`), hạng `SUM(payment_value)` giảm, rồi `payment_sequential` nhỏ nhất, rồi tên tăng dần. Không có dòng hợp lệ thì `-1` | 15/10/2026 |
