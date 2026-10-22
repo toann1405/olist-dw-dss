@@ -115,7 +115,13 @@ Khi nhiều dòng Bronze cùng khóa grain: giữ dòng có `_ingest_ts` mới n
 | `silver.marketing_qualified_leads` | 1 `mql_id` | Giữ để khỏi mất nguồn. Gold `dim_seller` không đọc bảng này. Số `mql_id` trùng pending |
 | `silver.state_region` | 1 `state_code` | 27 UF |
 
-`fact_order` lấy một review mỗi đơn từ Silver: `review_answer_timestamp` mới nhất, rồi `review_creation_date` mới nhất, hòa thì `review_id` tăng dần.
+`silver.order_reviews` vẫn một dòng mỗi (`order_id`, `review_id`). Grain đó chỉ khử dòng trùng của cùng một `review_id` (814 dòng thừa trên file thô). Không dùng grain này để chọn review của 547 đơn có nhiều review.
+
+`fact_order` giữ đúng một review mỗi `order_id`:
+
+`ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id ASC) = 1`
+
+`review_id` đứng cuối để phá hòa, thứ tự tăng dần, cho kết quả cố định. Timestamp null xếp sau, nên một mốc null không thắng mốc đã có. Không lấy trung bình điểm. Không xóa review có `review_creation_date` trước ngày nhận hàng (§3.6, §7).
 
 ### 2.4 Bảng Gold
 
@@ -247,7 +253,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `payment_total` | đơn | `sum(payment_value)`. Không xóa 387 đơn lệch quá 0,01 so với price+freight; chỉ ghi nhận ở §7 |
 | `n_items` | đơn | Số dòng item của đơn, mọi status. Khác `n_items_placed` và `n_items_valid` |
 | `n_sellers` | đơn | `count distinct seller_id` trên item. `n_sellers` > 1 là cờ đơn nhiều seller. Không thêm `is_multi_seller`. Không xóa đơn |
-| `review_score` | đơn | Điểm review chọn ở §2.3 khi `n_sellers` = 1. Null khi không có review hoặc `n_sellers` > 1. Review gắn cả đơn nên không quy được seller; null đưa đơn ra khỏi mẫu |
+| `review_score` | đơn | Điểm của đúng một review mỗi `order_id`, cửa sổ ở §2.3, khi `n_sellers` = 1. Không trung bình các điểm của đơn. Giữ review có `review_creation_date` trước ngày nhận: cột đó là ngày Olist gửi khảo sát (khi khách đã nhận hoặc khi tới ngày hẹn), không phải ngày trả lời; `review_answer_timestamp` là lúc khách trả lời. Review 1 sao khi hàng chưa tới vẫn phản ánh giao trễ; xóa các dòng đó sẽ che đơn trễ. Null khi không có review hoặc `n_sellers` > 1. Review gắn cả đơn nên không quy được seller; null đưa đơn ra khỏi mẫu |
 | `negative_review_flag` | đơn | Null khi `n_sellers` > 1 hoặc không có điểm. Khi `n_sellers` = 1: 1 nếu điểm ≤ 2, 0 nếu điểm > 2 |
 | `bad_experience_flag` | đơn | Null khi `n_sellers` > 1. Khi `n_sellers` = 1: 1 nếu `negative_review_flag` = 1 hoặc `late_flag` = 1; 0 nếu `late_flag` = 0 và không có review xấu (`negative_review_flag` = 0 hoặc điểm null); null nếu `late_flag` null và không có review xấu |
 | `gmv` | seller-tháng | `sum(price)` item của seller trong tháng mua, loại đơn có `order_status` thuộc `canceled` hoặc `unavailable`. Kể cả đơn nhiều seller, vì `price` nằm trên từng dòng item. GMV đo nhu cầu đặt mua; dataset không có dữ liệu hoàn hoặc trả hàng |
@@ -438,8 +444,8 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `order_reviews` | `review_score` | INT | có | measure | Cast. Ngoài 1–5 → null và đếm `rows_rejected` |
 | `order_reviews` | `review_comment_title` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này |
 | `order_reviews` | `review_comment_message` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này (SPEC §1: không NLP) |
-| `order_reviews` | `review_creation_date` | TIMESTAMP | có | mốc chọn dòng | Parse |
-| `order_reviews` | `review_answer_timestamp` | TIMESTAMP | có | mốc chọn dòng | Parse. Dùng trước `review_creation_date` khi dedupe |
+| `order_reviews` | `review_creation_date` | TIMESTAMP | có | ngày gửi khảo sát | Parse. Olist gửi khảo sát khi khách đã nhận hoặc khi tới ngày hẹn. Không phải lúc khách trả lời. Không xóa dòng vì mốc này sớm hơn ngày nhận |
+| `order_reviews` | `review_answer_timestamp` | TIMESTAMP | có | lúc khách trả lời | Parse. Khóa sắp xếp đầu khi chọn một review mỗi `order_id` (§2.3). Null xếp sau |
 | `order_payments` | `order_id` | STRING | không | grain | `trim` |
 | `order_payments` | `payment_sequential` | STRING | không | grain | `trim`. Giữ STRING |
 | `order_payments` | `payment_type` | STRING | có | thuộc tính | `trim`, lowercase. Rỗng hoặc `not_defined` → null. Không điền `'unknown'` |
@@ -612,7 +618,7 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_order` | `estimated_days` | DOUBLE | có | số ngày lịch | §3.6 |
 | `fact_order` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6 |
 | `fact_order` | `late_flag` | INT | có | cờ | §3.6. Null khi đơn `canceled` hoặc `unavailable`, hoặc thiếu một mốc so ngày |
-| `fact_order` | `review_score` | INT | có | điểm | §2.3 và §3.6 |
+| `fact_order` | `review_score` | INT | có | điểm | §2.3 và §3.6. Một review mỗi `order_id`. Không trung bình. Không loại review tạo trước ngày nhận |
 | `fact_order` | `negative_review_flag` | INT | có | cờ | §3.6 |
 | `fact_order` | `bad_experience_flag` | INT | có | cờ | §3.6 |
 | `fact_order` | `ts_inversion_flag` | INT | không | cờ | Copy `silver.orders.ts_inversion_flag` |
@@ -693,7 +699,9 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 | `dim_customer` theo `customer_unique_id` | 99.441 `customer_id`; 96.096 người | Silver giữ `customer_id`. Gold một người một dòng, không địa chỉ. Địa chỉ của từng đơn nằm trên `fact_order` |
 | Category thiếu → `'Unknown'` | 610 / 32.951 thiếu tên; 2 category không có bản dịch | Product vẫn giữ khóa dương. Ba cột category = `'Unknown'` khi thiếu tên. Category có tên nhưng không có dòng dịch: `category_en` = chuỗi nguồn, trừ `portateis_cozinha_e_preparadores_de_alimentos` → `portable_kitchen_food_preparers`. `category_group` theo §3.4 |
 | Timestamp null hoặc đảo | Null approved 160, carrier 1.783, customer 2.965. Đảo trên raw: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 9 đơn `delivered` thiếu một trong hai mốc (96.478 − 96.469) | Cột chính thức null, `raw_*` giữ vết, `ts_inversion_flag`, `rows_ts_inverted`. Measure thời gian chỉ dùng cột chính thức |
-| Review | 789 nhóm `review_id`; 814 dòng thừa; 98.410 `review_id` nếu khử theo `review_id` (99.224 − 814). 547 đơn có hơn một dòng review trên file thô, trước dedupe | Silver grain (`order_id`, `review_id`), số dòng pending. `fact_order` một điểm mỗi đơn |
+| Review trùng cùng `review_id` | 789 nhóm `review_id`; 814 dòng thừa; 98.410 `review_id` nếu khử theo `review_id` (99.224 − 814) | Silver vẫn grain (`order_id`, `review_id`): khử bản trùng của cùng một review. Số dòng Silver pending. Không dùng partition này cho 547 đơn bên dưới |
+| 547 đơn có nhiều review | 547 đơn trên file thô, trước dedupe | `fact_order` giữ review mới nhất của `order_id`: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id ASC) = 1`. Không lấy trung bình điểm, vì trung bình không phải điểm ai đã chấm. Chọn bản cuối có thể bỏ một review sớm báo trễ; `late_flag` trong `bad_experience_flag` vẫn bắt giao trễ riêng |
+| Review tạo trước ngày nhận | Chưa đo ở phiên 22/10/2026 | Giữ lại. `review_creation_date` là ngày gửi khảo sát, không phải ngày trả lời. `review_answer_timestamp` là lúc khách trả lời. Olist gửi khảo sát khi khách đã nhận hoặc khi tới ngày hẹn. Review xấu lúc hàng chưa tới là tín hiệu giao trễ; xóa sẽ che các đơn đó |
 | Payment lạ | 3 `not_defined`; 9 value 0; 2 installments 0; 387 / 98.665 đơn lệch > 0,01 | `not_defined` và rỗng → null, FK `-1`, nhãn `'Unknown'`. Giữ số 0. Không xóa đơn lệch |
 | Zip dạng chuỗi | 0 zip ngắn hơn 5; min length 5 | STRING suốt pipeline |
 | Cửa sổ 2016-09-04 → 2018-10-17 | Tháng thưa đã liệt kê ở §2.4. 19 tháng ≥ 1.000 đơn | Không cắt |
@@ -790,7 +798,7 @@ Việc Phase 3 phải kiểm:
 | Unknown | Dòng fact thiếu natural key vẫn còn, đếm ở `rows_unknown_fk`. Không có member `'unknown'` thứ hai |
 | SCD | Type 1, ghi đè. `dim_seller` có `effective_from`, `effective_to`, `is_current` nhưng mỗi `seller_id` một dòng, `is_current = 1`. Không sinh lịch sử |
 | Timestamp | Mốc đảo null trên cột chính thức, còn ở `raw_*`. `rows_ts_inverted` đếm cờ 1. Measure thời gian dùng cột chính thức |
-| Review | Grain Silver là (`order_id`, `review_id`). `fact_order` một điểm mỗi đơn. Không dừng batch khi hòa |
+| Review | Silver vẫn grain (`order_id`, `review_id`) để khử dòng trùng cùng review. `fact_order` một review mỗi `order_id` theo cửa sổ §2.3, không partition theo `review_id`, không trung bình điểm, không xóa review tạo trước ngày nhận. Không dừng batch khi hòa |
 | Giá | `sum(price)` item nguồn của batch = `sum(price)` trên `fact_order_item` sau khi trừ reject. Không đối soát tổng này với tổng `gmv`, vì `gmv` bỏ đơn `canceled` và `unavailable` |
 | Đọc / nạp / loại | `rows_read = rows_loaded + rows_deduplicated + rows_rejected` |
 | Zip và id | Kiểu STRING đến Gold |
