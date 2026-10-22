@@ -20,6 +20,13 @@
 
 ## Nhật ký
 
+### 22/10/2026 — Phase 2 — Khóa grain review và review dùng chung
+- **Đã làm:** `silver.order_reviews` giữ (`review_id`, `order_id`), chỉ cast và bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
+- **Quyết định trong ngày, đã ghi SPEC §10:** GMV loại đơn `canceled` và `unavailable`; `n_orders_placed` / `n_orders_valid`, `n_items_placed` / `n_items_valid`, `aov`; `seller_ship_late_flag` null khi hủy và bằng 1 khi quá hạn chưa bàn giao; `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`; luật review ở mục này.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không sửa `TOPIC_EVALUATION.md`. Không đo số đơn có seller_set nhiều seller. Câu 1,6% tháng 3/2018 ghi là [GIẢ ĐỊNH].
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** Phase 3, DDL và ETL. Sau Gold, sensitivity check top-40 cho review dùng chung.
+
 ### 22/10/2026 — Phase 2 — Chốt snapshot, volume M1 và cờ giao trễ
 - **Đã làm:** đóng ba điểm còn mở sau lần chỉnh GMV. `snapshot_date` lấy từ `watermark_cutoff_ts`; mỗi lần nạp tính lại `seller_ship_late_flag` khi cờ còn null hoặc đơn chưa có carrier. M1 dùng `n_orders_valid`. Đơn hủy ra khỏi `late_flag` và mẫu `late_delivery_*`. Thêm callout ở mục G3, không sửa câu kết quả cũ.
 - **Không làm:** không viết DDL, ETL, notebook, test. Không đo lại.
