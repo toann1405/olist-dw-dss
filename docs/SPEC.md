@@ -3,8 +3,8 @@
 | Mục | Giá trị |
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
-| Phiên bản | v0.6 — 22/10/2026 |
-| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 (ETL). S2, S3, S6 chưa chạy. Frontend OLAP chờ S2–S3. Hợp đồng schema: `docs/DESIGN.md` |
+| Phiên bản | v0.7 — 26/10/2026 |
+| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** Quyết định load và frontend 26/10/2026: Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE, ROLAP, Power BI + Streamlit. S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 (ETL). S2, S3, S6 chưa chạy (S2–S3 là kiểm kết nối, không còn chọn công cụ). Hợp đồng schema: `docs/DESIGN.md`. Sơ đồ: `docs/architecture.md` |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -22,7 +22,7 @@ Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra t�
 | Decision maker | Trưởng bộ phận Quản lý chất lượng người bán (Seller Quality / Marketplace Ops Manager) |
 | Alternatives | P0 không can thiệp · P1 ngưỡng KPI cố định · P2 ngưỡng theo điểm rủi ro dự báo · các biến thể ngưỡng của P1/P2 |
 | Principle of choice / KPI | Tối thiểu **số đơn trải nghiệm xấu dự kiến** tháng tới. Đơn trải nghiệm xấu = review ≤ 2 **hoặc** giao trễ so với ngày hẹn. 1.278 đơn nhiều seller **không xóa**; `review_score` và `negative_review_flag` để null nên đơn ra khỏi mẫu review (G3, 15/10/2026; cách gắn cờ chốt 22/10/2026). Nhánh `late_flag` của `bad_experience_flag` vẫn tính. `gmv` vẫn cộng `price` của các đơn đó, trừ đơn `canceled` hoặc `unavailable`. Ràng buộc **GMV bị ảnh hưởng ≤ 10%** và **số seller cần xử lý ≤ 40**/tháng (X, N là tham số; mặc định nhóm chốt 15/10/2026) |
-| Phạm vi | Đơn Olist có `order_purchase_timestamp` từ 2016-09-04 21:15:19 đến 2018-10-17 17:30:18 (Volume, 15/10/2026) + Marketing Funnel; medallion trên Databricks (Bronze → Silver → Gold), chỉ batch; data mart Kimball chủ đề "hiệu suất seller & hoàn tất đơn" nằm ở Gold; OLAP (frontend chờ spike); DSS mô hình rủi ro + mô phỏng chính sách, đọc Gold và ghi `dss.*`. Tháng thưa (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10; không có 2016-11) giữ trong kho, ghi vào hạn chế |
+| Phạm vi | Đơn Olist có `order_purchase_timestamp` từ 2016-09-04 21:15:19 đến 2018-10-17 17:30:18 (Volume, 15/10/2026) + Marketing Funnel; medallion trên Databricks (Bronze → Silver → Gold), chỉ batch, Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE; data mart Kimball chủ đề "hiệu suất seller & hoàn tất đơn" nằm ở Gold; OLAP ROLAP qua SQL Warehouse, dashboard Power BI; DSS mô hình rủi ro + mô phỏng chính sách, đọc Gold và ghi `dss.*`, giao diện Streamlit. Tháng thưa (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10; không có 2016-11) giữ trong kho, ghi vào hạn chế |
 | Ngoài phạm vi | Tối ưu lợi nhuận (không có dữ liệu chi phí); phân tích NLP nội dung review; dự báo nhu cầu toàn sàn; triển khai production. Hướng phát triển: streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL |
 
 **Đáp ứng mục 3.1 [ĐỀ, Trang 3]:** (a) Gold layer là DW, nguồn duy nhất cho OLAP và DSS; (b) dữ liệu Kaggle, license CC BY-NC-SA 4.0, ~100 nghìn đơn, 9 bảng + nguồn bổ sung; (c) quyết định cụ thể, lặp lại hằng tháng, có KPI đo được.
@@ -60,9 +60,9 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R23 | Khai báo granularity cho từng fact | BB\* | L.O.2.2; slide Ch2 | 2 | `DESIGN.md` | ☑ |
 | R24 | ≥ 2 dimension có hierarchy | BB\* | L.O.2.3; slide Ch2 | 2 | `DESIGN.md` | ☑ |
 | R25 | Đủ 5 phép OLAP (slice, dice, drill-down, roll-up, pivot), mỗi phép trả lời 1 câu hỏi nghiệp vụ | BB\* | Mục tiêu 3; slide Ch2–3 | 4 | `src/sql/olap_queries/`, `src/frontend/` | ☐ |
-| R26 | Chọn ROLAP hoặc HOLAP có lý do — loại OLAP còn mở, chốt sau spike cùng frontend | NC | slide Ch2–3 | 0–2 | SPEC §5 | ◐ |
+| R26 | ROLAP qua Databricks SQL Warehouse. Power BI đọc Gold. Streamlit là giao diện truy vấn và DSS. HOLAP và MOLAP không dùng | NC | slide Ch2–3 | 0–2 | SPEC §5, §7 | ☑ |
 | R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain, pytest trên sample) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/`, `src/tests/` | ◐ |
-| R28 | Incremental load (watermark `order_purchase_timestamp`, Delta MERGE) | NC | slide Ch2 | 3 | `src/etl/` | ☐ |
+| R28 | Incremental load theo watermark, append, CDF, Auto Loader — **future work**. Phạm vi hiện tại: Bronze/Silver FULL LOAD OVERWRITE; Gold `MERGE` theo grain | NC | slide Ch2 | — | SPEC §6, DESIGN §9 | ☐ |
 | R29 | Data dictionary, metadata, source-to-target mapping | NC | slide Ch2-cont, Ch6 | 2 | `DESIGN.md` | ☑ |
 | R30 | Tích hợp thật nhiều bảng/nguồn, có bằng chứng | BB\* | 3.1(a) + lý do bỏ DataCo | 1–3 | SPEC §3, `DESIGN.md`, `src/etl/` | ◐ |
 | R31 | DSS đọc dữ liệu chỉ từ Gold (`gold.*`), ghi kết quả vào `dss.*`, không đọc CSV thô | BB\* | Diễn giải mục tiêu 4 | 5 | `src/sql/views/`, `src/dss/` | ☐ |
@@ -79,7 +79,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R42 | Aggregate / view trên Gold cho OLAP (không partition vì dữ liệu nhỏ) | NC | slide Ch1–2 | 3–4 | `src/sql/views/` | ☐ |
 | R43 | Knowledge subsystem: luật khuyến nghị hành động | ĐC | slide Ch6 | 5 | `src/dss/` | ☐ |
 | R44 | Đánh giá mô hình (metric, backtest) | NC | slide Ch7 | 5–6 | `src/dss/`, báo cáo | ☐ |
-| R45 | Hợp đồng giữa các layer (Bronze append-only có metadata; Silver làm sạch/conform; Gold chỉ chứa star schema; downstream chỉ đọc Gold) | BB\* | [SUY LUẬN] / hợp đồng medallion | 2–3 | SPEC §4–6, `DESIGN.md` | ☑ |
+| R45 | Hợp đồng giữa các layer (Bronze FULL LOAD OVERWRITE, metadata `_ingest_ts` và `_source_file`; Silver FULL LOAD OVERWRITE, làm sạch/conform; Gold bảng Delta star schema, `MERGE` theo grain; downstream chỉ đọc Gold) | BB\* | [SUY LUẬN] / hợp đồng medallion | 2–3 | SPEC §4–6, `DESIGN.md` | ☑ |
 | R46 | Khả năng tái lập cho người chấm (README hướng dẫn, chạy local trên sample) | NC | [SUY LUẬN] / tái lập cho người chấm | 0, 3, 6 | README, `src/tests/`, chạy local `data/sample/` | ☐ |
 | R47 | Metadata/lineage: comment bảng/cột Gold trong Unity Catalog | ĐC | [SUY LUẬN] / metadata | 3 | DDL trong `src/sql/ddl/` | ☐ |
 
@@ -124,7 +124,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Tên thành phố lệch chính tả/dấu | `geolocation_city`: 8.010 distinct_lower, 5.968 sau khi bỏ dấu, 73.437 dòng có dấu. `customer_city` 4.119 / `seller_city` 611: không đổi sau khi bỏ dấu | `city_norm`: lowercase, bỏ dấu, trim. Dùng cho khách, seller, geolocation và Gold |
 | Hai loại khóa khách hàng | 99.441 `customer_id` phân biệt trên 99.441 dòng; 96.096 `customer_unique_id` | Silver giữ `customer_id`. `dim_customer` một dòng mỗi `customer_unique_id`, không địa chỉ. Địa chỉ của `customer_id` đặt trên `fact_order` |
 | Category thiếu / thiếu bản dịch | 610 / 32.951 product thiếu `product_category_name`; 2 category không có dòng dịch | Product vẫn giữ khóa. LEFT JOIN translation. `category_pt = COALESCE(product_category_name, 'Unknown')`. `category_en = COALESCE(bản dịch, product_category_name, 'Unknown')`. Không null ở hai cột này. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume: thiếu dịch → `'pc_gamer'`. `category_group` cùng nhãn `'Unknown'` khi thiếu tên, 8 nhóm ở DESIGN §3.4 |
-| Timestamp thiếu hoặc sai thứ tự | Orders 99.441. NULL: `order_approved_at` 160, `order_delivered_carrier_date` 1.783, `order_delivered_customer_date` 2.965. Đảo: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 96.469 / 96.478 đơn `delivered` có cả hai mốc giao | Cột chính thức thành NULL khi đảo; giữ `raw_*`; `ts_inversion_flag`; so sánh đảo trên `raw_*`; loại khỏi measure thời gian; đếm `rows_ts_inverted` trong `gold.etl_audit`. `late_flag` so bằng ngày. Đơn `canceled` hoặc `unavailable` thì null và ở ngoài mẫu. Thiếu một mốc thì null. `seller_ship_late_flag` so bằng timestamp. Đơn `canceled` hoặc `unavailable` thì cờ null. Carrier thật sự thiếu và hạn trước `snapshot_date` thì cờ = 1; hạn từ ngày chốt trở đi thì null. Công thức đầy đủ ở DESIGN §3.6 |
+| Timestamp thiếu hoặc sai thứ tự | Orders 99.441. NULL: `order_approved_at` 160, `order_delivered_carrier_date` 1.783, `order_delivered_customer_date` 2.965. Đảo: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 96.469 / 96.478 đơn `delivered` có cả hai mốc giao | Cột chính thức thành NULL khi đảo; giữ `raw_*`; `ts_inversion_flag`; so sánh đảo trên `raw_*`; loại khỏi measure thời gian; notebook DQ in số dòng cờ bằng 1, không lưu cột audit. `late_flag` so bằng ngày. Đơn `canceled` hoặc `unavailable` thì null và ở ngoài mẫu. Thiếu một mốc thì null. `seller_ship_late_flag` so bằng timestamp. Đơn `canceled` hoặc `unavailable` thì cờ null. Carrier thật sự thiếu và hạn trước `snapshot_date` thì cờ = 1; hạn từ ngày chốt trở đi thì null. `snapshot_date` = `DATE '2018-10-17'` trong config. Công thức đầy đủ ở DESIGN §3.6 |
 | Review trùng / đơn nhiều review | 99.224 dòng; 789 `review_id` gắn nhiều đơn; 814 dòng thừa; 547 đơn có hơn một dòng review trên file thô. Điểm ≤ 2: 14.575 / 99.224 (G4) | `silver.order_reviews` grain (`review_id`, `order_id`): cast, bỏ dòng trùng y hệt, rồi chọn một dòng nếu cùng khóa khác giá trị. Số nhóm lệch ghi audit, chỉ cảnh báo. `silver.order_reviews_dedup` một dòng mỗi `order_id` theo cửa sổ DESIGN §2.3. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller ra khỏi measure review, cùng điều kiện `n_sellers` > 1. Mẫu tỷ lệ review là `COUNT(DISTINCT order_id)`. Giữ review tạo trước ngày nhận. 99.224 − 814 = 98.410 là số `review_id` nếu chỉ khử theo `review_id`; số dòng hai bảng Silver pending |
 | Payment lạ | `not_defined` 3; `payment_value` = 0: 9; `payment_installments` = 0: 2. 387 / 98.665 đơn lệch abs(price + freight − payment) > 0,01 | `not_defined` hoặc rỗng → null, fact trỏ `payment_type_key = -1` (nhãn `'Unknown'`). Giữ giá trị 0. Không xóa đơn lệch. Loại chính: nhóm theo (`order_id`, `payment_type`), hạng tổng `payment_value` giảm, rồi `payment_sequential` nhỏ nhất, rồi tên tăng dần |
 | Zip prefix đọc dạng chuỗi | 0 dòng zip ngắn hơn 5 ký tự trên customer, seller, geolocation; min_length = 5 | Tiếp tục đọc mọi id/zip dạng chuỗi |
@@ -156,17 +156,22 @@ flowchart LR
     A1[9 CSV Olist] --- A2[Marketing Funnel] --- A3[Bang sang Vung IBGE]
   end
   S -->|Upload| V[(Unity Catalog Volume)]
-  V -->|spark.read, append| B[(Bronze: raw)]
-  B -->|Clean, conform| SI[(Silver)]
-  SI -->|Surrogate key, MERGE| G[(Gold: fact / dim)]
-  G --> OL[OLAP frontend: chờ spike]
-  G --> DSS[DSS: M1 / M2, what-if]
+  V -->|spark.read, FULL LOAD OVERWRITE| B[(Bronze: raw)]
+  B -->|Clean, conform, OVERWRITE| SI[(Silver)]
+  SI -->|Surrogate key, MERGE| G[(Gold: bang Delta)]
+  G --> WH[SQL Warehouse ROLAP]
+  WH --> OL[Power BI dashboard]
+  G --> DSS[Streamlit: truy van / DSS]
   DSS --> DL[(dss.*)]
+  DL --> DSS
+  G --> AU[(gold.etl_audit)]
 ```
+
+Sơ đồ đầy đủ: `docs/architecture.md`.
 
 - **Cách tiếp cận:** *bottom-up, một data mart* theo Kimball cho chủ đề "hiệu suất seller & hoàn tất đơn", đặt ở **Gold**, dimension dùng chung (conformed) để mở rộng sau. Lý do: nhóm 2–3 người, ~5 tuần, một quyết định trọng tâm → EDW top-down không khả thi. Gold vẫn là star schema nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a).
 - **Lưu trữ:** Databricks Free Edition (đăng ký bằng email cá nhân), Delta Lake, Unity Catalog. Catalog `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `dss`. Chỉ **batch**.
-- **Hợp đồng layer (R45):** Bronze append-only, có metadata ingest. Silver làm sạch và conform. Gold chỉ chứa star schema. OLAP và DSS chỉ đọc Gold. Kết quả mô hình ghi `dss.*`.
+- **Hợp đồng layer (R45):** Bronze FULL LOAD OVERWRITE, metadata `_ingest_ts` và `_source_file`. Silver FULL LOAD OVERWRITE, làm sạch và conform, dedup trong file. Gold là bảng Delta, star schema, `MERGE` theo grain. Power BI và DSS chỉ đọc Gold. Streamlit còn đọc `dss.*`. Kết quả mô hình ghi `dss.*`.
 - **Lệch có chủ đích:** mô hình DSS huấn luyện trên Gold, không trên Silver, để DSS dựa trên DW theo mục tiêu 4 của đề.
 - **Tái lập (R46):** mã transform chạy trên Databricks và chạy local (pyspark + delta-spark) trên `data/sample/`, phòng Free Edition bị giới hạn và để người chấm chạy lại.
 
@@ -174,21 +179,21 @@ flowchart LR
 
 | Khái niệm slide | Layer trong dự án |
 |---|---|
-| Staging area | Bronze — raw, append-only, kèm `_ingest_ts`, `_source_file`, `_batch_id` |
-| Integration (làm sạch, conform) | Silver — cast kiểu, dedupe, chuẩn hóa, dimension conformed |
-| Data Warehouse / data mart | Gold — fact constellation, star schema, data mart Kimball bottom-up |
+| Staging area | Bronze — raw, FULL LOAD OVERWRITE, kèm `_ingest_ts`, `_source_file` |
+| Integration (làm sạch, conform) | Silver — cast kiểu, dedupe trong file, chuẩn hóa, FULL LOAD OVERWRITE |
+| Data Warehouse / data mart | Gold — fact constellation, star schema, bảng Delta, data mart Kimball bottom-up, `MERGE` theo grain |
 | Metadata | Comment bảng/cột Gold trên Unity Catalog (R47); nhật ký nạp `gold.etl_audit` |
-| Presentation | Frontend OLAP đọc Gold (công cụ chờ spike); đầu ra DSS ở schema `dss` |
+| Presentation | Power BI dashboard đọc Gold qua SQL Warehouse (ROLAP); Streamlit đọc Gold và `dss` |
 
 **Công nghệ** (đề không ràng buộc công nghệ). Tính năng của Databricks Free Edition chưa được nhóm kiểm chứng đều mang nhãn **[GIẢ ĐỊNH]** và gắn spike. Quyết định PostgreSQL ngày 10/10/2026 được thay cùng ngày bởi kiến trúc medallion trên Databricks.
 
 | Hạng mục | Đã chốt | Còn mở (spike) | Không dùng + lý do |
 |---|---|---|---|
 | Nền tảng | Databricks Free Edition, Delta Lake, Unity Catalog, schema `bronze` / `silver` / `gold` / `dss`. CSV ở Volume `/Volumes/olist_catalog/bronze/raw/`. Chỉ batch. Catalog `olist_catalog` (S1, 13/10/2026) | SQL warehouse từ máy local (S2) | PostgreSQL, psycopg, schema `staging` / `dw`: Gold đảm nhận vai trò DW, tránh hai kho. DuckDB: phương án local từng xét, không dùng; đường tái lập local là pyspark + delta-spark |
-| Xử lý | PySpark + Spark SQL. Notebook lưu trong repo dạng `.py` để diff. Load idempotent bằng Delta `MERGE`. Databricks Jobs có trên Free Edition (S4, 13/10/2026: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được và đang Paused). Git folder nối GitHub (S5, 13/10/2026: `olist-dw-dss`, nhánh `main`) | — | Streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL: ngoài phạm vi, để hướng phát triển. ETL không dùng pandas + SQLAlchemy + psycopg |
-| DSS | Python (scikit-learn / statsmodels). Feature view chỉ trên `gold.*`. Kết quả ghi `dss.*`. Huấn luyện trên Gold | UI Streamlit local đọc Gold qua SQL warehouse (**[GIẢ ĐỊNH]**, S2) | Đọc `data/raw` hoặc `read_csv` trong `src/dss/`: vi phạm mục tiêu 4 |
-| OLAP frontend | — | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit. AI/BI có trên Free Edition hay không là **[GIẢ ĐỊNH]** (chốt cùng S2–S3) | Chưa loại trừ phương án nào trong ba công cụ trên cho đến khi spike xong |
-| Loại OLAP | — | ROLAP (SQL warehouse truy vấn trực tiếp Gold) hoặc HOLAP (Power BI Import + Gold), chốt cùng frontend | MOLAP: cần cube engine riêng, không nằm trong hai phương án đang xét |
+| Xử lý | PySpark + Spark SQL. Notebook lưu trong repo dạng `.py` để diff. Bronze/Silver FULL LOAD OVERWRITE. Gold idempotent bằng Delta `MERGE`. Databricks Jobs có trên Free Edition (S4, 13/10/2026: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được và đang Paused). Git folder nối GitHub (S5, 13/10/2026: `olist-dw-dss`, nhánh `main`) | — | Streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL: ngoài phạm vi, để hướng phát triển. Incremental, append, CDF, Auto Loader: future work (R28). ETL không dùng pandas + SQLAlchemy + psycopg |
+| DSS | Python (scikit-learn / statsmodels). Feature view chỉ trên `gold.*`. Kết quả ghi `dss.*`. Huấn luyện trên Gold. UI là Streamlit, đọc Gold và `dss` | Kết nối SQL Warehouse từ máy local (**[GIẢ ĐỊNH]**, S2) | Đọc `data/raw` hoặc `read_csv` trong `src/dss/`: vi phạm mục tiêu 4 |
+| OLAP frontend | Power BI: dashboard, đọc Gold qua SQL Warehouse. Streamlit: giao diện truy vấn và DSS, không phải dashboard OLAP | Kết nối Power BI tới SQL Warehouse (**[GIẢ ĐỊNH]**, S3) | Databricks AI/BI Dashboard: không chọn (26/10/2026) |
+| Loại OLAP | ROLAP qua SQL Warehouse trên bảng Gold (26/10/2026) | — | HOLAP và MOLAP |
 | Tái lập | Mã transform phải chạy được trên Databricks và local trên `data/sample/` | pyspark + delta-spark local chạy được hay không (S6) | — |
 | Kiểm thử | pytest trên sample, đối soát số dòng và tổng, Delta constraints (`NOT NULL`, `CHECK`) | — | — |
 
@@ -221,7 +226,7 @@ Công thức ở DESIGN §3.6. `gmv` loại đơn `canceled` và `unavailable`. 
 - Địa chỉ khách gắn với đơn (`customer_id`) và đặt trên `fact_order`. `dim_customer` chỉ là người.
 - **Vị trí vật lý:** `olist_catalog.gold.fact_order_item`, `olist_catalog.gold.fact_order`, `olist_catalog.gold.fact_seller_monthly`, và các dimension `olist_catalog.gold.dim_*` liệt kê ở bảng trên. Catalog `olist_catalog` (S1, 13/10/2026). Bảng chưa tạo.
 - **Thiết kế vật lý Delta:** dữ liệu nhỏ (~100 nghìn đơn) nên không partition. Nếu partition sau này thì partition theo cột dùng để lọc, không theo cột cardinality cao.
-- **Loại OLAP: còn mở** (R26), chốt cùng frontend sau spike. Hai phương án: **ROLAP** — SQL warehouse truy vấn trực tiếp Gold; **HOLAP** — Power BI Import cộng với Gold. MOLAP không nằm trong hai phương án này.
+- **Loại OLAP: ROLAP** (R26, 26/10/2026). SQL Warehouse truy vấn trực tiếp bảng Gold. Power BI là dashboard. HOLAP và MOLAP không dùng.
 
 ---
 
@@ -231,18 +236,20 @@ Chỉ batch. Notebook/pipeline lưu ở `src/etl/` dạng `.py`.
 
 | Bước | Nội dung |
 |---|---|
-| Bronze | Đọc CSV từ Volume bằng `spark.read` (mọi id/zip dạng chuỗi), append-only, thêm `_ingest_ts`, `_source_file`, `_batch_id` |
-| Silver | Cast kiểu; `silver.geolocation_zip` một prefix và `silver.geolocation_city` làm fallback. `silver.order_reviews` grain (`review_id`, `order_id`): bỏ dòng trùng y hệt và chọn một dòng khi cùng khóa khác giá trị. `silver.order_reviews_dedup` một `order_id` theo DESIGN §2.3. Chuẩn hóa thành phố; dịch category; map state → region. Dimension nạp SCD Type 1. `dim_seller` có cột SCD2 nhưng không sinh phiên bản. Lịch sử SCD2 (R41) chưa làm |
-| Gold | Tra surrogate key, member `-1` nhãn `'Unknown'`; nạp 3 fact bằng Delta `MERGE` |
-| Incremental | Tham số `watermark_cutoff_ts` trên `order_purchase_timestamp`. `snapshot_date` = `TO_DATE` của cutoff đó; full load mặc định `DATE '2018-10-17'`. Silver rebuild đơn có ngày mua ≤ cutoff và không sửa `order_status`. `fact_order_item` MERGE đơn mới trong kỳ, và tính lại `seller_ship_late_flag` cho item còn null hoặc đơn chưa có carrier. `fact_order` MERGE đơn mới cộng đơn cũ mà Silver nay có mốc hoặc review trong khi Gold còn `-1` hoặc null, và chỉ đọc review từ `silver.order_reviews_dedup`. `fact_seller_monthly` tính lại tháng của các tập đó. Không bịa trạng thái |
-| Lịch chạy | Databricks Jobs có trên Free Edition (S4 đạt 13/10/2026). Job ETL gắn ở Phase 3. Spike dùng job `s4_smoke` (Serverless); lịch đã lưu và đang Paused |
-| Kiểm thử DQ | Delta constraints (`NOT NULL`, `CHECK` miền giá trị ở DESIGN §9) + đối soát số dòng và tổng + pytest local trên `data/sample/`. Bảng `gold.etl_audit`: `rows_read = rows_loaded + rows_deduplicated + rows_rejected`; Σprice nguồn = Σprice fact; không orphan FK; grain không trùng. Ngưỡng tỷ lệ giữ G2: đơn `delivered` thiếu một mốc giao ≤ 5% |
+| Bronze | Đọc CSV từ Volume bằng `spark.read` (mọi id/zip dạng chuỗi), FULL LOAD OVERWRITE, mọi cột nghiệp vụ STRING as-is, thêm `_ingest_ts`, `_source_file` |
+| Silver | FULL LOAD OVERWRITE. Cast kiểu; `silver.geolocation_zip` một prefix và `silver.geolocation_city` làm fallback. `silver.order_reviews` grain (`review_id`, `order_id`): bỏ dòng trùng y hệt và chọn một dòng khi cùng khóa khác giá trị. `silver.order_reviews_dedup` một `order_id` theo DESIGN §2.3. Không chọn bản giữa các lần nạp. Chuẩn hóa thành phố; dịch category; map state → region. Dimension nạp SCD Type 1. `dim_seller` có cột SCD2 nhưng không sinh phiên bản. Lịch sử SCD2 (R41) chưa làm |
+| Gold | Bảng Delta, không phải view. Tra surrogate key, member `-1` nhãn `'Unknown'`; nạp 7 dimension và 3 fact bằng Delta `MERGE` theo grain, idempotent |
+| `snapshot_date` | Hằng số `DATE '2018-10-17'` trong config. Không suy từ watermark. Mỗi lần MERGE Gold tính lại `seller_ship_late_flag` cho mọi item |
+| `gold.etl_audit` | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Cảnh báo geo, translation, conflict, đảo timestamp, đối soát giá: notebook in kết quả, không lưu cột riêng |
+| Lịch chạy | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. S4 đạt 13/10/2026. Spike dùng job `s4_smoke` (Serverless); lịch đã lưu và đang Paused. Job ETL gắn ở Phase 3 |
+| Future work | Incremental theo watermark, append, CDF, Auto Loader (R28). Không làm trong ETL hiện tại |
+| Kiểm thử DQ | Delta constraints (`NOT NULL`, `CHECK` miền giá trị ở DESIGN §9) + đối soát số dòng và tổng + pytest local trên `data/sample/`. `gold.etl_audit` lưu bốn số đếm ở dòng trên; Σprice nguồn = Σprice fact in ở notebook; không orphan FK; grain không trùng. Ngưỡng tỷ lệ giữ G2: đơn `delivered` thiếu một mốc giao ≤ 5% |
 
 ---
 
 ## 7. OLAP và frontend
 
-Truy vấn viết bằng Spark SQL trên Gold. Công cụ màn hình OLAP chờ spike (S2–S3); chưa chốt Power BI Desktop, Databricks AI/BI Dashboard hay Streamlit.
+Truy vấn viết bằng Spark SQL trên Gold. OLAP là ROLAP qua Databricks SQL Warehouse. Dashboard là Power BI. Giao diện truy vấn và DSS là Streamlit. Kết nối từ máy local vẫn chờ S2 và S3.
 
 | Phép | Câu hỏi nghiệp vụ | Truy vấn / màn hình |
 |---|---|---|
@@ -252,7 +259,7 @@ Truy vấn viết bằng Spark SQL trên Gold. Công cụ màn hình OLAP chờ 
 | Dice | Khách vùng Norte + Nordeste, Q1–Q2/2018, hàng cồng kềnh: tỷ lệ trễ và review xấu theo bang seller | Spark SQL lọc vùng khách trên `fact_order`, quý, và `size_band` |
 | Pivot | Bảng Bang seller × Quý (tỷ lệ bàn giao trễ) xoay thành Nhóm danh mục × Quý để tìm nguồn gây trễ | Spark SQL `PIVOT` trên Gold |
 
-**Danh sách màn hình** (công cụ OLAP chờ spike; trang DSS dự kiến Streamlit local — kết nối SQL warehouse là **[GIẢ ĐỊNH]**, S2): (1) Tổng quan KPI · (2) OLAP Explorer (5 phép) · (3) Hồ sơ seller (drill tới seller) · (4) DSS – Điểm rủi ro · (5) DSS – What-if chính sách · (6) DSS – Goal seeking & sensitivity · (7) Quyết định & xuất danh sách.
+**Danh sách màn hình.** Power BI: (1) Tổng quan KPI · (2) OLAP Explorer (5 phép) · (3) Hồ sơ seller (drill tới seller). Streamlit, đọc Gold và `dss` qua SQL Warehouse (kết nối là **[GIẢ ĐỊNH]**, S2): (4) DSS – Điểm rủi ro · (5) DSS – What-if chính sách · (6) DSS – Goal seeking & sensitivity · (7) Quyết định & xuất danh sách. Streamlit cũng là chỗ truy vấn ad-hoc trên Gold.
 
 ---
 
@@ -264,7 +271,7 @@ Truy vấn viết bằng Spark SQL trên Gold. Công cụ màn hình OLAP chờ 
 |---|---|
 | Data | Feature view (ví dụ `dss.v_seller_features`) xây **chỉ trên `gold.*`** (`gold.fact_seller_monthly` + dimension Gold); kết quả ghi `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` |
 | Model | M1 mô hình rủi ro; M2 mô phỏng chính sách; goal seeking; sensitivity |
-| UI | Trang 4–7: Streamlit local đọc Gold qua SQL warehouse (**[GIẢ ĐỊNH]**, kiểm tra S2): chỉnh tham số, so sánh phương án, xuất quyết định |
+| UI | Trang 4–7: Streamlit local đọc Gold và `dss` qua SQL Warehouse (kết nối **[GIẢ ĐỊNH]**, kiểm tra S2): truy vấn, chỉnh tham số, so sánh phương án, xuất quyết định |
 
 **Lệch có chủ đích:** mô hình huấn luyện trên Gold, không trên Silver, để DSS dựa trên DW theo mục tiêu 4 của đề.
 
@@ -328,9 +335,10 @@ flowchart LR
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
 | `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (T1 chốt 15/10/2026; G1–G6 đã đo trên Volume) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.6: Phase 2 thiết kế đã khóa 22/10/2026. Còn mở: thuyết trình, vai trò, frontend OLAP, loại OLAP, S2–S3, S6) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.7: load và frontend chốt 26/10/2026. Còn mở: thuyết trình, vai trò, S2–S3, S6) |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
-| `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2 khóa 22/10/2026. DDL thuộc Phase 3) |
+| `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2 khóa 22/10/2026; load cập nhật 26/10/2026. DDL thuộc Phase 3) |
+| `docs/architecture.md` | Sơ đồ kiến trúc: object, load, transform, data model | 2 | ☑ (26/10/2026) |
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
 | `docs/report/` | Nháp báo cáo, hình | 6–7 | ☐ |
 | `data/README.md` | Nguồn, license, cách tải, mô tả file, upload Volume | 0 | ☑ |
@@ -340,7 +348,7 @@ flowchart LR
 | `src/sql/ddl/` · `src/sql/views/` · `src/sql/olap_queries/` | Delta DDL (bronze/silver/gold/dss) · view · truy vấn OLAP Spark SQL trên Gold | 3–4 | ☐ |
 | `src/etl/` | Notebook/pipeline Bronze, Silver, Gold | 3 | ☐ |
 | `src/dss/` | M1, M2, goal seek, sensitivity, rules; đọc Gold, ghi `dss.*` | 5 | ☐ |
-| `src/frontend/` | Frontend OLAP (công cụ chờ spike) và DSS UI | 4–5 | ☐ |
+| `src/frontend/` | Power BI (dashboard) và Streamlit (truy vấn / DSS) | 4–5 | ☐ |
 | `src/tests/` | Test ETL và DQ, gồm pytest local trên sample | 3–6 | ☐ |
 
 ---
@@ -350,7 +358,7 @@ flowchart LR
 | Rủi ro | Ảnh hưởng | Giảm thiểu |
 |---|---|---|
 | Chưa tải được dữ liệu | Chặn Phase 1 | Đã qua (10/10/2026): Olist và Marketing Funnel đã có trong repo local |
-| Giới hạn Databricks Free Edition (SQL warehouse, AI/BI) — **[GIẢ ĐỊNH]** cho đến S2–S3. Unity Catalog, Volume, Jobs và Git folder đã kiểm (S1, S4, S5, 13/10/2026) | Không kết nối được từ máy local hoặc không có AI/BI | S2, S3; đường local pyspark + delta-spark trên `data/sample/` (R46); nếu fail thì ghi 2 phương án và chờ nhóm |
+| Giới hạn Databricks Free Edition (SQL Warehouse) — **[GIẢ ĐỊNH]** cho đến S2–S3. Unity Catalog, Volume, Jobs và Git folder đã kiểm (S1, S4, S5, 13/10/2026). Công cụ đã chốt: Power BI và Streamlit, ROLAP | Không kết nối được từ máy local | S2, S3; đường local pyspark + delta-spark trên `data/sample/` (R46); nếu fail thì ghi 2 phương án và chờ nhóm |
 | Mất tài khoản Free Edition (email cá nhân) | Mất workspace, người chấm không vào được | Mã trong Git; lưu screenshot và output làm bằng chứng; README hướng dẫn chạy local (R46) |
 | Người chấm không chạy lại được trên cloud | Khó chấm ETL/DSS | R46: chạy local trên sample; hướng dẫn trong README; nộp kèm output/screenshot |
 | Đường cong học Spark | Trễ Phase 3 | Chỉ batch; dữ liệu nhỏ; notebook `.py`; thử trên sample trước (S6) |
@@ -368,7 +376,8 @@ flowchart LR
 | X mặc định = 10% GMV bị ảnh hưởng; N mặc định = 40 seller/tháng | 15/10/2026 |
 | Decision maker / quyết định / alternatives / principle of choice giữ như SPEC §1 | 10/10/2026 |
 | Nguồn bổ sung Marketing Funnel by Olist (CC BY-NC-SA 4.0) dùng chắc chắn | 10/10/2026 |
-| Kiến trúc medallion trên Databricks Free Edition: Bronze (staging, append-only) → Silver (làm sạch/conform) → Gold (DW / data mart Kimball, fact constellation, star schema) + schema `dss`. Chỉ batch. PySpark + Spark SQL, notebook `.py`, Delta `MERGE`. DSS Python (scikit-learn/statsmodels) đọc Gold, ghi `dss.*`, huấn luyện trên Gold. Lý do: giảng viên cho phép cloud/Databricks và Power BI; nhóm muốn lakehouse; Gold vẫn là DW nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a); bỏ PostgreSQL để không giữ hai kho | 10/10/2026 |
+| Kiến trúc medallion trên Databricks Free Edition: Bronze (staging) → Silver (làm sạch/conform) → Gold (DW / data mart Kimball, fact constellation, star schema) + schema `dss`. Chỉ batch. PySpark + Spark SQL, notebook `.py`, Delta `MERGE` trên Gold. DSS Python (scikit-learn/statsmodels) đọc Gold, ghi `dss.*`, huấn luyện trên Gold. Lý do: giảng viên cho phép cloud/Databricks và Power BI; nhóm muốn lakehouse; Gold vẫn là DW nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a); bỏ PostgreSQL để không giữ hai kho. Cách nạp từng layer nằm ở dòng 26/10/2026 | 10/10/2026 |
+| Load đơn giản hóa vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE`, DQ, grain, measure, SCD, surrogate key. Bronze và Silver: batch, FULL LOAD, OVERWRITE; Bronze mọi cột STRING as-is, thêm `_ingest_ts` và `_source_file`. Silver giữ dedup trong file (`order_reviews` `ROW_NUMBER`, `order_reviews_dedup`, `geolocation_zip` một dòng/prefix) và luật làm sạch §7 DESIGN. Gold: bảng Delta, `MERGE` theo grain, idempotent, 7 dimension + 3 fact. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` chỉ 10 cột ở §6; cảnh báo còn lại in ở notebook. Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Power BI dashboard đọc Gold qua SQL Warehouse. Streamlit đọc Gold và `dss`. OLAP = ROLAP. Incremental, append, CDF, Auto Loader là future work (R28) | 26/10/2026 |
 | Catalog `olist_catalog`; Volume `/Volumes/olist_catalog/bronze/raw/` (`olist/` 9 CSV, `funnel/` 2 CSV, `ref/` bảng bang → vùng). `spark.read` trên `olist_orders_dataset.csv`: 99.441 dòng, cột `string` | 13/10/2026 (S1) |
 | Databricks Jobs dùng được trên Free Edition: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được (Paused) | 13/10/2026 (S4) |
 | Git folder dùng được trên Free Edition: `olist-dw-dss`, nhánh `main`, repo `https://github.com/toann1405/olist-dw-dss.git` | 13/10/2026 (S5) |
@@ -386,12 +395,12 @@ flowchart LR
 | `late_flag` grain đơn. So `TO_DATE(delivered_customer_date)` với `TO_DATE(estimated_delivery_date)`; trễ khi hiệu > 0 ngày. Thiếu một mốc, hoặc đơn `canceled` / `unavailable`, thì null và ở ngoài mẫu `late_delivery_*`. Không SUM bản copy trên item | 22/10/2026 |
 | `gmv` trên `fact_seller_monthly` = `sum(price)` item của seller trong tháng `order_purchase_timestamp`, loại đơn `order_status` thuộc `canceled` hoặc `unavailable`, kể cả đơn nhiều seller. GMV đo nhu cầu đặt mua; dataset không có dữ liệu hoàn hoặc trả hàng. `items_value` trên `fact_order` không áp bộ lọc này | 22/10/2026 |
 | Đếm trên `fact_seller_monthly`: `n_orders_placed` và `n_items_placed` gồm mọi status; `n_orders_valid` và `n_items_valid` loại `canceled` và `unavailable`. `n_items_valid` cùng tập với `gmv`. `aov` = `gmv / n_orders_valid` khi mẫu > 0, else null. `cancel_eligible` = `n_orders_placed`, nên `cancel_rate` lấy mẫu đó. Không cộng `n_orders_placed` hay `n_orders_valid` qua seller, vì đơn nhiều seller bị đếm hai lần | 22/10/2026 |
-| `seller_ship_late_flag` grain item. Đơn `canceled` hoặc `unavailable` → null, chỉ vào `cancel_rate`. Hạn null, hạn sớm hơn ngày mua, hoặc carrier chính thức null vì đảo → null. Có carrier: `1` nếu carrier > hạn, else `0`. Carrier thật sự thiếu và hạn trước `snapshot_date` → `1`; hạn từ `snapshot_date` trở đi → null. `snapshot_date` = `TO_DATE(watermark_cutoff_ts)` của lần nạp. Full load mặc định là phần ngày của max `order_purchase_timestamp` đã đo. Mỗi lần nạp tính lại cờ còn null hoặc đơn chưa có carrier. Đơn nhiều seller dùng chung một mốc carrier | 22/10/2026 |
+| `seller_ship_late_flag` grain item. Đơn `canceled` hoặc `unavailable` → null, chỉ vào `cancel_rate`. Hạn null, hạn sớm hơn ngày mua, hoặc carrier chính thức null vì đảo → null. Có carrier: `1` nếu carrier > hạn, else `0`. Carrier thật sự thiếu và hạn trước `snapshot_date` → `1`; hạn từ `snapshot_date` trở đi → null. `snapshot_date` là hằng số `DATE '2018-10-17'` trong config, không suy từ watermark. Mỗi lần MERGE Gold tính lại cờ cho mọi item. Đơn nhiều seller dùng chung một mốc carrier | 26/10/2026 |
 | M1: đặc trưng volume và ngưỡng số đơn tối thiểu dùng `n_orders_valid`. `cancel_rate` đã đo việc hủy riêng | 22/10/2026 |
 | Tháng của `fact_seller_monthly` là tháng `order_purchase_timestamp`. Gold giữ mọi seller-tháng có ít nhất một item, không lọc theo số đơn. `min_orders` mặc định 5 là tham số DSS (số `n_orders_valid` tối thiểu để xếp hạng), người dùng chỉnh được, xem lại sau khi profile phân phối trên Gold. Ngưỡng G1 (≥ 10 item/tháng trong ≥ 6 tháng) chỉ để chọn tập train M1 | 22/10/2026 |
 | Một deal trên `dim_seller`: `won_date` sớm nhất, hòa thì `mql_id` tăng dần | 15/10/2026 |
 | Thanh toán chính: nhóm (`order_id`, `payment_type`), hạng `SUM(payment_value)` giảm, rồi `payment_sequential` nhỏ nhất, rồi tên tăng dần. Không có dòng hợp lệ thì `-1` | 15/10/2026 |
-| Review: `silver.order_reviews` một dòng mỗi (`review_id`, `order_id`) bằng `ROW_NUMBER` theo answer và creation, null xếp sau, rồi `_ingest_ts` và `_batch_id` giảm dần. `silver.order_reviews_dedup` một dòng mỗi `order_id`, cùng thứ tự rồi `review_id` tăng dần và hai cột ingest. `fact_order` chỉ đọc bảng dedupe. Giữ review tạo trước ngày nhận. Không lấy trung bình điểm. `review_id` dùng chung nhiều seller thì các đơn đó ra khỏi measure review, cùng điều kiện đơn nhiều seller. Mẫu tỷ lệ review là `COUNT(DISTINCT order_id)`. [GIẢ ĐỊNH] Olist chưa xác nhận nguyên nhân review dùng chung. Đỉnh tháng 3/2018 khoảng 1,6% review. Cần sensitivity check top-40 sau Gold | 22/10/2026 |
+| Review: `silver.order_reviews` một dòng mỗi (`review_id`, `order_id`) bằng `ROW_NUMBER` theo answer và creation, null xếp sau. `silver.order_reviews_dedup` một dòng mỗi `order_id`, cùng thứ tự rồi `review_id` tăng dần. Không chọn bản giữa các lần nạp theo cột ingest. `fact_order` chỉ đọc bảng dedupe. Giữ review tạo trước ngày nhận. Không lấy trung bình điểm. `review_id` dùng chung nhiều seller thì các đơn đó ra khỏi measure review, cùng điều kiện đơn nhiều seller. Mẫu tỷ lệ review là `COUNT(DISTINCT order_id)`. [GIẢ ĐỊNH] Olist chưa xác nhận nguyên nhân review dùng chung. Đỉnh tháng 3/2018 khoảng 1,6% review. Cần sensitivity check top-40 sau Gold | 26/10/2026 |
 | `silver.geolocation_zip`: một dòng mỗi prefix. Lat/lng = `percentile_approx` 0.5 sau bbox lat [-34, 6], lng [-74, -28]. `silver.geolocation_city` fallback theo (`city_norm`, state). Khách và seller: zip → city → null, `geo_match_level`, không điền 0. `distance_km` là haversine ở mức item; trung bình seller-tháng bỏ null | 22/10/2026 |
 | `dim_product`: LEFT JOIN translation. `category_pt` và `category_en` = `COALESCE` về `'Unknown'` khi thiếu tên, cùng chữ với dòng `-1`, `category_group` và `size_band`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume. DQ chỉ cảnh báo: translation unique; `dim_product` trừ dòng `-1` bằng `silver.products`; đếm sản phẩm `'Unknown'` và số category thiếu bản dịch | 22/10/2026 |
 
@@ -411,11 +420,16 @@ flowchart LR
 | Cửa sổ review không có `NULLS LAST`, hoặc chỉ bỏ dòng trùng y hệt | 22/10/2026 | 22/10/2026 |
 | Khung kinh độ geolocation cạnh đông −34 | 22/10/2026 | 22/10/2026 |
 | Fallback category viết `'unknown'` | 22/10/2026 | 22/10/2026 |
+| Bronze append-only và cột `_batch_id` | 10/10/2026 | 26/10/2026 |
+| Chọn bản Silver giữa các lần nạp theo `_ingest_ts` và `_batch_id` | 22/10/2026 | 26/10/2026 |
+| `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`; mỗi lần nạp chỉ tính lại `seller_ship_late_flag` còn null hoặc đơn chưa có carrier | 22/10/2026 | 26/10/2026 |
+| Cửa sổ review phá hòa bằng `_ingest_ts` và `_batch_id` giảm dần | 22/10/2026 | 26/10/2026 |
+| `gold.etl_audit` lưu cột cảnh báo (geo, translation, conflict, watermark, đối soát giá) | 22/10/2026 | 26/10/2026 |
+| Frontend OLAP và loại OLAP còn mở (Power BI / AI/BI / Streamlit; ROLAP hoặc HOLAP) | 10/10/2026 | 26/10/2026 |
+| Incremental load theo watermark trong phạm vi Phase 3 (R28) | 15/10/2026 | 26/10/2026 |
 
 | Còn mở | Ghi chú |
 |---|---|
 | Thuyết trình trực tiếp hay video | Đăng ký với giảng viên |
 | Phân vai thành viên | Nhóm tự điền README |
-| Frontend OLAP | Power BI Desktop / Databricks AI/BI Dashboard / Streamlit — chốt sau S2–S3. AI/BI trên Free Edition là **[GIẢ ĐỊNH]** |
-| Loại OLAP | ROLAP hoặc HOLAP — chốt cùng frontend |
-| Kết quả S2, S3, S6 | Chưa chạy. Nếu không đạt: 2 phương án, chờ nhóm |
+| Kết quả S2, S3, S6 | Chưa chạy. Công cụ và ROLAP đã chốt 26/10/2026. S2 và S3 chỉ kiểm kết nối. Nếu không đạt: 2 phương án, chờ nhóm |

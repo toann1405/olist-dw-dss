@@ -21,7 +21,7 @@ gold = os.environ.get("GOLD_SCHEMA", "gold")
 
 - Do not `collect()` or `toPandas()` on Bronze geolocation, full Gold facts, or any frame you have not filtered to a known small result (a single audit aggregate is fine).
 - Read ids and zips as strings (`04-data-integrity`).
-- Batch only. Do not add Auto Loader streaming, CDF, or `trigger(availableNow)` as a hidden stream.
+- Batch only. Bronze and Silver are full-load overwrites. Gold is `MERGE`. Incremental load, append of historical batches, CDF, Auto Loader, and `trigger(availableNow)` are future work (R28). Do not add them to the current ETL.
 
 ## Dual runtime (R46)
 

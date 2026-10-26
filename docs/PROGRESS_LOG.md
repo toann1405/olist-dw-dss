@@ -10,15 +10,23 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 2 thiết kế đã khóa 22/10/2026. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa 22/10/2026. Load và frontend chốt 26/10/2026. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
-| Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
-| Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
-| Cập nhật | 22/10/2026 |
+| Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. Công cụ đã chốt, không còn chờ chọn. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
+| Việc tiếp theo | Phase 3: DDL Delta và ETL theo hợp đồng 26/10/2026 trong `docs/DESIGN.md` |
+| Cập nhật | 26/10/2026 |
 
 ---
 
 ## Nhật ký
+
+### 26/10/2026 — Đơn giản hóa cách nạp
+- **Đã làm:** ghi quyết định vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE` theo grain, và DQ. Bronze và Silver là batch, FULL LOAD, OVERWRITE. Bronze thêm `_ingest_ts`, `_source_file`. Bỏ `_batch_id` và luật chọn bản giữa các lần nạp. Dedup trong file của review và geolocation giữ nguyên, cùng luật làm sạch §7. Gold là bảng Delta, `MERGE` idempotent, 7 dimension + 3 fact. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` còn 10 cột; cảnh báo geo, translation, conflict in ở notebook. Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Power BI là dashboard, Streamlit là truy vấn và DSS, OLAP là ROLAP qua SQL Warehouse. Incremental, append, CDF, Auto Loader ghi là future work (R28).
+- **Không làm:** không đổi grain, measure, SCD, surrogate key. Không viết DDL, ETL, notebook, test. Không đánh dấu milestone Notion.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.7), `docs/PLAN.md`, `docs/architecture.md`, `docs/PROGRESS_LOG.md`, `README.md`, `.cursor/rules/` (`00-index`, `02-ambiguity-scope`, `05-medallion-layers`, `07-spark-databricks`, `08-sql-olap`, `09-dss`).
+- **Quyết định:** SPEC §10, ngày 26/10/2026. Dòng append-only, watermark, cửa sổ review theo cột ingest, audit nhiều cột, và frontend còn mở chuyển vào lịch sử.
+- **RTM:** R26 sang ☑ vì đã chọn ROLAP. R28 giữ ☐ và ghi future work. R45 giữ ☑, sửa chữ hợp đồng layer.
+- **Việc tiếp theo:** Phase 3, DDL và ETL theo hợp đồng mới.
 
 ### 22/10/2026 — Phase 2 — Chiều: tie-break, seller-tháng, geolocation, category
 - **Đã làm:** cửa sổ review thêm `NULLS LAST` và tie-break `_ingest_ts`, `_batch_id`. Tháng seller-tháng theo `order_purchase_timestamp`. `min_orders` mặc định 5 là tham số DSS, không lọc Gold. Geolocation một dòng mỗi prefix, fallback theo thành phố, haversine bỏ null. Category fallback `'Unknown'`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume.

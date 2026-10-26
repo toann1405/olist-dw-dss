@@ -4,9 +4,9 @@ Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)*
 
 **Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS), locked on 15/10/2026 after gates G1–G6. It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit.
 
-**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels). The OLAP frontend is still open (Power BI Desktop / Databricks AI/BI Dashboard / Streamlit). Local rerun path: pyspark + delta-spark on `data/sample/`.
+**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels) with a Streamlit UI. The OLAP dashboard is Power BI (ROLAP through a Databricks SQL Warehouse). Local rerun path: pyspark + delta-spark on `data/sample/`.
 
-**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Gold is a Kimball star schema: `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
+**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Bronze and Silver are full-load overwrites. Gold is a Kimball star schema of Delta tables loaded with `MERGE`: `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. The diagram is in [docs/architecture.md](docs/architecture.md). The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
 
 ## Read this first
 1. [README.md](README.md) (this file)
@@ -23,7 +23,7 @@ olist-dw-dss/
 ├── README.md, .gitignore, .env.example
 ├── docs/
 │   ├── assignment/        # assignment PDF and analysis
-│   ├── TOPIC_EVALUATION.md, SPEC.md, PLAN.md, DESIGN.md, PROGRESS_LOG.md
+│   ├── TOPIC_EVALUATION.md, SPEC.md, PLAN.md, DESIGN.md, architecture.md, PROGRESS_LOG.md
 │   └── report/            # report draft and figures
 ├── data/
 │   ├── README.md          # sources, license, download, file notes
@@ -34,7 +34,7 @@ olist-dw-dss/
     ├── sql/               # ddl/ (Delta DDL), views/, olap_queries/ (Spark SQL on Gold)
     ├── etl/               # Bronze → Silver → Gold
     ├── dss/               # models that read gold.* and write dss.*
-    ├── frontend/          # OLAP still open; DSS UI expected as local Streamlit
+    ├── frontend/          # Power BI dashboard; Streamlit query and DSS UI
     ├── notebooks/         # Bronze profiling; 00_verify_and_sample.py
     └── tests/             # ETL and data-quality checks
 ```

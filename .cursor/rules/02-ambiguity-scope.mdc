@@ -12,7 +12,7 @@ If a request has two or more reasonable readings, stop and ask one concrete ques
 Examples that require a question:
 
 - "Add the seller table" — Bronze raw copy vs Silver conformed `dim_seller`.
-- "Wire the dashboard" — OLAP frontend is still pending (see below). Do not choose Power BI, AI/BI, or Streamlit for OLAP.
+- "Wire the dashboard" — the dashboard is Power BI (ROLAP on Gold through SQL Warehouse). Streamlit is the query and DSS UI. Do not reopen AI/BI or HOLAP.
 
 ## Stay inside the request
 
@@ -36,8 +36,6 @@ Do not silently reopen: topic T1 (conditional on G1–G6), decision maker / alte
 
 ## Still pending — do not lock these in code or docs
 
-- OLAP frontend: Power BI Desktop / Databricks AI/BI Dashboard / Streamlit.
-- OLAP storage mode: ROLAP or HOLAP. MOLAP is not an option.
-- Unity Catalog name (`UC_CATALOG`) and Volume path until S1.
+- Unity Catalog name (`UC_CATALOG`) and Volume path until S1. S1 recorded `olist_catalog` and `/Volumes/olist_catalog/bronze/raw/`; do not invent a second catalog.
 - Default `X` (% GMV), `N` (sellers per month), and the exact "bad experience" definition until Phase 1.
 - If a spike fails, list two options and wait. Do not choose.

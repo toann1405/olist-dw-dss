@@ -42,4 +42,4 @@ Scenarios are P0 (no intervention), P1 (fixed KPI thresholds), P2 (predicted ris
 
 ## UI
 
-DSS screens are SPEC §7 items 4–7. Streamlit local via a SQL warehouse is `[GIẢ ĐỊNH]` until S2. The OLAP frontend choice is pending; do not implement OLAP screens in Streamlit unless the user locks that option (`02-ambiguity-scope`).
+DSS screens are SPEC §7 items 4–7. Streamlit is the locked query and DSS UI. It reads Gold and `dss` through a SQL Warehouse. The connection is `[GIẢ ĐỊNH]` until S2. The OLAP dashboard is Power BI, not Streamlit.
