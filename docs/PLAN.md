@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản | v0.3 — 13/10/2026 |
+| Phiên bản | v0.4 — 26/10/2026 |
 | Hạn nộp | **23:59 Chủ nhật 15/11/2026** (ZIP qua LMS) — mốc nội bộ: **đóng băng 14/11** |
 | Thứ tự hiện thực | **Cloud trước, local sau.** DW, ETL, OLAP SQL và DSS chạy trên Databricks Free Edition trước. Đường local (pyspark + delta-spark trên `data/sample/`, R46) chỉ làm khi phần Cloud tương ứng đã chạy được — để người chấm chạy lại, không phải nơi dựng hệ thống trước. |
 
@@ -72,7 +72,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local** (sau khi có số từ notebook Cloud)
 
 - [x] Liệt kê vấn đề chất lượng thực tế, cập nhật SPEC §3 (bỏ nhãn [GIẢ ĐỊNH] của dữ liệu) (R27, R30)
-- [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, chưa upload Volume
+- [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, đã có trên Volume `ref/`
 - [x] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25). Review ≤ 2 hoặc giao trễ hẹn; đơn nhiều seller để null, không xóa; X=10; N=40; 10 câu hỏi trong SPEC
 - [ ] Đọc trước slide Ch6–7 (DSS, modeling) (R33, R36)
 
@@ -122,7 +122,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Sản phẩm:** `src/sql/ddl/`, `src/etl/`, `src/tests/`.
 **DoD:** load Cloud chạy và `gold.etl_audit` có số dòng; load local + pytest là bước sau, không thay DoD Cloud.
-**Phụ thuộc:** Phase 2 và S1. S6 nên đạt trước bước Local. **Rủi ro:** lỗi dữ liệu → bảng reject, không chặn pipeline Cloud.
+**Phụ thuộc:** Phase 2 và S1. S6 nên đạt trước bước Local. **Rủi ro:** lỗi dữ liệu → set null, đếm `rows_rejected` khi dòng bị bỏ hẳn, in DQ trong notebook. Không chặn pipeline Cloud.
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11
 
@@ -153,7 +153,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 - [ ] M2 mô phỏng chính sách + what-if trên dữ liệu Gold (làm trước, dùng p_i đơn giản) (R34, R33, R10)
 - [ ] M1 logistic regression, train/test theo thời gian, metric AUC/Brier; huấn luyện trên Gold, không trên Silver (R33, R44)
 - [ ] Goal seeking θ theo ràng buộc GMV; sensitivity tornado (R35)
-- [ ] Ghi `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` trên workspace (R31, R37)
+- [ ] Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario` trên workspace. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse (R31, R37)
 
 **Local → Cloud** (sau khi bảng `dss.*` đã có trên Cloud và S2 đạt)
 
@@ -187,7 +187,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local** (báo cáo số liệu, không chạy cluster)
 
 - [ ] Bảng đánh giá: câu hỏi/KPI ban đầu ↔ đạt/chưa đạt (R11)
-- [ ] Liệt kê hạn chế (dữ liệu, mô hình, giả định e_k/r, giới hạn Free Edition) và hướng phát triển (streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL) (R12)
+- [ ] Liệt kê hạn chế (dữ liệu, mô hình, giả định e_k/r, giới hạn Free Edition) và hướng phát triển (incremental theo watermark, CDF, Auto Loader, streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL) (R12)
 
 **Sản phẩm:** kết quả test, số liệu đánh giá, hình trong `docs/report/`.
 **DoD:** đường Cloud có hướng dẫn và bằng chứng đã chạy. Đường local trên sample chạy được theo README.
@@ -222,7 +222,7 @@ Mọi yêu cầu mức **BB** và **BB\*** trong SPEC §2 phải xuất hiện �
 |---|---|---|
 | BB [ĐỀ] | R01, R02, R03, R04, R05, R06, R07, R08, R09, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20 | ☑ tất cả có task |
 | BB\* [SUY LUẬN] | R21, R22, R23, R24, R25, R27, R30, R31, R32, R33, R34, R36, R37, R38, R45 | ☑ tất cả có task |
-| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: dòng future work ở Phase 3, không hiện thực trước hạn nộp. R46: S6, Phase 3 Local, Phase 6 Local, Phase 7) |
+| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 3 Local, Phase 6 Local, Phase 7) |
 | ĐC | R35, R40, R41, R43, R47 | ☑ tất cả có task (R47: comment bảng/cột Gold ở Phase 3 Cloud) |
 
 **R-xx bắt buộc chưa có task:** không có. Yêu cầu NC/ĐC chưa có task: không có. Kiểm tra lại mỗi khi sửa SPEC hoặc PLAN (13/10/2026: tách Cloud / Local, không thêm hoặc bỏ R-xx).

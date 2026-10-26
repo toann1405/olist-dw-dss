@@ -13,6 +13,7 @@ Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)*
 2. [docs/SPEC.md](docs/SPEC.md) — what the system is, requirement codes R-xx, architecture, DSS
 3. [docs/PLAN.md](docs/PLAN.md) — phases, tasks, definition of done
 4. [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md) — the first entry is the latest status
+5. [docs/architecture.md](docs/architecture.md) — layer objects, load, and the job order
 
 Also: [docs/TOPIC_EVALUATION.md](docs/TOPIC_EVALUATION.md) (why this topic) · [docs/DESIGN.md](docs/DESIGN.md) (schema, ETL mapping) · [data/README.md](data/README.md) (sources, license, download) · [docs/assignment/](docs/assignment/) (assignment PDF and analysis). Files under `docs/` stay in Vietnamese.
 

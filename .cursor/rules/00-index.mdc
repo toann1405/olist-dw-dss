@@ -12,7 +12,7 @@ CO4031 (HK261) builds a seller-performance data warehouse and DSS on the Olist B
 1. `docs/assignment/CO4031_Assignment_HK261.pdf` (assignment)
 2. `docs/SPEC.md` (requirements R-xx, architecture, DSS)
 3. `docs/PLAN.md` (phases, tasks, definition of done)
-4. `docs/DESIGN.md` (schema and mappings; still a Phase 0 skeleton)
+4. `docs/DESIGN.md` (schema, mappings, and the Phase 2 load contract)
 5. Code under `src/`
 
 If code and SPEC disagree, follow SPEC and fix the code. Do not invent a convention that contradicts SPEC.

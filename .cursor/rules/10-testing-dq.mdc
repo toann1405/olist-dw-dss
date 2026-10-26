@@ -14,10 +14,10 @@ alwaysApply: false
 
 ## Required checks
 
-Every Gold load test covers all of the following. Record failures in `gold.etl_audit` rather than hiding them.
+Every Gold load test covers all of the following. `gold.etl_audit` stores only the ten row-count columns: `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Other warnings are DQ checks printed by the notebook. Do not add them as audit columns.
 
-1. Row reconciliation: source rows = loaded rows + rejected rows, per source.
-2. `SUM(price)` on the source order items equals `SUM(price)` on `gold.fact_order_item` for the same batch (rejected rows excluded on both sides).
+1. Row reconciliation for the same run: `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected`. `rows_dropped_by_dedup` is printed in the notebook, not stored. `rows_rejected` counts rows dropped entirely. A value set to null while the row is still written is a printed DQ warning, not a rejected row.
+2. `SUM(price)` on the source order items equals `SUM(price)` on `gold.fact_order_item` for the same run (rejected rows excluded on both sides). Print the totals. Do not store them on `gold.etl_audit`.
 3. No orphan foreign keys from facts to dimensions. Unknown keys are `-1`, and `-1` exists.
 4. Unique grain: `fact_order_item` (`order_id`, `order_item_id`), `fact_order` (`order_id`), `fact_seller_monthly` (seller, month).
 5. NULL rate of each non-key measure stays inside the threshold documented in DESIGN. If DESIGN has no threshold yet, assert the rate and print it; do not invent a pass limit.

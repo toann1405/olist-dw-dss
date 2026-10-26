@@ -29,7 +29,7 @@ Transform code must run on Databricks and locally with `pyspark` + `delta-spark`
 
 Local Delta support is `[GIẢ ĐỊNH]` until spike S6. If S6 fails, stop and list two options; do not drop the local path silently.
 
-Databricks Jobs as the scheduler are `[GIẢ ĐỊNH]` until S4. A manual notebook run is the fallback until that spike passes.
+Databricks Jobs work on this workspace. S4 passed on 13/10/2026 (`s4_smoke`, Serverless). The ETL job itself is still Phase 3 work. Order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss.
 
 ## Partitioning
 

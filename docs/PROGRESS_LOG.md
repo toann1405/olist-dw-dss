@@ -14,11 +14,19 @@
 | Đang làm | — |
 | Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. Công cụ đã chốt, không còn chờ chọn. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
 | Việc tiếp theo | Phase 3: DDL Delta và ETL theo hợp đồng 26/10/2026 trong `docs/DESIGN.md` |
-| Cập nhật | 26/10/2026 |
+| Cập nhật | 26/10/2026 (tối: sửa nhận xét review) |
 
 ---
 
 ## Nhật ký
+
+### 26/10/2026 — Tối: sửa nhận xét sau khi đơn giản hóa load
+- **Đã làm:** review conflict in ở notebook, không ghi audit. `etl_audit` chỉ 10 cột đếm dòng. Đối soát `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` in trong cùng `run_id`. `rows_rejected` chỉ là dòng bỏ hẳn. Giá trị set null mà vẫn giữ dòng thì in DQ. `MERGE` Gold thêm `WHEN NOT MATCHED BY SOURCE THEN DELETE`, trừ member `-1`. Job DSS ghi điểm và kịch bản. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse. Sơ đồ: Gold → job DSS → `dss`; Gold và `dss` → SQL Warehouse → Power BI và Streamlit. R28 chuyển ⏸ deferred / future work vì đề cho phép incremental hoặc full refresh và dataset tĩnh. Tie-break thứ tự từ điển ghi vào quyết định 26/10.
+- **Không làm:** không đổi grain, measure, SCD, surrogate key. Không viết DDL hay ETL. Không đánh dấu milestone Notion.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PLAN.md`, `docs/architecture.md`, `docs/PROGRESS_LOG.md`, `README.md`, `.cursor/rules/` (`00-index`, `02-ambiguity-scope`, `03-docs-workflow`, `05-medallion-layers`, `06-dw-modeling`, `07-spark-databricks`, `09-dss`, `10-testing-dq`).
+- **Quyết định:** bổ sung SPEC §10, cùng ngày 26/10/2026. Dòng lịch sử bị thay ngày 26/10 đánh dấu superseded. Dòng `snapshot_date` hằng số và ROLAP đánh dấu reinstated 26/10.
+- **RTM:** R28 từ ☐ sang ⏸.
+- **Việc tiếp theo:** Phase 3, DDL và ETL theo hợp đồng đã sửa.
 
 ### 26/10/2026 — Đơn giản hóa cách nạp
 - **Đã làm:** ghi quyết định vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE` theo grain, và DQ. Bronze và Silver là batch, FULL LOAD, OVERWRITE. Bronze thêm `_ingest_ts`, `_source_file`. Bỏ `_batch_id` và luật chọn bản giữa các lần nạp. Dedup trong file của review và geolocation giữ nguyên, cùng luật làm sạch §7. Gold là bảng Delta, `MERGE` idempotent, 7 dimension + 3 fact. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` còn 10 cột; cảnh báo geo, translation, conflict in ở notebook. Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Power BI là dashboard, Streamlit là truy vấn và DSS, OLAP là ROLAP qua SQL Warehouse. Incremental, append, CDF, Auto Loader ghi là future work (R28).

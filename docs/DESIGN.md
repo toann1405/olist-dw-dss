@@ -57,14 +57,13 @@ flowchart LR
   vRef --> bronze
   bronze --> silver[(silver)]
   silver --> gold[(gold star schema: bang Delta)]
-  gold --> wh[SQL Warehouse ROLAP]
+  gold --> dssjob["DSS job: M1 / M2"]
+  dssjob --> dssSchema[(schema dss)]
+  gold --> wh[Databricks SQL Warehouse]
+  dssSchema --> wh
   wh --> pbi[Power BI dashboard]
-  gold --> dss[Streamlit: truy van va DSS]
-  dss --> dssSchema[(schema dss)]
-  dssSchema --> dss
-  gold --> audit[(gold.etl_audit)]
-  silver --> audit
-  bronze --> audit
+  wh --> st[Streamlit]
+  st -->|append decision_log| dssSchema
 ```
 
 Sơ đồ đầy đủ, gồm GitHub và thứ tự Job, nằm ở `docs/architecture.md`.
@@ -77,8 +76,8 @@ File IBGE đã có ở `data/external/ibge_state_region.csv` (27 dòng, đếm f
 |---|---|---|
 | `bronze` | Staging. Bản sao CSV của lần nạp hiện tại. Bảng Delta | Vào: file trên Volume, mọi cột `string`, giữ nguyên chuỗi. Ra: cùng các cột đó cộng `_ingest_ts`, `_source_file`. Không join, không ép kiểu nghiệp vụ, không `trim`, không xóa dòng trong file. Load: FULL LOAD, OVERWRITE |
 | `silver` | Integration. Làm sạch, ép kiểu, chuẩn hóa, dedupe trong file. Bảng Delta | Vào: Bronze. Ra: bảng grain đã nêu ở §2. Không publish fact. Load: FULL LOAD, OVERWRITE |
-| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain. Power BI và Streamlit chỉ đọc Gold (Streamlit còn đọc `dss`) |
-| `dss` | Chỗ để dành cho đầu ra mô hình Phase 5 | Phase 2 không thiết kế bảng, không thiết kế feature view. SPEC đã đặt tên tương lai `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log`; cột của chúng chưa thuộc phase này |
+| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain, xóa khóa không còn trong ảnh hiện tại (§2). Power BI và Streamlit đọc Gold qua SQL Warehouse |
+| `dss` | Đầu ra mô hình Phase 5 | Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit chỉ ghi thêm `dss.decision_log` qua SQL Warehouse. Cột chi tiết chưa thuộc phase này |
 
 Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation: Power BI (dashboard, ROLAP qua SQL Warehouse) và Streamlit (truy vấn / DSS).
 
@@ -93,6 +92,8 @@ Catalog: `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `
 **Vì sao không partition.** Mart khoảng 100 nghìn đơn (đo 99.441 dòng `orders`). Partition theo `seller_id` hoặc `order_id` tạo quá nhiều file nhỏ. Nếu sau này có partition, chỉ theo cột lọc (ví dụ tháng mua), và phải sửa mục này trước khi thêm mệnh đề.
 
 Load: batch. Bronze và Silver: FULL LOAD, OVERWRITE (truncate rồi insert ảnh hiện tại). Gold: bảng Delta, `MERGE` theo grain, idempotent. Chạy lại cùng grain không được nhân đôi dòng.
+
+`MERGE` của 3 fact và của 7 dimension có `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Khóa không còn trong ảnh Silver hiện tại bị xóa, để lần chạy sau không giữ dòng cũ. Trên dimension, member `-1` không bị xóa (`WHEN NOT MATCHED BY SOURCE AND <surrogate_key> <> -1 THEN DELETE`). Fact không có dòng member `-1`. Dataset tĩnh không phải lý do giữ dòng đã ra khỏi ảnh hiện tại.
 
 ### 2.1 Hai cột ingest trên mọi bảng Bronze
 
@@ -378,7 +379,7 @@ Nguồn: file đầy đủ, script 10/10/2026 (`data/README.md`) và profiling V
 | `bronze.order_items` / `fact_order_item` | 112.650 | Pending nếu (`order_id`, `order_item_id`) trùng. 0 item mồ côi | |
 | `bronze.order_reviews` | 99.224 | 99.224 − 814 = **98.410** `review_id` nếu chỉ khử theo `review_id` | 789 `review_id` gắn nhiều đơn, 814 dòng thừa trên file thô |
 | Đơn có hơn một dòng review trên file thô | 547 đơn | Đây là số trước dedupe | `silver.order_reviews_dedup` còn một dòng mỗi `order_id`. Số dòng pending |
-| `silver.order_reviews` grain (`review_id`, `order_id`) | | **Pending** | Một dòng sau cửa sổ khóa. Số nhóm lệch giá trị chưa đo; lúc nạp ghi vào audit, không suy từ 98.410 |
+| `silver.order_reviews` grain (`review_id`, `order_id`) | | **Pending** | Một dòng sau cửa sổ khóa. Số nhóm lệch giá trị chưa đo; lúc nạp in ra trong DQ check của notebook, chỉ cảnh báo, không suy từ 98.410 |
 | `silver.order_reviews_dedup` | | **Pending** | Một `order_id`. Không suy từ 547 |
 | `bronze.order_payments` | 103.886 | Silver pending nếu `payment_sequential` trùng trong đơn | |
 | `bronze.customers` | 99.441 | Silver 99.441 dòng `customer_id` | 96.096 `customer_unique_id` |
@@ -406,7 +407,7 @@ Quy ước ép kiểu Silver:
 
 - Id và zip: STRING. `trim`, chuỗi rỗng → null. Không cast số.
 - Timestamp: `to_timestamp(chuỗi, 'yyyy-MM-dd HH:mm:ss')`. Lỗi parse → null. Parse lỗi không bật `ts_inversion_flag`.
-- Tiền và số đo: cast sau khi chuỗi rỗng đã thành null. Lỗi cast → null và đếm vào `rows_rejected`. Giá trị ngoài miền CHECK §9 cũng đưa về null và đếm `rows_rejected` trước khi MERGE.
+- Tiền và số đo: cast sau khi chuỗi rỗng đã thành null. Lỗi cast, hoặc giá trị ngoài miền, thì set null và vẫn ghi dòng. Không cộng `rows_rejected`. Notebook in số dòng đó trong DQ check. `rows_rejected` chỉ đếm dòng bị bỏ hẳn, không ghi vào đích, trước khi ghi.
 - Thành phố, gọi là `city_norm`: `trim`, lowercase, rồi `translate` với đúng bảng trong `01_profiling.py`: `áàâãäåéèêëíìîïóòôõöúùûüçñ` → `aaaaaaeeeeiiiiooooouuuucn`. Mọi cột city của khách, seller, geolocation và Gold dùng chuỗi này.
 - Bang: `trim`, uppercase, nối `silver.state_region.state_code`. Không khớp → `region_name` null.
 
@@ -462,11 +463,11 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `order_items` | `product_id` | STRING | có | FK logic | `trim`, rỗng → null |
 | `order_items` | `seller_id` | STRING | có | FK logic | `trim`, rỗng → null |
 | `order_items` | `shipping_limit_date` | TIMESTAMP | có | mốc | Parse |
-| `order_items` | `price` | DECIMAL(18,2) | có | measure | Cast. Âm → null và `rows_rejected` cộng 1 |
-| `order_items` | `freight_value` | DECIMAL(18,2) | có | measure | Cast. Âm → null và `rows_rejected` cộng 1 |
+| `order_items` | `price` | DECIMAL(18,2) | có | measure | Cast. Âm → null, giữ dòng, in DQ. Không cộng `rows_rejected` |
+| `order_items` | `freight_value` | DECIMAL(18,2) | có | measure | Cast. Âm → null, giữ dòng, in DQ. Không cộng `rows_rejected` |
 | `order_reviews` | `review_id` | STRING | không | grain | `trim`. Rỗng → reject. Grain cặp với `order_id` |
 | `order_reviews` | `order_id` | STRING | không | grain | `trim`. Rỗng → reject. Grain là (`review_id`, `order_id`) |
-| `order_reviews` | `review_score` | INT | có | measure | Cast. Ngoài 1–5 → null và đếm `rows_rejected` |
+| `order_reviews` | `review_score` | INT | có | measure | Cast. Ngoài 1–5 → null, giữ dòng, in DQ. Không cộng `rows_rejected` |
 | `order_reviews` | `review_comment_title` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này |
 | `order_reviews` | `review_comment_message` | STRING | có | thuộc tính Silver | `trim`. Gold không có cột này (SPEC §1: không NLP) |
 | `order_reviews` | `review_creation_date` | TIMESTAMP | có | ngày gửi khảo sát | Parse. Olist gửi khảo sát khi khách đã nhận hoặc khi tới ngày hẹn. Không phải lúc khách trả lời. Không xóa dòng vì mốc này sớm hơn ngày nhận |
@@ -475,7 +476,7 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `order_payments` | `payment_sequential` | STRING | không | grain | `trim`. Giữ STRING |
 | `order_payments` | `payment_type` | STRING | có | thuộc tính | `trim`, lowercase. Rỗng hoặc `not_defined` → null. Không điền `'unknown'` |
 | `order_payments` | `payment_installments` | INT | có | thuộc tính | Cast. Giá trị 0 giữ nguyên |
-| `order_payments` | `payment_value` | DECIMAL(18,2) | có | measure | Cast. Giá trị 0 giữ nguyên. Âm → null và đếm `rows_rejected` |
+| `order_payments` | `payment_value` | DECIMAL(18,2) | có | measure | Cast. Giá trị 0 giữ nguyên. Âm → null, giữ dòng, in DQ. Không cộng `rows_rejected` |
 | `customers` | `customer_id` | STRING | không | grain | `trim` |
 | `customers` | `customer_unique_id` | STRING | có | natural key của dim | `trim`, rỗng → null |
 | `customers` | `customer_zip_code_prefix` | STRING | có | zip | `trim`, rỗng → null. Không cast số |
@@ -706,7 +707,7 @@ Một dòng cho mỗi bảng đích trong một lần chạy. Mỗi lần chạy
 | `source_name` | STRING | không | Tên file hoặc bảng nguồn. Fact: xem bên dưới |
 | `rows_read` | BIGINT | không | Dòng đọc ở grain nguồn của bước đó |
 | `rows_loaded` | BIGINT | không | Dòng ghi vào đích ở grain đích. Dimension không cộng dòng `-1` |
-| `rows_rejected` | BIGINT | không | Chỉ dòng hỏng, lỗi ép kiểu, ngoài miền, hoặc ngoài bbox. Không gồm dedupe. 31 điểm ngoài bbox là số đã đo cho `geolocation` |
+| `rows_rejected` | BIGINT | không | Số dòng bị bỏ hẳn, không ghi vào đích. Không gồm dedupe. Giá trị ngoài miền bị set null mà dòng vẫn được ghi thì không đếm ở đây, chỉ in DQ. 31 điểm ngoài bbox bị bỏ khỏi `geolocation` là số đã đo |
 | `rows_unknown_fk` | BIGINT | có | Số khóa ngoại `-1` trên fact của lần chạy. Null nếu đích không phải fact |
 | `loaded_at` | TIMESTAMP | không | Thời điểm ghi audit |
 
@@ -715,6 +716,8 @@ Một dòng cho mỗi bảng đích trong một lần chạy. Mỗi lần chạy
 - `fact_order_item`: `source_name = 'silver.order_items'`. `rows_read` = số dòng item trên ảnh Silver hiện tại.
 - `fact_order`: `source_name = 'silver.orders'`. `rows_read` = số đơn trên ảnh Silver hiện tại. Review lấy từ `silver.order_reviews_dedup`, không cộng vào `rows_read` của fact này.
 - `fact_seller_monthly`: `source_name = 'gold.fact_order_item'`. `rows_read` = số dòng item. `rows_loaded` = số cặp (`seller_key`, `month_key`).
+
+Đối soát in ở notebook, không lưu cột thứ mười một: `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected`. `rows_dropped_by_dedup` là số dòng khử trùng hoặc gộp grain trong cùng `run_id`.
 
 Các kiểm cảnh báo không có cột riêng. Notebook in kết quả, không làm lần chạy fail trừ khi mục §9 ghi fail:
 
@@ -804,7 +807,7 @@ X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải c
 
 Thứ tự Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss.
 
-setup tạo schema và DDL nếu chưa có, rồi đọc config. `snapshot_date` trong config là hằng số `DATE '2018-10-17'`. Bronze và Silver mỗi bước là FULL LOAD, OVERWRITE của ảnh hiện tại. Gold dims chèn member `-1` trước fact. Gold facts `MERGE` `fact_order` và `fact_order_item` theo grain. `fact_seller_monthly` `MERGE` sau hai fact đó. Mỗi bước ghi dòng `gold.etl_audit` của bảng đích trong cùng `run_id`. Bước dss thuộc Phase 5; Job vẫn để sẵn chỗ trong chuỗi.
+setup tạo schema và DDL nếu chưa có, rồi đọc config. `snapshot_date` trong config là hằng số `DATE '2018-10-17'`. Bronze và Silver mỗi bước là FULL LOAD, OVERWRITE của ảnh hiện tại. Gold dims chèn member `-1` trước fact. Gold facts `MERGE` `fact_order` và `fact_order_item` theo grain. `fact_seller_monthly` `MERGE` sau hai fact đó. Cả 3 fact và 7 dimension dùng `WHEN NOT MATCHED BY SOURCE THEN DELETE`, trừ member `-1` trên dimension (§2). Mỗi bước ghi dòng `gold.etl_audit` của bảng đích trong cùng `run_id`. Bước dss thuộc Phase 5: job ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse, một dòng mới cho mỗi quyết định đã chốt. Job vẫn để sẵn chỗ trong chuỗi.
 
 `silver.order_reviews_dedup` dựng lại từ `silver.order_reviews` trong cùng lần OVERWRITE Silver. `fact_order` chỉ đọc review từ bảng dedupe. `order_status` giữ đúng chuỗi nguồn. Không điền `shipped`, `approved`, hay `created`.
 
@@ -842,7 +845,7 @@ Việc Phase 3 phải kiểm:
 | Geolocation | `silver.geolocation_zip` unique theo prefix (kỳ vọng 0 dòng prefix trùng). Join khách/seller không nhân dòng (kỳ vọng 0). Tỷ lệ `geo_match_level` in ở notebook. Cả ba chỉ cảnh báo, không lưu cột audit |
 | Category | Translation unique theo `product_category_name` (kỳ vọng 0). `dim_product` trừ dòng `-1` bằng `silver.products` (kỳ vọng 0). Đếm sản phẩm `'Unknown'` và số category thiếu bản dịch. In ở notebook, chỉ cảnh báo |
 | Giá | `sum(price)` item nguồn = `sum(price)` trên `fact_order_item` sau khi trừ reject. In ở notebook. Không đối soát tổng này với tổng `gmv`, vì `gmv` bỏ đơn `canceled` và `unavailable` |
-| Đọc / nạp / loại | Audit lưu `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`. Số dòng khử trùng in ở notebook, không lưu cột riêng |
+| Đọc / nạp / loại | Audit lưu `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`. Notebook in `rows_dropped_by_dedup` và kiểm `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` trong cùng `run_id` |
 | Zip và id | Kiểu STRING đến Gold |
 | Đơn nhiều seller | Vẫn nằm trong fact item, `gmv` (nếu không hủy), `n_orders_placed`, `n_orders_valid`, `n_items_placed`, `n_items_valid`, cờ bàn giao và `late_flag`. `review_score` và `negative_review_flag` null. `bad_experience_flag` vẫn theo `late_flag` |
 | Tháng thưa | Còn nếu có đơn. Không bịa dòng seller-tháng bằng 0 |
