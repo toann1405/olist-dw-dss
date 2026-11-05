@@ -11,7 +11,8 @@ Three subsystems, all required (R32): data, model, UI. This is a model-driven DS
 ## Data access
 
 - Read only `gold.*` (usually `gold.fact_seller_monthly` and Gold dimensions).
-- Write scores and scenarios only to `dss.seller_risk_score`, `dss.policy_scenario`, and `dss.decision_log`.
+- The DSS job writes `dss.seller_risk_score` and `dss.policy_scenario` only.
+- Streamlit appends one confirmed decision per row to `dss.decision_log` through the SQL Warehouse. It does not write the score or scenario tables. The Gold ETL job does not write `dss.decision_log`.
 - Build feature views such as `dss.v_seller_features` on `gold.*` only.
 - In `src/dss/`, do not call `read_csv`, `spark.read.csv`, or open any `data/raw` or `data/sample` path. Local sample runs still enter through Gold tables produced by ETL.
 
@@ -27,10 +28,10 @@ Define θ, e_k, r, s, X, and N in one module, for example `src/dss/params.py`. N
 | e_k | `e_k` | Assumed intervention effect by tier |
 | r | `r` | Order-transfer rate when a seller is suspended |
 | s | `s` | Seasonality / demand factor (`Q_i = Q_bar_i * s`) |
-| X | `X` | Max GMV share affected (percent). Default unset until Phase 1. |
-| N | `N` | Max sellers to handle per month. Default unset until Phase 1. |
+| X | `X` | Max GMV share affected. Locked at 10 (SPEC §1, §10, 15/10/2026). |
+| N | `N` | Max sellers to handle per month. Locked at 40 (SPEC §1, §10, 15/10/2026). |
 
-Do not scatter these literals across UI and model code. `X`, `N`, and the exact "bad experience" predicate are pending Phase 1: read them from config and fail if missing. Do not invent defaults.
+Do not scatter these literals across UI and model code. Read `X` and `N` from config. The locked defaults are 10 and 40. The bad-experience predicate is locked in SPEC §1 and §10.
 
 Scenarios are P0 (no intervention), P1 (fixed KPI thresholds), P2 (predicted risk). Compare at least three.
 
@@ -42,4 +43,4 @@ Scenarios are P0 (no intervention), P1 (fixed KPI thresholds), P2 (predicted ris
 
 ## UI
 
-DSS screens are SPEC §7 items 4–7. Streamlit local via a SQL warehouse is `[GIẢ ĐỊNH]` until S2. The OLAP frontend choice is pending; do not implement OLAP screens in Streamlit unless the user locks that option (`02-ambiguity-scope`).
+DSS screens are SPEC §7 items 4–7. Streamlit is the locked query and DSS UI. It reads Gold and `dss` through a SQL Warehouse. Screen 7 appends `dss.decision_log` through that warehouse. The connection is `[GIẢ ĐỊNH]` until S2. The OLAP dashboard is Power BI, not Streamlit.

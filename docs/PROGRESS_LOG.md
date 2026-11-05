@@ -10,18 +10,48 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 2 thiết kế đã khóa (15/10/2026), bổ sung luật 22/10/2026. T1, X=10, N=40 giữ nguyên. Việc tiếp theo là Phase 3 |
+| Phase hiện tại | Phase 2 thiết kế đã khóa 22/10/2026. Load 26/10/2026, sửa hợp đồng 05/11/2026. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 |
 | Đang làm | — |
-| Blocker | Không có blocker thiết kế. SQL warehouse từ máy local (S2) và Power BI (S3) chưa kiểm. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
-| Việc tiếp theo | Phase 3: DDL Delta và ETL Bronze → Silver → Gold theo `docs/DESIGN.md` |
-| Cập nhật | 22/10/2026 |
+| Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. Công cụ đã chốt, không còn chờ chọn. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
+| Việc tiếp theo | Phase 3: DDL Delta và ETL theo hợp đồng 05/11/2026 trong `docs/DESIGN.md`. Không viết notebook trong phiên tài liệu này |
+| Cập nhật | 05/11/2026 (sửa hợp đồng MERGE, decision_log, GMV, review dùng chung) |
 
 ---
 
 ## Nhật ký
 
+### 05/11/2026 — Phase 2 — Sửa hợp đồng trước khi sang Phase 3
+- **Đã làm:** một luật hiện hành cho từng chủ đề. Gold `MERGE` chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE`. `dss.decision_log` do Streamlit append qua SQL Warehouse. Job ETL Gold không ghi bảng này. Job DSS vẫn ghi điểm và kịch bản. Bronze/Silver FULL LOAD OVERWRITE; Jobs setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss; Power BI + Streamlit qua SQL Warehouse; `etl_audit` 10 cột; không `_batch_id`, không watermark trong hợp đồng hiện tại. `gmv` = `sum(price)`, freight là measure riêng. Review dùng chung là [GIẢ ĐỊNH]: grain (`review_id`, `order_id`), một review mới nhất mỗi `order_id`, cột `shared_review_type` (`none` / `same_seller` / `cross_seller`). Measure seller loại `cross_seller` và đơn nhiều seller. KPI sàn giữ `cross_seller`. Mẫu `COUNT(DISTINCT order_id)`. `late_flag` vẫn tính khi review bị loại. 789 `review_id` và 814 dòng thừa là số đã đo. Đỉnh tháng 3/2018 khoảng 1,6% vẫn là [GIẢ ĐỊNH]. Luật cuối chờ sensitivity top-40 sau Gold. X=10, N=40 giữ nguyên. Câu bị thay nằm ở SPEC §10, mục lịch sử.
+- **Không làm:** không viết DDL, ETL, notebook, test. Không đo lại Volume.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.8), `docs/PLAN.md`, `docs/architecture.md`, `docs/TOPIC_EVALUATION.md`, `docs/PROGRESS_LOG.md`, `README.md`, `data/README.md`, `.cursor/rules/` (`02-ambiguity-scope`, `05-medallion-layers`, `06-dw-modeling`, `07-spark-databricks`, `09-dss`).
+- **Quyết định:** SPEC §10, ngày 05/11/2026. Dòng MERGE có nhánh xóa (26/10) và dòng review null trên fact (22/10, 26/10) đánh dấu superseded.
+- **RTM:** không đổi mã. R28 giữ ⏸ deferred / future work.
+- **Việc tiếp theo:** Phase 3, DDL và ETL theo hợp đồng đã sửa.
+
+### 26/10/2026 — Tối: sửa nhận xét sau khi đơn giản hóa load
+- **Đã làm:** review conflict in ở notebook, không ghi audit. `etl_audit` chỉ 10 cột đếm dòng. Đối soát `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` in trong cùng `run_id`. `rows_rejected` chỉ là dòng bỏ hẳn. Giá trị set null mà vẫn giữ dòng thì in DQ. `MERGE` Gold thêm `WHEN NOT MATCHED BY SOURCE THEN DELETE`, trừ member `-1`. Job DSS ghi điểm và kịch bản. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse. Sơ đồ: Gold → job DSS → `dss`; Gold và `dss` → SQL Warehouse → Power BI và Streamlit. R28 chuyển ⏸ deferred / future work vì đề cho phép incremental hoặc full refresh và dataset tĩnh. Tie-break thứ tự từ điển ghi vào quyết định 26/10.
+- **Không làm:** không đổi grain, measure, SCD, surrogate key. Không viết DDL hay ETL. Không đánh dấu milestone Notion.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PLAN.md`, `docs/architecture.md`, `docs/PROGRESS_LOG.md`, `README.md`, `.cursor/rules/` (`00-index`, `02-ambiguity-scope`, `03-docs-workflow`, `05-medallion-layers`, `06-dw-modeling`, `07-spark-databricks`, `09-dss`, `10-testing-dq`).
+- **Quyết định:** bổ sung SPEC §10, cùng ngày 26/10/2026. Dòng lịch sử bị thay ngày 26/10 đánh dấu superseded. Dòng `snapshot_date` hằng số và ROLAP đánh dấu reinstated 26/10.
+- **RTM:** R28 từ ☐ sang ⏸.
+- **Việc tiếp theo:** Phase 3, DDL và ETL theo hợp đồng đã sửa.
+
+### 26/10/2026 — Đơn giản hóa cách nạp
+- **Đã làm:** ghi quyết định vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE` theo grain, và DQ. Bronze và Silver là batch, FULL LOAD, OVERWRITE. Bronze thêm `_ingest_ts`, `_source_file`. Bỏ `_batch_id` và luật chọn bản giữa các lần nạp. Dedup trong file của review và geolocation giữ nguyên, cùng luật làm sạch §7. Gold là bảng Delta, `MERGE` idempotent, 7 dimension + 3 fact. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` còn 10 cột; cảnh báo geo, translation, conflict in ở notebook. Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Power BI là dashboard, Streamlit là truy vấn và DSS, OLAP là ROLAP qua SQL Warehouse. Incremental, append, CDF, Auto Loader ghi là future work (R28).
+- **Không làm:** không đổi grain, measure, SCD, surrogate key. Không viết DDL, ETL, notebook, test. Không đánh dấu milestone Notion.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md` (v0.7), `docs/PLAN.md`, `docs/architecture.md`, `docs/PROGRESS_LOG.md`, `README.md`, `.cursor/rules/` (`00-index`, `02-ambiguity-scope`, `05-medallion-layers`, `07-spark-databricks`, `08-sql-olap`, `09-dss`).
+- **Quyết định:** SPEC §10, ngày 26/10/2026. Dòng append-only, watermark, cửa sổ review theo cột ingest, audit nhiều cột, và frontend còn mở chuyển vào lịch sử.
+- **RTM:** R26 sang ☑ vì đã chọn ROLAP. R28 giữ ☐ và ghi future work. R45 giữ ☑, sửa chữ hợp đồng layer.
+- **Việc tiếp theo:** Phase 3, DDL và ETL theo hợp đồng mới.
+
+### 22/10/2026 — Phase 2 — Chiều: tie-break, seller-tháng, geolocation, category
+- **Đã làm:** cửa sổ review thêm `NULLS LAST` và tie-break `_ingest_ts`, `_batch_id`. Tháng seller-tháng theo `order_purchase_timestamp`. `min_orders` mặc định 5 là tham số DSS, không lọc Gold. Geolocation một dòng mỗi prefix, fallback theo thành phố, haversine bỏ null. Category fallback `'Unknown'`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume.
+- **Không làm:** không viết DDL hay ETL.
+- **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** Phase 3, DDL và ETL.
+
 ### 22/10/2026 — Phase 2 — Khóa grain review và review dùng chung
-- **Đã làm:** `silver.order_reviews` giữ (`review_id`, `order_id`), chỉ cast và bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
+- **Đã làm:** `silver.order_reviews` giữ một dòng mỗi (`review_id`, `order_id`) bằng `ROW_NUMBER`, không chỉ bỏ dòng trùng y hệt. Thêm `silver.order_reviews_dedup`, một dòng mỗi `order_id`. `fact_order` chỉ đọc bảng dedupe. Review dùng chung nhiều seller vào cùng điều kiện loại review với đơn nhiều seller. Nhánh `late_flag` của trải nghiệm xấu vẫn tính. Mẫu tỷ lệ review là số `order_id` phân biệt.
 - **Quyết định trong ngày, đã ghi SPEC §10:** GMV loại đơn `canceled` và `unavailable`; `n_orders_placed` / `n_orders_valid`, `n_items_placed` / `n_items_valid`, `aov`; `seller_ship_late_flag` null khi hủy và bằng 1 khi quá hạn chưa bàn giao; `snapshot_date` = `TO_DATE(watermark_cutoff_ts)`; luật review ở mục này.
 - **Không làm:** không viết DDL, ETL, notebook, test. Không sửa `TOPIC_EVALUATION.md`. Không đo số đơn có seller_set nhiều seller. Câu 1,6% tháng 3/2018 ghi là [GIẢ ĐỊNH].
 - **File đã sửa:** `docs/DESIGN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.

@@ -29,14 +29,16 @@ Locked grains (do not change without SPEC §10):
 - Member `-1` means Unknown on every dimension. Do not drop late-arriving FKs; point them at `-1` and count them in `gold.etl_audit`.
 - Dimensions are conformed across the three facts. `dim_date` is role-playing (purchase, approved, shipping limit, delivered to carrier, delivered to customer, estimated). `dim_month` is the shrunken month dimension.
 - `dim_customer` is keyed by `customer_unique_id`. Map per-order `customer_id` in Silver.
-- SCD Type 2 on `dim_seller` is bonus (R41), not required. If you add it, include `effective_from`, `effective_to`, and `is_current`, and say so in DESIGN §2.
+- SCD Type 2 on `dim_seller` is bonus (R41), not required. The current contract is SCD Type 1, with `dim_seller` SCD2-ready, in DESIGN §3.5. If you add real history, include `effective_from`, `effective_to`, and `is_current`, and update that section first.
 
 ## Measures
 
-- Additive (sum in OLAP): `price`, `freight_value`, `items_value`, `freight_total`, `payment_total`, counts, 0/1 flags.
+- Additive (sum in OLAP): `price`, `freight_value`, `items_value`, `freight_total`, `payment_total`, and counts that are not order counts across sellers.
+- `late_delivery_flag` on `fact_order_item` is a copy of the order flag. Do not sum it across items.
+- `n_orders_placed` and `n_orders_valid` are not additive across sellers. A multi-seller order is counted once per seller.
 - Non-additive (average or percentile only): `delivery_days`, `delay_days`, `seller_handling_days`, `review_score`, `distance_km`, and any `*_rate`.
 - Do not `SUM` a rate column. Recompute rates from additive numerators and denominators.
 
 ## DESIGN stays in sync
 
-A schema change in the same session updates DESIGN §6 (source-to-target) and §8 (data dictionary). Leave sections marked `_chưa điền_` empty until you have a real mapping; do not invent columns. Bus-matrix ticks in DESIGN §2 already match SPEC; change them only when SPEC changes.
+A schema change in the same session updates DESIGN §6 (source-to-target and the column dictionary). Do not add a column that DESIGN §6 does not name. `gmv` is `SUM(price)` only; freight is a separate measure. Seller review measures exclude `n_sellers > 1` and `shared_review_type = 'cross_seller'`. Marketplace review KPIs keep `cross_seller`. `late_flag` still counts when the review is excluded. Review-rate denominators use `COUNT(DISTINCT order_id)`. Bus-matrix ticks in DESIGN §4 already match SPEC; change them only when SPEC changes.

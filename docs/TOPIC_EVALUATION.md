@@ -67,7 +67,7 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 2. **Không có lịch sử can thiệp** (cảnh báo, đình chỉ seller…) → tác động của chính sách là **giả định kịch bản**, phải làm sensitivity.
 3. **Không có mã đơn vị vận chuyển** → không tách được lỗi theo hãng vận chuyển; chỉ tách được phần trễ do seller (trước `shipping_limit_date`) và phần sau bàn giao.
 4. **Khoảng thời gian ngắn** — đã đo trên dữ liệu thật (script 10/10/2026): `order_purchase_timestamp` min=2016-09-04 21:15:19, max=2018-10-17 17:30:18 (99,441/99,441 non-null); 99,441 đơn. [GIẢ ĐỊNH còn lại, Phase 1] 2016 rất thưa, cuối 2018 bị cắt → dự báo dài hạn yếu; mô hình nên ở mức tháng, train/test theo thời gian.
-5. **Review ở mức đơn.** G3 đo 1.278 / 98.666 đơn nhiều seller. Không xóa các đơn đó. Review và trải nghiệm xấu để null để khỏi quy trách nhiệm cho một seller; GMV vẫn tính theo dòng item.
+5. **Review ở mức đơn.** G3 đo 1.278 / 98.666 đơn nhiều seller. Không xóa các đơn đó. Điểm giữ trên đơn. Measure review của seller loại các đơn này và review `cross_seller`. `late_flag` vẫn tính. GMV là `sum(price)`, không cộng freight.
 6. **Nhiều seller ít đơn** → chỉ số theo tháng nhiễu; cần ngưỡng số đơn tối thiểu hoặc làm mượt.
 7. **Không có dữ liệu chuyển đổi/lượt xem** → không mô hình hóa được tác động của ngày hẹn giao lên doanh số.
 8. **Tỷ lệ mua lại thấp** ([GIẢ ĐỊNH], phần lớn `customer_unique_id` chỉ mua 1 lần) → hướng retention thiếu tín hiệu.
@@ -79,11 +79,11 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 | G1 | Số seller có ≥ 10 item/tháng trong ≥ 6 tháng | ≥ 150 seller | Hạ ngưỡng sang quý, hoặc chuyển sang T2 | **pass** 173 / 3.095 |
 | G2 | % đơn đã giao có đủ `delivered_carrier_date` và `delivered_customer_date` | ≥ 95% | Loại đơn thiếu mốc, ghi vào hạn chế | **pass** 96.469 / 96.478 (0,999907) |
 
-> **G3 — cập nhật 22/10/2026.** Dòng kết quả bên dưới giữ nguyên. Định nghĩa GMV, cột đếm và cờ trễ sau cổng này nằm ở DESIGN §3.6 và SPEC §10.
+> **G3 — cập nhật 05/11/2026.** Số 1.278 / 98.666 giữ nguyên. Câu xử lý review trên dòng kết quả theo luật hiện hành ở SPEC §10. Định nghĩa GMV, cột đếm và cờ trễ nằm ở DESIGN §3.6.
 
 | Mã | Kiểm tra | Ngưỡng đề xuất (nhóm chốt) | Nếu không đạt | Kết quả Volume 15/10/2026 |
 |---|---|---|---|---|
-| G3 | % đơn có > 1 seller | ≤ 5% | Quy tắc quy trách nhiệm (chia đều / loại) | **pass** 1.278 / 98.666 (0,012953). Không xóa đơn. Review và `bad_experience_flag` để null; GMV, `n_items`, `n_orders` vẫn tính |
+| G3 | % đơn có > 1 seller | ≤ 5% | Quy tắc quy trách nhiệm (chia đều / loại) | **pass** 1.278 / 98.666 (0,012953). Không xóa đơn. Measure review của seller loại các đơn này. `late_flag` vẫn tính. GMV là `sum(price)`. `n_orders_placed` / `n_orders_valid`, `n_items_placed` / `n_items_valid` vẫn tính |
 | G4 | Tỷ lệ review ≤ 2 trên tổng review | 5–25% (đủ để mô hình học) | Đổi biến mục tiêu sang "trễ hạn" | **pass** 14.575 / 99.224 (0,146890) |
 | G5 | Số tháng có ≥ 1.000 đơn | ≥ 15 tháng | Giới hạn phạm vi thời gian | **pass** 19 / 25 tháng. 19 tháng ≥ 1.000 đơn liền 2017-02 → 2018-08 |
 | G6 | % seller trong `orders` khớp được với `closed_deals` | Chỉ ghi nhận | < 10% → dùng funnel như thuộc tính phụ, không làm hierarchy chính | **record** 380 / 3.095 (0,122779). `funnel_as_attribute_only=no` |
@@ -139,6 +139,8 @@ Tỷ lệ giao trễ so với hẹn; tỷ lệ seller bàn giao trễ hạn; th�
 | (b) Nguồn hợp lệ, quy mô đủ lớn | Kaggle, license CC BY-NC-SA 4.0; **99,441 đơn**, 9 bảng Olist + Marketing Funnel (842 closed deals, 8,000 MQL) — số từ script 10/10/2026. Đề không định lượng "đủ lớn" — nhóm nêu quy mô thực tế |
 | (c) Ý nghĩa thực tế, bài toán quyết định cụ thể | Quyết định phân hạng/can thiệp seller hằng tháng của một marketplace thật, gắn KPI trải nghiệm khách và GMV |
 
-**Đã chốt 15/10/2026:** G1–G6 đo trên Volume; giữ T1; X=10% GMV; N=40 seller/tháng; trải nghiệm xấu = review ≤ 2 hoặc giao trễ hẹn, không tính đơn nhiều seller.
+**Đã chốt 15/10/2026:** G1–G6 đo trên Volume; giữ T1; X=10% GMV; N=40 seller/tháng; trải nghiệm xấu = review ≤ 2 hoặc giao trễ hẹn. Đơn nhiều seller ra khỏi nhánh review, nhánh `late_flag` vẫn tính.
 
-**Bổ sung 22/10/2026:** đơn nhiều seller không xóa (`n_sellers` > 1); review và `bad_experience_flag` null. `late_flag` so theo ngày lịch, grain đơn. `seller_ship_late_flag` so timestamp ở grain item; thiếu carrier sau ngày chốt thì cờ 1; đơn hủy thì cờ null và vào `cancel_rate`. SCD1; `dim_seller` SCD2-ready. Địa chỉ khách trên `fact_order`. Công thức ở DESIGN §3.5–§3.6.
+**Bổ sung 22/10/2026:** đơn nhiều seller không xóa (`n_sellers` > 1). `late_flag` vẫn tính. `gmv` và các cột `n_orders_valid`, `n_items_valid` tính phần không hủy; `n_orders_placed` và `n_items_placed` đếm mọi status. `late_flag` so theo ngày lịch, grain đơn. `seller_ship_late_flag` so timestamp ở grain item; thiếu carrier sau ngày chốt thì cờ 1; đơn hủy thì cờ null và vào `cancel_rate`. SCD1; `dim_seller` SCD2-ready. Địa chỉ khách trên `fact_order`. Công thức ở DESIGN §3.5–§3.6.
+
+**Bổ sung 05/11/2026 (thay câu `review_score` null của 22/10):** điểm giữ trên `fact_order`. Measure review của seller loại đơn nhiều seller và `shared_review_type` = `cross_seller`. KPI sàn giữ `cross_seller`. `late_flag` vẫn tính khi review bị loại. `gmv` = `sum(price)`, không cộng freight. X=10 và N=40 giữ từ 15/10. `shared_review_type` là [GIẢ ĐỊNH], chờ sensitivity top-40 sau Gold.

@@ -13,7 +13,7 @@ Store notebooks as `.py` source files under `src/etl/` or `src/notebooks/` so gi
 Pass parameters through Databricks widgets or environment variables (`USE_SAMPLE`, schema names, Volume path). Do not hardcode tokens, catalog names, or absolute Windows paths.
 
 ```python
-catalog = os.environ["UC_CATALOG"]  # empty until S1 — fail clearly, do not guess
+catalog = os.environ["UC_CATALOG"]  # S1 recorded olist_catalog; read the env var, do not hardcode
 gold = os.environ.get("GOLD_SCHEMA", "gold")
 ```
 
@@ -21,7 +21,7 @@ gold = os.environ.get("GOLD_SCHEMA", "gold")
 
 - Do not `collect()` or `toPandas()` on Bronze geolocation, full Gold facts, or any frame you have not filtered to a known small result (a single audit aggregate is fine).
 - Read ids and zips as strings (`04-data-integrity`).
-- Batch only. Do not add Auto Loader streaming, CDF, or `trigger(availableNow)` as a hidden stream.
+- Batch only. Bronze and Silver are full-load overwrites. Gold `MERGE` is `WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only. Do not use `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Incremental load, append of historical batches, CDF, Auto Loader, and `trigger(availableNow)` are future work (R28). Do not add them to the current ETL. The current contract has no `_batch_id` and no watermark.
 
 ## Dual runtime (R46)
 
@@ -29,7 +29,7 @@ Transform code must run on Databricks and locally with `pyspark` + `delta-spark`
 
 Local Delta support is `[GIẢ ĐỊNH]` until spike S6. If S6 fails, stop and list two options; do not drop the local path silently.
 
-Databricks Jobs as the scheduler are `[GIẢ ĐỊNH]` until S4. A manual notebook run is the fallback until that spike passes.
+Databricks Jobs work on this workspace. S4 passed on 13/10/2026 (`s4_smoke`, Serverless). The ETL job itself is still Phase 3 work. Order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss.
 
 ## Partitioning
 

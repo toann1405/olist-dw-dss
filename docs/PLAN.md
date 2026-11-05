@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản | v0.3 — 13/10/2026 |
+| Phiên bản | v0.5 — 05/11/2026 |
 | Hạn nộp | **23:59 Chủ nhật 15/11/2026** (ZIP qua LMS) — mốc nội bộ: **đóng băng 14/11** |
 | Thứ tự hiện thực | **Cloud trước, local sau.** DW, ETL, OLAP SQL và DSS chạy trên Databricks Free Edition trước. Đường local (pyspark + delta-spark trên `data/sample/`, R46) chỉ làm khi phần Cloud tương ứng đã chạy được — để người chấm chạy lại, không phải nơi dựng hệ thống trước. |
 
@@ -14,7 +14,7 @@ Mỗi task ghi mã yêu cầu trong SPEC §2 (R-xx).
 
 | Nhãn | Nghĩa |
 |---|---|
-| **Cloud** | Workspace Databricks: notebook, Unity Catalog, Volume, Jobs, AI/BI nếu chọn sau spike |
+| **Cloud** | Workspace Databricks: notebook, Unity Catalog, Volume, Jobs, SQL Warehouse |
 | **Local → Cloud** | Chạy trên laptop nhưng đọc/ghi Databricks (SQL warehouse, token). Không dựng DW trên máy |
 | **Local** | Chỉ trên laptop: repo, tài liệu, pytest, Power BI Desktop, Streamlit, pyspark + delta-spark trên `data/sample/` |
 
@@ -57,7 +57,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Sản phẩm:** repo, `data/raw/`, `data/sample/`, `data/README.md`, SPEC/PLAN. Kết quả spike ghi khi chạy.
 **DoD (tài liệu):** các file CSV Olist có mặt; sample tạo xong; đề tài và kiến trúc medallion ghi trong SPEC/README.
-**DoD (spike):** S1, S4, S5 có trạng thái trước; S2–S3 sau khi có SQL warehouse; S6 sau S1. Frontend OLAP và loại OLAP được khóa sau S2–S3, hoặc để mở kèm 2 phương án nếu spike không đạt.
+**DoD (spike):** S1, S4, S5 có trạng thái trước; S2–S3 sau khi có SQL warehouse; S6 sau S1. Frontend và ROLAP đã chốt 26/10/2026 (Power BI dashboard, Streamlit truy vấn/DSS). S2–S3 chỉ kiểm kết nối. Nếu spike không đạt: ghi 2 phương án và chờ nhóm.
 **Phụ thuộc:** tài khoản Databricks Free Edition (email cá nhân). **Rủi ro:** Free Edition thiếu tính năng → ghi 2 phương án; đường local (R46) là phương án dự phòng, không phải nơi hiện thực trước.
 
 ## Phase 1 — Profiling, chốt câu hỏi quyết định và KPI · 13/10 → 18/10 (tuần nghỉ)
@@ -72,8 +72,8 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local** (sau khi có số từ notebook Cloud)
 
 - [x] Liệt kê vấn đề chất lượng thực tế, cập nhật SPEC §3 (bỏ nhãn [GIẢ ĐỊNH] của dữ liệu) (R27, R30)
-- [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, chưa upload Volume
-- [x] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25). Review ≤ 2 hoặc giao trễ hẹn; đơn nhiều seller để null, không xóa; X=10; N=40; 10 câu hỏi trong SPEC
+- [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, đã có trên Volume `ref/`
+- [x] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25). Review ≤ 2 hoặc giao trễ hẹn; đơn nhiều seller không xóa; measure review seller loại họ và `cross_seller`; `late_flag` vẫn tính; X=10; N=40; 10 câu hỏi trong SPEC
 - [ ] Đọc trước slide Ch6–7 (DSS, modeling) (R33, R36)
 
 **Sản phẩm:** `src/notebooks/01_profiling.py` (chạy trên Cloud), SPEC cập nhật sau profiling.
@@ -94,7 +94,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 - [x] Hierarchy cho date, địa lý khách/seller, sản phẩm (R24)
 - [x] Bus matrix, chọn surrogate key, member Unknown, SCD (R41, R04)
 - [x] Source-to-target mapping + quy tắc làm sạch/biến đổi (R05, R29, R30)
-- [x] Data dictionary; ước lượng số dòng từ profiling Cloud; ghi loại OLAP còn mở (ROLAP hoặc HOLAP) cho đến khi spike khóa (R29, R26)
+- [x] Data dictionary; ước lượng số dòng từ profiling Cloud; ghi loại OLAP (R29, R26). ROLAP chốt 26/10/2026, xem SPEC §10
 - [x] Influence diagram bản nháp để kiểm tra DW đủ biến cho DSS (R36, R10)
 
 **Sản phẩm:** `docs/DESIGN.md` đầy đủ.
@@ -108,12 +108,12 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Cloud** (làm trước)
 
 - [ ] DDL Delta cho schema `bronze`, `silver`, `gold`, `dss`, gồm `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R42, R47)
-- [ ] Bronze: đọc CSV (id/zip dạng chuỗi) từ Volume, append, thêm `_ingest_ts`, `_source_file`, `_batch_id` (R07, R30, R45)
-- [ ] Silver: cast kiểu, dedupe (geolocation, review), chuẩn hóa thành phố, dịch category, map state → region (R07, R27, R45)
-- [ ] Gold: tra surrogate key, member `-1`, nạp 3 fact bằng Delta `MERGE`; SCD2 `gold.dim_seller` nếu làm điểm cộng (R07, R02, R41)
-- [ ] Incremental theo watermark `order_purchase_timestamp`; demo nạp thêm 1 tháng trên workspace (R28)
-- [ ] Delta constraints (`NOT NULL`, `CHECK`) trên Gold; `gold.etl_audit` ghi số dòng từng nguồn (R27)
-- [ ] Databricks Jobs — chỉ nếu S4 đạt (R40). Nếu S4 không đạt: ghi 2 phương án, chờ nhóm, không tự chọn
+- [ ] Bronze: đọc CSV (id/zip dạng chuỗi) từ Volume, FULL LOAD OVERWRITE, mọi cột STRING as-is, thêm `_ingest_ts`, `_source_file` (R07, R30, R45)
+- [ ] Silver: FULL LOAD OVERWRITE; cast kiểu, dedupe trong file (geolocation, review), chuẩn hóa thành phố, dịch category, map state → region (R07, R27, R45)
+- [ ] Gold: bảng Delta; tra surrogate key, member `-1`, `MERGE` 7 dimension và 3 fact theo grain (`WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT`, không `WHEN NOT MATCHED BY SOURCE THEN DELETE`); SCD2 `gold.dim_seller` nếu làm điểm cộng (R07, R02, R41)
+- Future work (R28), không làm trong Phase 3: incremental theo watermark, append, CDF, Auto Loader
+- [ ] Delta constraints (`NOT NULL`, `CHECK`) trên Gold; `gold.etl_audit` ghi số dòng từng nguồn theo 10 cột ở SPEC §6. Cảnh báo geo, translation, conflict in ở notebook (R27)
+- [ ] Databricks Jobs, S4 đã đạt: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss (R40)
 
 **Local** (sau khi load Cloud chạy được; R46)
 
@@ -122,7 +122,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Sản phẩm:** `src/sql/ddl/`, `src/etl/`, `src/tests/`.
 **DoD:** load Cloud chạy và `gold.etl_audit` có số dòng; load local + pytest là bước sau, không thay DoD Cloud.
-**Phụ thuộc:** Phase 2 và S1. S6 nên đạt trước bước Local. **Rủi ro:** lỗi dữ liệu → bảng reject, không chặn pipeline Cloud.
+**Phụ thuộc:** Phase 2 và S1. S6 nên đạt trước bước Local. **Rủi ro:** lỗi dữ liệu → set null, đếm `rows_rejected` khi dòng bị bỏ hẳn, in DQ trong notebook. Không chặn pipeline Cloud.
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11
 
@@ -130,19 +130,17 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Cloud**
 
-- [ ] View phục vụ OLAP trên Gold (R08, R42)
+- [ ] View phục vụ OLAP trên Gold, nếu làm R42. Fact và dimension vẫn là bảng Delta (R08, R42)
 - [ ] 5 truy vấn OLAP bằng Spark SQL trên Gold: slice, dice, drill-down, roll-up, pivot — mỗi truy vấn 1 câu hỏi (R25, R08)
 - [ ] (ĐC) so sánh thời gian truy vấn có/không aggregate view, đo trên SQL warehouse (R42)
-- [ ] Nếu spike khóa **Databricks AI/BI Dashboard**: dựng màn hình OLAP trên workspace (R09, R26)
 
-**Local → Cloud** (chỉ khi spike khóa công cụ chạy trên máy)
+**Local → Cloud**
 
-- [ ] Nếu spike khóa **Power BI Desktop**: Import hoặc DirectQuery tới Gold; chỉ kết nối đã kiểm ở S3 (R09, R26)
-- [ ] Nếu spike khóa **Streamlit** cho OLAP: app local đọc Gold qua SQL warehouse, chỉ khi S2 đạt (R09, R26)
-- [ ] Bộ lọc tương tác + drill theo hierarchy trên công cụ đã khóa (R09, R24)
+- [ ] Power BI Desktop: dashboard ROLAP, đọc Gold qua SQL Warehouse. Kết nối kiểm ở S3 (R09, R26)
+- [ ] Bộ lọc tương tác + drill theo hierarchy trên Power BI (R09, R24)
 
-**Sản phẩm:** `src/sql/olap_queries/`, `src/sql/views/`, và frontend đúng công cụ đã khóa.
-**DoD:** demo đủ 5 phép trên Gold Cloud; kết quả khớp Spark SQL. Không chọn công cụ trước khi S2–S3 khóa quyết định.
+**Sản phẩm:** `src/sql/olap_queries/`, `src/sql/views/`, dashboard Power BI.
+**DoD:** demo đủ 5 phép trên Gold Cloud; kết quả khớp Spark SQL. Công cụ đã chốt 26/10/2026: Power BI cho dashboard, ROLAP qua SQL Warehouse. Streamlit thuộc Phase 5 (truy vấn và DSS).
 **Phụ thuộc:** Phase 3 Cloud (Gold đã có dữ liệu). **Rủi ro:** UI tốn thời gian → ưu tiên 5 câu SQL trên Cloud. Nếu S3 không đạt, dừng ở 2 phương án và chờ nhóm.
 
 ## Phase 5 — DSS · 26/10 → 08/11
@@ -155,11 +153,11 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 - [ ] M2 mô phỏng chính sách + what-if trên dữ liệu Gold (làm trước, dùng p_i đơn giản) (R34, R33, R10)
 - [ ] M1 logistic regression, train/test theo thời gian, metric AUC/Brier; huấn luyện trên Gold, không trên Silver (R33, R44)
 - [ ] Goal seeking θ theo ràng buộc GMV; sensitivity tornado (R35)
-- [ ] Ghi `dss.seller_risk_score`, `dss.policy_scenario`, `dss.decision_log` trên workspace (R31, R37)
+- [ ] Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario` trên workspace. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse (R31, R37)
 
 **Local → Cloud** (sau khi bảng `dss.*` đã có trên Cloud và S2 đạt)
 
-- [ ] UI DSS: trang Điểm rủi ro, What-if, Goal seek, Quyết định & export. Streamlit local đọc Gold / `dss.*` qua SQL warehouse (R32, R34). Nếu S2 không đạt: ghi 2 phương án, chờ nhóm, không tự chuyển UI sang đọc CSV
+- [ ] UI DSS và truy vấn: trang Điểm rủi ro, What-if, Goal seek, Quyết định & export. Streamlit local đọc Gold và `dss.*` qua SQL Warehouse (R32, R34). Nếu S2 không đạt: ghi 2 phương án, chờ nhóm, không tự chuyển UI sang đọc CSV
 
 **Local** (tài liệu, không cần cluster)
 
@@ -189,7 +187,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local** (báo cáo số liệu, không chạy cluster)
 
 - [ ] Bảng đánh giá: câu hỏi/KPI ban đầu ↔ đạt/chưa đạt (R11)
-- [ ] Liệt kê hạn chế (dữ liệu, mô hình, giả định e_k/r, giới hạn Free Edition) và hướng phát triển (streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL) (R12)
+- [ ] Liệt kê hạn chế (dữ liệu, mô hình, giả định e_k/r, giới hạn Free Edition) và hướng phát triển (incremental theo watermark, CDF, Auto Loader, streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL) (R12)
 
 **Sản phẩm:** kết quả test, số liệu đánh giá, hình trong `docs/report/`.
 **DoD:** đường Cloud có hướng dẫn và bằng chứng đã chạy. Đường local trên sample chạy được theo README.
@@ -224,7 +222,7 @@ Mọi yêu cầu mức **BB** và **BB\*** trong SPEC §2 phải xuất hiện �
 |---|---|---|
 | BB [ĐỀ] | R01, R02, R03, R04, R05, R06, R07, R08, R09, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20 | ☑ tất cả có task |
 | BB\* [SUY LUẬN] | R21, R22, R23, R24, R25, R27, R30, R31, R32, R33, R34, R36, R37, R38, R45 | ☑ tất cả có task |
-| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R46: S6, Phase 3 Local, Phase 6 Local, Phase 7) |
+| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 3 Local, Phase 6 Local, Phase 7) |
 | ĐC | R35, R40, R41, R43, R47 | ☑ tất cả có task (R47: comment bảng/cột Gold ở Phase 3 Cloud) |
 
 **R-xx bắt buộc chưa có task:** không có. Yêu cầu NC/ĐC chưa có task: không có. Kiểm tra lại mỗi khi sửa SPEC hoặc PLAN (13/10/2026: tách Cloud / Local, không thêm hoặc bỏ R-xx).

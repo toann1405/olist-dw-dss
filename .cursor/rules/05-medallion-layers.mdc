@@ -1,5 +1,5 @@
 ---
-description: Medallion layer contract — Bronze append-only, Silver conform, Gold star only, downstream reads Gold
+description: Medallion layer contract — Bronze and Silver full overwrite, Gold star MERGE, downstream reads Gold
 globs: src/etl/**,src/sql/**,src/notebooks/**
 alwaysApply: false
 ---
@@ -14,10 +14,10 @@ Reference tables as `` `{catalog}`.`{schema}`.`{table}` `` built from that confi
 
 | Layer | Allowed contents | Write pattern |
 |---|---|---|
-| Bronze | Raw CSV rows plus `_ingest_ts`, `_source_file`, `_batch_id` | Append only. No updates, no deletes, no business rules. |
-| Silver | Typed, deduped, conformed entities | Clean here: city normalization, category translation, state→region, geolocation and review dedupe. |
-| Gold | Star schema only: `fact_*` and `dim_*` from SPEC §5, plus `etl_audit` | Surrogate keys and `MERGE`. No raw CSV columns left as the model. |
-| `dss` | Model outputs only | Written by `src/dss/`, never by a Gold fact job. See `09-dss`. |
+| Bronze | Raw CSV rows, all business columns STRING as-is, plus `_ingest_ts` and `_source_file` | Batch FULL LOAD, OVERWRITE (truncate then insert). No joins, no business casts, no `_batch_id`. |
+| Silver | Typed, deduped, conformed entities | Batch FULL LOAD, OVERWRITE. Clean here: city normalization, category translation, state→region, within-file geolocation and review dedupe. Do not pick a row across loads by `_ingest_ts`. |
+| Gold | Star schema only: Delta tables `fact_*` and `dim_*` from SPEC §5, plus `etl_audit`. Not views | Surrogate keys and `MERGE` on the grain: `WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only. Do not use `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Idempotent. No raw CSV columns left as the model. |
+| `dss` | Model outputs only | The DSS job writes `seller_risk_score` and `policy_scenario`. Streamlit appends `decision_log` through SQL Warehouse. The Gold ETL job does not write `dss.decision_log`. See `09-dss`. |
 
 Physical Gold names: `gold.fact_order_item`, `gold.fact_order`, `gold.fact_seller_monthly`, `gold.dim_date`, `gold.dim_month`, `gold.dim_customer`, `gold.dim_seller`, `gold.dim_product`, `gold.dim_order_status`, `gold.dim_payment_type`, `gold.etl_audit`.
 
@@ -26,11 +26,15 @@ Physical Gold names: `gold.fact_order_item`, `gold.fact_order`, `gold.fact_selle
 - Bronze does not join or aggregate.
 - Silver does not publish facts.
 - Gold does not read `data/raw` or the Volume directly.
-- OLAP queries and DSS read Gold only. They do not read Bronze or Silver.
+- OLAP queries read Gold only. The DSS reads Gold and `dss`. Neither reads Bronze or Silver.
 - Train M1 on Gold (`fact_seller_monthly`), not on Silver. That split is intentional (assignment objective 4).
 
 ## Idempotent loads
 
-Gold (and any Silver table that can be re-run) uses Delta `MERGE` on the grain, not `INSERT` plus a manual delete. Re-running a batch with the same `_batch_id` must not duplicate rows.
+Gold uses Delta `MERGE` on the grain: `WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only. Do not add `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Re-running the same grain must not duplicate rows. Bronze and Silver replace the current image; they do not merge and they do not keep prior loads.
 
-Audit row counts in `gold.etl_audit`: rows read = rows loaded + rows rejected, per source file.
+`gold.etl_audit` columns are `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Each run adds a log row. Geo, translation, conflict, and price-reconciliation checks are printed by the notebook. Do not add those as audit columns.
+
+Incremental load, append of historical batches, CDF, and Auto Loader are future work (R28). Do not implement them in the current ETL.
+
+Job order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. `snapshot_date` is the config constant `DATE '2018-10-17'`, not a watermark.

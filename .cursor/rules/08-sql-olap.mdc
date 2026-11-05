@@ -28,6 +28,6 @@ Allowed operators: `slice`, `dice`, `drill-down`, `roll-up`, `pivot`. One operat
 
 Query `gold.*` only. A query that reads `bronze.*` or `silver.*` is wrong.
 
-OLAP presentation (Power BI, Databricks AI/BI, or Streamlit) and the storage mode (ROLAP vs HOLAP) are pending spikes S2–S3. SQL files stay valid for both modes. Do not add a cube script or a Power BI project until the user locks the frontend.
+OLAP is ROLAP: Spark SQL on Gold tables, served through a Databricks SQL Warehouse. The dashboard is Power BI. Streamlit is the query and DSS UI, not a second OLAP dashboard. Do not add a cube script, a HOLAP import model, or an AI/BI dashboard. Incremental extracts are future work.
 
 Views in `src/sql/views/` that feed OLAP follow the same Gold-only rule. Feature views for DSS are specified in `09-dss`.
