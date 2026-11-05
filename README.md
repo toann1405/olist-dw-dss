@@ -6,7 +6,7 @@ Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)*
 
 **Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels) with a Streamlit UI. The OLAP dashboard is Power BI (ROLAP through a Databricks SQL Warehouse). Local rerun path: pyspark + delta-spark on `data/sample/`.
 
-**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Bronze and Silver are full-load overwrites. Gold is a Kimball star schema of Delta tables loaded with `MERGE`: `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. The diagram is in [docs/architecture.md](docs/architecture.md). The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
+**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Bronze and Silver are full-load overwrites. Gold is a Kimball star schema of Delta tables loaded with `MERGE` (`WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only): `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. Streamlit appends `dss.decision_log` through the SQL Warehouse. The Gold ETL job does not write that table. The diagram is in [docs/architecture.md](docs/architecture.md). The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
 
 ## Read this first
 1. [README.md](README.md) (this file)
@@ -50,4 +50,4 @@ olist-dw-dss/
 4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): filled in after spike S6.
 
 ## Status
-Phase 2 (warehouse design) is locked. Next is Phase 3 (ETL). Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+Phase 2 (warehouse design) is locked. The load contract of 26/10/2026 was corrected on 05/11/2026 (MERGE without delete-by-source, Streamlit-only `decision_log`, seller GMV as sum of price). Next is Phase 3 (ETL). Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open connection or local-runtime checks. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).

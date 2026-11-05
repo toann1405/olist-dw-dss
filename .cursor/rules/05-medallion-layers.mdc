@@ -16,8 +16,8 @@ Reference tables as `` `{catalog}`.`{schema}`.`{table}` `` built from that confi
 |---|---|---|
 | Bronze | Raw CSV rows, all business columns STRING as-is, plus `_ingest_ts` and `_source_file` | Batch FULL LOAD, OVERWRITE (truncate then insert). No joins, no business casts, no `_batch_id`. |
 | Silver | Typed, deduped, conformed entities | Batch FULL LOAD, OVERWRITE. Clean here: city normalization, category translation, state→region, within-file geolocation and review dedupe. Do not pick a row across loads by `_ingest_ts`. |
-| Gold | Star schema only: Delta tables `fact_*` and `dim_*` from SPEC §5, plus `etl_audit`. Not views | Surrogate keys and `MERGE` on the grain. Idempotent. No raw CSV columns left as the model. |
-| `dss` | Model outputs only | The DSS job writes `seller_risk_score` and `policy_scenario`. Streamlit appends `decision_log` through SQL Warehouse. A Gold fact job does not write `dss`. See `09-dss`. |
+| Gold | Star schema only: Delta tables `fact_*` and `dim_*` from SPEC §5, plus `etl_audit`. Not views | Surrogate keys and `MERGE` on the grain: `WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only. Do not use `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Idempotent. No raw CSV columns left as the model. |
+| `dss` | Model outputs only | The DSS job writes `seller_risk_score` and `policy_scenario`. Streamlit appends `decision_log` through SQL Warehouse. The Gold ETL job does not write `dss.decision_log`. See `09-dss`. |
 
 Physical Gold names: `gold.fact_order_item`, `gold.fact_order`, `gold.fact_seller_monthly`, `gold.dim_date`, `gold.dim_month`, `gold.dim_customer`, `gold.dim_seller`, `gold.dim_product`, `gold.dim_order_status`, `gold.dim_payment_type`, `gold.etl_audit`.
 
@@ -31,7 +31,7 @@ Physical Gold names: `gold.fact_order_item`, `gold.fact_order`, `gold.fact_selle
 
 ## Idempotent loads
 
-Gold uses Delta `MERGE` on the grain. Re-running the same grain must not duplicate rows. Bronze and Silver replace the current image; they do not merge and they do not keep prior loads.
+Gold uses Delta `MERGE` on the grain: `WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only. Do not add `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Re-running the same grain must not duplicate rows. Bronze and Silver replace the current image; they do not merge and they do not keep prior loads.
 
 `gold.etl_audit` columns are `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Each run adds a log row. Geo, translation, conflict, and price-reconciliation checks are printed by the notebook. Do not add those as audit columns.
 

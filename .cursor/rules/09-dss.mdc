@@ -12,7 +12,7 @@ Three subsystems, all required (R32): data, model, UI. This is a model-driven DS
 
 - Read only `gold.*` (usually `gold.fact_seller_monthly` and Gold dimensions).
 - The DSS job writes `dss.seller_risk_score` and `dss.policy_scenario` only.
-- Streamlit appends one confirmed decision per row to `dss.decision_log` through the SQL Warehouse. It does not write the score or scenario tables.
+- Streamlit appends one confirmed decision per row to `dss.decision_log` through the SQL Warehouse. It does not write the score or scenario tables. The Gold ETL job does not write `dss.decision_log`.
 - Build feature views such as `dss.v_seller_features` on `gold.*` only.
 - In `src/dss/`, do not call `read_csv`, `spark.read.csv`, or open any `data/raw` or `data/sample` path. Local sample runs still enter through Gold tables produced by ETL.
 

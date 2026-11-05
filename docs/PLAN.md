@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản | v0.4 — 26/10/2026 |
+| Phiên bản | v0.5 — 05/11/2026 |
 | Hạn nộp | **23:59 Chủ nhật 15/11/2026** (ZIP qua LMS) — mốc nội bộ: **đóng băng 14/11** |
 | Thứ tự hiện thực | **Cloud trước, local sau.** DW, ETL, OLAP SQL và DSS chạy trên Databricks Free Edition trước. Đường local (pyspark + delta-spark trên `data/sample/`, R46) chỉ làm khi phần Cloud tương ứng đã chạy được — để người chấm chạy lại, không phải nơi dựng hệ thống trước. |
 
@@ -73,7 +73,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 - [x] Liệt kê vấn đề chất lượng thực tế, cập nhật SPEC §3 (bỏ nhãn [GIẢ ĐỊNH] của dữ liệu) (R27, R30)
 - [x] Kiểm tra license ngày lễ Brazil và bảng bang→vùng IBGE; Marketing Funnel đã có file (R30). Ngày lễ: không dùng (15/10/2026). IBGE: `data/external/ibge_state_region.csv`, đã có trên Volume `ref/`
-- [x] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25). Review ≤ 2 hoặc giao trễ hẹn; đơn nhiều seller để null, không xóa; X=10; N=40; 10 câu hỏi trong SPEC
+- [x] Chốt định nghĩa "trải nghiệm xấu", X, N; 8–12 câu hỏi phân tích ↔ KPI (R01, R25). Review ≤ 2 hoặc giao trễ hẹn; đơn nhiều seller không xóa; measure review seller loại họ và `cross_seller`; `late_flag` vẫn tính; X=10; N=40; 10 câu hỏi trong SPEC
 - [ ] Đọc trước slide Ch6–7 (DSS, modeling) (R33, R36)
 
 **Sản phẩm:** `src/notebooks/01_profiling.py` (chạy trên Cloud), SPEC cập nhật sau profiling.
@@ -110,7 +110,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 - [ ] DDL Delta cho schema `bronze`, `silver`, `gold`, `dss`, gồm `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R42, R47)
 - [ ] Bronze: đọc CSV (id/zip dạng chuỗi) từ Volume, FULL LOAD OVERWRITE, mọi cột STRING as-is, thêm `_ingest_ts`, `_source_file` (R07, R30, R45)
 - [ ] Silver: FULL LOAD OVERWRITE; cast kiểu, dedupe trong file (geolocation, review), chuẩn hóa thành phố, dịch category, map state → region (R07, R27, R45)
-- [ ] Gold: bảng Delta; tra surrogate key, member `-1`, `MERGE` 7 dimension và 3 fact theo grain; SCD2 `gold.dim_seller` nếu làm điểm cộng (R07, R02, R41)
+- [ ] Gold: bảng Delta; tra surrogate key, member `-1`, `MERGE` 7 dimension và 3 fact theo grain (`WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT`, không `WHEN NOT MATCHED BY SOURCE THEN DELETE`); SCD2 `gold.dim_seller` nếu làm điểm cộng (R07, R02, R41)
 - Future work (R28), không làm trong Phase 3: incremental theo watermark, append, CDF, Auto Loader
 - [ ] Delta constraints (`NOT NULL`, `CHECK`) trên Gold; `gold.etl_audit` ghi số dòng từng nguồn theo 10 cột ở SPEC §6. Cảnh báo geo, translation, conflict in ở notebook (R27)
 - [ ] Databricks Jobs, S4 đã đạt: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss (R40)

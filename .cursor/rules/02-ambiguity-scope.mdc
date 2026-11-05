@@ -34,9 +34,8 @@ SPEC §10 "Quyết định đã chốt" is locked. To change one:
 
 Do not silently reopen: topic T1 (conditional on G1–G6), decision maker / alternatives / principle of choice, medallion mapping, Gold as the only DW, training DSS on Gold not Silver, Marketing Funnel as a required extra source.
 
-## Still pending — do not lock these in code or docs
+## Do not invent
 
-- Unity Catalog name (`UC_CATALOG`) and Volume path until S1. S1 recorded `olist_catalog` and `/Volumes/olist_catalog/bronze/raw/`; do not invent a second catalog.
+- Do not invent a second catalog. S1 recorded `olist_catalog` and `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`).
 - If a spike fails, list two options and wait. Do not choose.
-
-`X` = 10% GMV and `N` = 40 sellers per month are locked (SPEC §1, §10). Do not treat them as unset.
+- `X` = 10% GMV and `N` = 40 sellers per month are locked (SPEC §1, §10, 15/10/2026). Do not treat them as unset.

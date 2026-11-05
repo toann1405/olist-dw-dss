@@ -41,4 +41,4 @@ Locked grains (do not change without SPEC §10):
 
 ## DESIGN stays in sync
 
-A schema change in the same session updates DESIGN §6 (source-to-target and the column dictionary). Leave sections marked `_chưa điền_` empty until you have a real mapping; do not invent columns. Bus-matrix ticks in DESIGN §4 already match SPEC; change them only when SPEC changes.
+A schema change in the same session updates DESIGN §6 (source-to-target and the column dictionary). Do not add a column that DESIGN §6 does not name. `gmv` is `SUM(price)` only; freight is a separate measure. Seller review measures exclude `n_sellers > 1` and `shared_review_type = 'cross_seller'`. Marketplace review KPIs keep `cross_seller`. `late_flag` still counts when the review is excluded. Review-rate denominators use `COUNT(DISTINCT order_id)`. Bus-matrix ticks in DESIGN §4 already match SPEC; change them only when SPEC changes.

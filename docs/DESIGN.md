@@ -1,6 +1,6 @@
 # DESIGN — Thiết kế DW, ETL mapping, data dictionary
 
-> **Trạng thái: thiết kế Phase 2 đã khóa 22/10/2026.** Quyết định load ngày 26/10/2026 nằm ở mục dưới. DDL và ETL chưa viết. SPEC v0.7 §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code.
+> **Trạng thái: thiết kế Phase 2 đã khóa 22/10/2026.** Load 26/10/2026 và sửa hợp đồng 05/11/2026 nằm ở hai mục dưới. DDL và ETL chưa viết. SPEC v0.8 §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code.
 >
 > Nguồn dùng khi viết: `docs/SPEC.md` (số đo Volume trong §3; quyết định Phase 2 ở v0.5, bổ sung v0.6 ngày 22/10/2026), `docs/PLAN.md` Phase 2, `docs/PROGRESS_LOG.md`, `docs/TOPIC_EVALUATION.md` §1.2–1.4, header CSV trong `data/sample/` và `data/external/` (cùng tên cột với `data/raw/`). Không dùng `data/sample/` để ước lượng số dòng.
 >
@@ -24,14 +24,27 @@ Không đổi: grain ba fact, star schema (7 dimension + 3 fact), measure, SCD, 
 |---|---|
 | Bronze | Batch. FULL LOAD, OVERWRITE (truncate rồi insert). Mọi cột nghiệp vụ `STRING`, as-is. Thêm `_ingest_ts`, `_source_file`. Không có `_batch_id` |
 | Silver | Batch. FULL LOAD, OVERWRITE. Không lọc theo `watermark_cutoff_ts`. Không chọn bản giữa các lần nạp theo `_ingest_ts`. Giữ dedup trong file: `order_reviews` bằng `ROW_NUMBER`, `order_reviews_dedup`, `geolocation_zip` một dòng mỗi prefix. Giữ mọi luật làm sạch §7 |
-| Gold | Bảng Delta, không phải view. `MERGE` theo grain, idempotent. 7 dimension + 3 fact |
+| Gold | Bảng Delta, không phải view. `MERGE` theo grain, idempotent: chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE`. 7 dimension + 3 fact |
 | `snapshot_date` | Hằng số `DATE '2018-10-17'` trong config. Không suy từ watermark |
 | `gold.etl_audit` | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Cảnh báo geo, translation, conflict và các đếm cùng loại là DQ check trong notebook: in kết quả, không lưu cột riêng |
 | Orchestration | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss |
-| Frontend | Power BI: dashboard, đọc Gold qua Databricks SQL Warehouse. Streamlit: giao diện truy vấn và DSS, đọc Gold và `dss`. OLAP = ROLAP qua SQL Warehouse |
+| Frontend | Power BI: dashboard, đọc Gold qua Databricks SQL Warehouse. Streamlit: giao diện truy vấn và DSS, đọc Gold và `dss`. OLAP = ROLAP qua SQL Warehouse. `dss.decision_log` do Streamlit ghi. Job ETL Gold không ghi bảng này |
 | Future work | Incremental, append, CDF, Auto Loader (R28) |
 
 Sơ đồ cùng các mục Object Type / Load / Transformations / Data Model: `docs/architecture.md`.
+
+---
+
+## Sửa hợp đồng 05/11/2026
+
+Bốn luật dưới đây là bản hiện hành. Câu bị thay nằm ở SPEC §10, mục lịch sử. Grain, SCD và surrogate key không đổi.
+
+1. **MERGE Gold.** Trên 7 dimension và 3 fact chỉ có `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không viết `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Khóa đã nạp nhưng không còn trong ảnh Silver hiện tại được giữ. Member `-1` không cần mệnh đề ngoại lệ vì không có nhánh xóa.
+2. **`dss.decision_log`.** Streamlit ghi thêm một dòng (append qua SQL Warehouse) cho mỗi quyết định đã chốt. Streamlit không sở hữu schema `dss` ngoài các dòng đó. Job ETL Gold không ghi bảng này. Job DSS (Phase 5) ghi `dss.seller_risk_score` và `dss.policy_scenario`, không ghi `decision_log`.
+3. **GMV của seller.** `fact_seller_monthly.gmv` = `sum(price)` của item thuộc seller trong tháng mua, loại đơn `canceled` và `unavailable`. `freight_value` và `freight_total` là measure riêng, không cộng vào `gmv`.
+4. **Review dùng chung — luật tạm, [GIẢ ĐỊNH].** Olist chưa xác nhận nguyên nhân. Giữ grain (`review_id`, `order_id`). Sau dedupe, mỗi `order_id` một review mới nhất. Thêm `shared_review_type` với giá trị `none`, `same_seller`, `cross_seller`. Measure review của seller loại `cross_seller` (và đơn `n_sellers` > 1). KPI sàn giữ `cross_seller`. Mẫu tỷ lệ review là `COUNT(DISTINCT order_id)`. Review bị loại khỏi measure seller không tắt `late_flag`. Số đã đo: 789 `review_id` gắn nhiều đơn, 814 dòng thừa trên file thô. Đỉnh tháng 3/2018 khoảng 1,6% review là [GIẢ ĐỊNH], không đo lại ở phiên này. Luật cuối chờ sensitivity top-40 sau khi Gold có số.
+
+X = 10% GMV và N = 40 seller/tháng giữ nguyên từ 15/10/2026.
 
 ---
 
@@ -76,8 +89,8 @@ File IBGE đã có ở `data/external/ibge_state_region.csv` (27 dòng, đếm f
 |---|---|---|
 | `bronze` | Staging. Bản sao CSV của lần nạp hiện tại. Bảng Delta | Vào: file trên Volume, mọi cột `string`, giữ nguyên chuỗi. Ra: cùng các cột đó cộng `_ingest_ts`, `_source_file`. Không join, không ép kiểu nghiệp vụ, không `trim`, không xóa dòng trong file. Load: FULL LOAD, OVERWRITE |
 | `silver` | Integration. Làm sạch, ép kiểu, chuẩn hóa, dedupe trong file. Bảng Delta | Vào: Bronze. Ra: bảng grain đã nêu ở §2. Không publish fact. Load: FULL LOAD, OVERWRITE |
-| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain, xóa khóa không còn trong ảnh hiện tại (§2). Power BI và Streamlit đọc Gold qua SQL Warehouse |
-| `dss` | Đầu ra mô hình Phase 5 | Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit chỉ ghi thêm `dss.decision_log` qua SQL Warehouse. Cột chi tiết chưa thuộc phase này |
+| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain: `WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT` (§2). Không xóa khóa vắng mặt trong ảnh hiện tại. Power BI và Streamlit đọc Gold qua SQL Warehouse |
+| `dss` | Đầu ra mô hình Phase 5 | Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. `dss.decision_log` do Streamlit ghi qua SQL Warehouse. Job ETL Gold không ghi `dss`. Cột chi tiết chưa thuộc phase này |
 
 Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation: Power BI (dashboard, ROLAP qua SQL Warehouse) và Streamlit (truy vấn / DSS).
 
@@ -93,7 +106,7 @@ Catalog: `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `
 
 Load: batch. Bronze và Silver: FULL LOAD, OVERWRITE (truncate rồi insert ảnh hiện tại). Gold: bảng Delta, `MERGE` theo grain, idempotent. Chạy lại cùng grain không được nhân đôi dòng.
 
-`MERGE` của 3 fact và của 7 dimension có `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Khóa không còn trong ảnh Silver hiện tại bị xóa, để lần chạy sau không giữ dòng cũ. Trên dimension, member `-1` không bị xóa (`WHEN NOT MATCHED BY SOURCE AND <surrogate_key> <> -1 THEN DELETE`). Fact không có dòng member `-1`. Dataset tĩnh không phải lý do giữ dòng đã ra khỏi ảnh hiện tại.
+`MERGE` của 3 fact và của 7 dimension chỉ có hai nhánh: `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không có `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Khóa đã có trên Gold nhưng không còn trong ảnh Silver hiện tại được giữ. Dataset tĩnh không phát sinh đơn mới sau cửa sổ đã đo, nên nhánh xóa không thuộc hợp đồng Phase 3. Member `-1` vẫn được chèn trước fact và không bị MERGE xóa, vì không có nhánh xóa.
 
 ### 2.1 Hai cột ingest trên mọi bảng Bronze
 
@@ -134,7 +147,7 @@ Nếu một file nguồn có nhiều dòng cùng khóa grain, ngoài luật revi
 | `silver.orders` | 1 `order_id` | Nếu file có khóa trùng: một dòng theo chuỗi nghiệp vụ ở trên. Số nhóm trùng `order_id` pending (§11) |
 | `silver.order_items` | 1 (`order_id`, `order_item_id`) | Cùng quy tắc trong file. 0 item không có order (SPEC §3) |
 | `silver.order_reviews` | 1 (`review_id`, `order_id`) | Cast kiểu, bỏ dòng trùng y hệt, rồi nếu cùng khóa còn khác giá trị thì giữ một dòng: `ROW_NUMBER() OVER (PARTITION BY review_id, order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST) = 1`. Số nhóm lệch in ở notebook DQ, chỉ cảnh báo, không fail, không lưu cột audit |
-| `silver.order_reviews_dedup` | 1 `order_id` | Từ `silver.order_reviews`: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id) = 1`. `review_id` không ghi DESC nên tăng dần, chỉ để phá hòa |
+| `silver.order_reviews_dedup` | 1 `order_id` | Từ `silver.order_reviews`: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id) = 1`. `review_id` không ghi DESC nên tăng dần, chỉ để phá hòa. Cùng lần OVERWRITE, sau khi `silver.order_items` đã có, gắn `shared_review_type` (§3.6) |
 | `silver.order_payments` | 1 (`order_id`, `payment_sequential`) | Nếu file có khóa trùng: một dòng theo chuỗi nghiệp vụ ở trên. Số nhóm trùng pending |
 | `silver.customers` | 1 `customer_id` | 99.441 id trên 99.441 dòng. Chưa gộp `customer_unique_id` |
 | `silver.sellers` | 1 `seller_id` | File có 3.095 dòng. Số `seller_id` trùng pending. Trùng trong file thì cùng chuỗi nghiệp vụ ở trên |
@@ -266,7 +279,7 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 
 | Measure | Mức | Công thức |
 |---|---|---|
-| `price`, `freight_value` | item | Cast từ Silver. GMV chỉ cộng `price` (TOPIC_EVALUATION §1.2), và chỉ item của đơn không thuộc `canceled` hoặc `unavailable`. `freight_value` là phí ship khách trả, không vào `gmv` |
+| `price`, `freight_value` | item | Cast từ Silver. `gmv` của seller chỉ cộng `price`, và chỉ item của đơn không thuộc `canceled` hoặc `unavailable`. `freight_value` là phí ship khách trả, measure riêng, không vào `gmv` |
 | `seller_ship_late_flag` | item | `NULL` khi `order_status` thuộc `canceled` hoặc `unavailable`: đơn này chỉ vào `cancel_rate`, vì dataset không có ngày hủy. Đơn không thuộc hai trạng thái đó: `NULL` nếu `shipping_limit_date` null, hoặc `shipping_limit_date` < `order_purchase_timestamp`, hoặc carrier chính thức null vì đảo (raw carrier khác null). Carrier chính thức khác null: `1` nếu timestamp carrier > `shipping_limit_date`, else `0`. Carrier thật sự thiếu (official và raw đều null): `1` nếu `TO_DATE(shipping_limit_date) < snapshot_date` (quá hạn chưa bàn giao), else `NULL`. Mốc carrier là của cả đơn. Đơn nhiều seller dùng chung một mốc này nên cờ kém tin cậy hơn đơn một seller |
 | `seller_handling_days` | item | `(official carrier − official approved)` giây / 86400 khi cả hai khác null. Ngược lại null |
 | `delivery_days` | item và đơn | `(official customer − purchase)` giây / 86400 khi official customer khác null. Ngược lại null. Cờ trễ không dùng số này |
@@ -278,10 +291,11 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `payment_total` | đơn | `sum(payment_value)`. Không xóa 387 đơn lệch quá 0,01 so với price+freight; chỉ ghi nhận ở §7 |
 | `n_items` | đơn | Số dòng item của đơn, mọi status. Khác `n_items_placed` và `n_items_valid` |
 | `n_sellers` | đơn | `count distinct seller_id` trên item. `n_sellers` > 1 là cờ đơn nhiều seller. Không thêm `is_multi_seller`. Không xóa đơn |
-| `review_score` | đơn | Điểm trên `silver.order_reviews_dedup`. Không trung bình. Giữ review có `review_creation_date` trước ngày nhận: cột đó là ngày gửi khảo sát, `review_answer_timestamp` là lúc khách trả lời. Null khi không có review, hoặc khi rơi vào điều kiện không quy review cho seller: `n_sellers` > 1, hoặc `review_id` có seller_set nhiều hơn một seller. seller_set là tập `seller_id` của mọi đơn mang `review_id` đó sau dedupe. Review dùng chung mà seller_set chỉ một seller thì giữ điểm. Không thêm cột cờ cho điều kiện này |
-| `negative_review_flag` | đơn | Null khi điều kiện không quy review ở dòng `review_score`, hoặc không có điểm. Ngược lại: 1 nếu điểm ≤ 2, 0 nếu điểm > 2 |
-| `bad_experience_flag` | đơn | Nhánh review chỉ dùng `negative_review_flag` khi cờ đó khác null. Nhánh `late_flag` tính cho mọi đơn, kể cả đơn nhiều seller và review dùng chung nhiều seller. 1 nếu `negative_review_flag` = 1 hoặc `late_flag` = 1. 0 nếu `late_flag` = 0 và không có review xấu được tính. Null nếu `late_flag` null và không có review xấu được tính. Đơn `canceled` hoặc `unavailable` đã có `late_flag` null |
-| `gmv` | seller-tháng | `sum(price)` item của seller trong tháng mua, loại đơn có `order_status` thuộc `canceled` hoặc `unavailable`. Kể cả đơn nhiều seller, vì `price` nằm trên từng dòng item. GMV đo nhu cầu đặt mua; dataset không có dữ liệu hoàn hoặc trả hàng |
+| `review_score` | đơn | Điểm trên `silver.order_reviews_dedup`. Không trung bình. Giữ review có `review_creation_date` trước ngày nhận: cột đó là ngày gửi khảo sát, `review_answer_timestamp` là lúc khách trả lời. Null chỉ khi không có review. Không null vì `n_sellers` > 1 hay vì `shared_review_type`. KPI sàn đọc cột này |
+| `shared_review_type` | đơn | [GIẢ ĐỊNH] Olist chưa xác nhận vì sao một `review_id` gắn nhiều đơn. Luật tạm đến sensitivity top-40 trên Gold. Null khi không có review. `none`: sau dedupe, `review_id` chỉ một `order_id`. `same_seller`: từ hai `order_id` trở lên và đúng một `seller_id` trên item của các đơn đó. `cross_seller`: từ hai `order_id` trở lên và số `seller_id` phân biệt khác 1. Gắn trên `silver.order_reviews_dedup` sau khi `silver.order_items` của cùng lần nạp đã có, rồi copy sang `fact_order` |
+| `negative_review_flag` | đơn | Null khi không có điểm. Ngược lại: 1 nếu điểm ≤ 2, 0 nếu điểm > 2. Không null chỉ vì `cross_seller` hoặc đơn nhiều seller |
+| `bad_experience_flag` | đơn | Cờ mức đơn cho KPI sàn. Nhánh review dùng `negative_review_flag` khi cờ đó khác null, kể cả `cross_seller` và đơn nhiều seller. Nhánh `late_flag` tính cho mọi đơn. 1 nếu `negative_review_flag` = 1 hoặc `late_flag` = 1. 0 nếu `late_flag` = 0 và không có review xấu được tính. Null nếu `late_flag` null và không có review xấu được tính. Đơn `canceled` hoặc `unavailable` đã có `late_flag` null. Snapshot seller không copy cờ này |
+| `gmv` | seller-tháng | `sum(price)` item của seller trong tháng mua, loại đơn có `order_status` thuộc `canceled` hoặc `unavailable`. Kể cả đơn nhiều seller, vì `price` nằm trên từng dòng item. Không cộng `freight_value`. GMV đo nhu cầu đặt mua; dataset không có dữ liệu hoàn hoặc trả hàng |
 | `n_orders_placed` | seller-tháng | Số đơn phân biệt của seller trong tháng mua, mọi `order_status`. Kể cả đơn nhiều seller. Mẫu số của `cancel_rate` |
 | `n_orders_valid` | seller-tháng | Cùng cách đếm `n_orders_placed`, loại `order_status` thuộc `canceled` hoặc `unavailable`. Mẫu số của `aov` |
 | `n_items_placed` | seller-tháng | Số dòng item của seller trong tháng mua, mọi `order_status`. Kể cả đơn nhiều seller |
@@ -291,9 +305,9 @@ Trễ bàn giao của seller so bằng timestamp. Trễ giao cho khách so bằn
 | `late_ship_eligible` | seller-tháng | Item có cờ này khác null, gồm cả 0 và 1 |
 | `late_ship_rate` | seller-tháng | `late_ship_count / late_ship_eligible` khi mẫu > 0, else null |
 | `late_delivery_count`, `late_delivery_eligible`, `late_delivery_rate` | seller-tháng | Theo đơn phân biệt của seller, dùng `late_flag`. Đơn `canceled` hoặc `unavailable` có cờ null nên không vào tử và không vào mẫu. Kể cả đơn nhiều seller không thuộc hai trạng thái đó. Đây không phải measure trải nghiệm xấu |
-| `review_score_sum`, `review_count`, `avg_review` | seller-tháng | Chỉ đơn có điểm và không rơi vào điều kiện loại review ở `review_score`. `review_count` = `COUNT(DISTINCT order_id)`, không đếm `review_id`. `avg_review` = sum/count khi count > 0, else null |
-| `negative_review_count`, `negative_review_eligible`, `negative_review_rate` | seller-tháng | Cùng tập đơn đó. Tử là `negative_review_flag` = 1, đếm `order_id` phân biệt. Mẫu bằng `review_count` |
-| `bad_experience_count`, `bad_experience_eligible`, `bad_experience_rate` | seller-tháng | Tử: cờ = 1. Mẫu: cờ khác null, đếm `order_id` phân biệt. Đơn nhiều seller và review dùng chung nhiều seller vẫn vào mẫu khi `late_flag` khác null |
+| `review_score_sum`, `review_count`, `avg_review` | seller-tháng | Chỉ đơn có điểm, `n_sellers` = 1, và `shared_review_type` thuộc `none` hoặc `same_seller`. Loại `cross_seller`. `review_count` = `COUNT(DISTINCT order_id)`, không đếm `review_id`. `avg_review` = sum/count khi count > 0, else null |
+| `negative_review_count`, `negative_review_eligible`, `negative_review_rate` | seller-tháng | Cùng tập đơn đó. Tử là `negative_review_flag` = 1, đếm `order_id` phân biệt. Mẫu bằng `review_count`, tức `COUNT(DISTINCT order_id)` |
+| `bad_experience_count`, `bad_experience_eligible`, `bad_experience_rate` | seller-tháng | Không copy `fact_order.bad_experience_flag`. Nhánh review chỉ đơn thuộc tập review seller ở dòng trên. Nhánh `late_flag` vẫn vào mẫu khi cờ khác null, kể cả đơn nhiều seller và `cross_seller`. Tử: review xấu của seller hoặc `late_flag` = 1. Mẫu: đơn còn lại sau hai nhánh, đếm `order_id` phân biệt |
 | `cancel_count`, `cancel_eligible`, `cancel_rate` | seller-tháng | Tử: đơn phân biệt có `order_status` thuộc `canceled` hoặc `unavailable` (TOPIC_EVALUATION §1.2). `cancel_eligible` = `n_orders_placed`. `cancel_rate` = `cancel_count / n_orders_placed` khi `n_orders_placed` > 0, else null. Đơn này có `seller_ship_late_flag` null vì không có ngày hủy, và được ghi nhận qua tỷ lệ này |
 | `handling_days_sum`, `handling_days_count`, `avg_handling_days` | seller-tháng | Tổng và số item có `seller_handling_days` khác null. Trung bình = sum/count khi count > 0, else null |
 
@@ -308,7 +322,7 @@ Tháng của snapshot là tháng `order_purchase_timestamp`. Một dòng seller-
 - `n_orders_placed` và `n_orders_valid` không cộng qua seller. Đơn nhiều seller nằm ở nhiều seller, cộng ngang sẽ đếm đơn hai lần. Cùng lý do với `late_delivery_count`, `late_delivery_eligible`, các cột đếm review, trải nghiệm xấu và `cancel_count` / `cancel_eligible`. `aov` không SUM.
 - 1.278 đơn nhiều seller dùng chung một `order_delivered_carrier_date` cấp đơn. Không xóa các đơn đó. Hạn chế này ghi ở §7.
 
-**Câu 4 (drill-across).** Địa chỉ khách nằm trên `fact_order`, không trên `dim_customer`. Bước 1: từ `fact_order` lọc `customer_region_name` thuộc Norte hoặc Nordeste và quý mua, lấy `order_id`. Bước 2: nối `fact_order_item`, giữ `size_band = 'bulky'`, rồi `SELECT DISTINCT order_id, seller_key`. Bước 3: nối lại `fact_order` và `dim_seller`. Tỷ lệ `late_flag` lấy mẫu là đơn có cờ khác null, kể cả đơn nhiều seller. Đơn `canceled` hoặc `unavailable` đã null nên ra khỏi mẫu. Tỷ lệ `negative_review_flag` lấy mẫu là đơn có cờ khác null, đếm `order_id` phân biệt. Đơn nhiều seller và review dùng chung nhiều seller đã null nên ra khỏi mẫu.
+**Câu 4 (drill-across).** Địa chỉ khách nằm trên `fact_order`, không trên `dim_customer`. Bước 1: từ `fact_order` lọc `customer_region_name` thuộc Norte hoặc Nordeste và quý mua, lấy `order_id`. Bước 2: nối `fact_order_item`, giữ `size_band = 'bulky'`, rồi `SELECT DISTINCT order_id, seller_key`. Bước 3: nối lại `fact_order` và `dim_seller`. Tỷ lệ `late_flag` lấy mẫu là đơn có cờ khác null, kể cả đơn nhiều seller. Đơn `canceled` hoặc `unavailable` đã null nên ra khỏi mẫu. Tỷ lệ review ≤ 2 ở câu này là measure theo seller: mẫu là đơn có điểm, `n_sellers` = 1, và `shared_review_type` thuộc `none` hoặc `same_seller`, đếm `COUNT(DISTINCT order_id)`. `cross_seller` ở ngoài mẫu seller. KPI sàn (câu 2) không dùng bộ lọc đó.
 
 ### 3.7 Thanh toán chính của đơn
 
@@ -379,7 +393,7 @@ Nguồn: file đầy đủ, script 10/10/2026 (`data/README.md`) và profiling V
 | `bronze.order_items` / `fact_order_item` | 112.650 | Pending nếu (`order_id`, `order_item_id`) trùng. 0 item mồ côi | |
 | `bronze.order_reviews` | 99.224 | 99.224 − 814 = **98.410** `review_id` nếu chỉ khử theo `review_id` | 789 `review_id` gắn nhiều đơn, 814 dòng thừa trên file thô |
 | Đơn có hơn một dòng review trên file thô | 547 đơn | Đây là số trước dedupe | `silver.order_reviews_dedup` còn một dòng mỗi `order_id`. Số dòng pending |
-| `silver.order_reviews` grain (`review_id`, `order_id`) | | **Pending** | Một dòng sau cửa sổ khóa. Số nhóm lệch giá trị chưa đo; lúc nạp in ra trong DQ check của notebook, chỉ cảnh báo, không suy từ 98.410 |
+| `silver.order_reviews` grain (`review_id`, `order_id`) | | **Pending** | Một dòng sau cửa sổ khóa. Số nhóm lệch giá trị chưa đo; lúc nạp in trong DQ check của notebook, chỉ cảnh báo, không ghi `gold.etl_audit`, không suy từ 98.410 |
 | `silver.order_reviews_dedup` | | **Pending** | Một `order_id`. Không suy từ 547 |
 | `bronze.order_payments` | 103.886 | Silver pending nếu `payment_sequential` trùng trong đơn | |
 | `bronze.customers` | 99.441 | Silver 99.441 dòng `customer_id` | 96.096 `customer_unique_id` |
@@ -544,7 +558,7 @@ Cột cùng tên với Bronze, sau ép kiểu. Mỗi cột một dòng.
 | `state_region` | `region_code` | STRING | có | tra cứu | `trim` |
 | `state_region` | `region_name` | STRING | có | tra cứu | `trim` |
 
-`silver.order_reviews` cast kiểu, bỏ dòng trùng y hệt, và chọn một dòng khi cùng (`review_id`, `order_id`) khác giá trị, theo cửa sổ ở §2.3. `silver.order_reviews_dedup` lấy các cột nghiệp vụ còn lại, đúng một dòng mỗi `order_id`, cũng theo §2.3. `fact_order` không đọc `silver.order_reviews`.
+`silver.order_reviews` cast kiểu, bỏ dòng trùng y hệt, và chọn một dòng khi cùng (`review_id`, `order_id`) khác giá trị, theo cửa sổ ở §2.3. `silver.order_reviews_dedup` lấy các cột nghiệp vụ còn lại, đúng một dòng mỗi `order_id`, cũng theo §2.3, rồi gắn `shared_review_type` (§3.6) sau khi `silver.order_items` của cùng lần OVERWRITE đã có. `fact_order` không đọc `silver.order_reviews`.
 
 Tọa độ khách và seller, trên `silver.customers` và `silver.sellers`: khớp `geolocation_zip` theo zip; không có thì khớp `geolocation_city` theo (`city_norm`, state); không có thì lat/lng null và `geo_match_level = 'none'`. Không điền 0. Hai bảng tra cứu đúng một dòng mỗi khóa nên join không được nhân dòng.
 
@@ -658,8 +672,9 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_order` | `estimated_days` | DOUBLE | có | số ngày lịch | §3.6 |
 | `fact_order` | `delay_days` | DOUBLE | có | số ngày lịch | §3.6 |
 | `fact_order` | `late_flag` | INT | có | cờ | §3.6. Null khi đơn `canceled` hoặc `unavailable`, hoặc thiếu một mốc so ngày |
-| `fact_order` | `review_score` | INT | có | điểm | Chỉ từ `silver.order_reviews_dedup`. §2.3 và §3.6. Không trung bình. Không loại review tạo trước ngày nhận |
-| `fact_order` | `negative_review_flag` | INT | có | cờ | §3.6 |
+| `fact_order` | `review_score` | INT | có | điểm | Chỉ từ `silver.order_reviews_dedup`. §2.3 và §3.6. Không trung bình. Không loại review tạo trước ngày nhận. Null chỉ khi không có review |
+| `fact_order` | `shared_review_type` | STRING | có | phân loại | §3.6. `none`, `same_seller`, hoặc `cross_seller`. Null khi không có review. Copy từ `silver.order_reviews_dedup` |
+| `fact_order` | `negative_review_flag` | INT | có | cờ | §3.6. Theo điểm, kể cả `cross_seller` |
 | `fact_order` | `bad_experience_flag` | INT | có | cờ | §3.6 |
 | `fact_order` | `ts_inversion_flag` | INT | không | cờ | Copy `silver.orders.ts_inversion_flag` |
 | `fact_seller_monthly` | `seller_key` | BIGINT | không | grain FK | Seller có ≥ 1 item trong tháng mua |
@@ -670,7 +685,7 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_seller_monthly` | `n_orders_valid` | INT | không | đếm | Loại `canceled` và `unavailable`. Mẫu của `aov`. Không cộng qua seller |
 | `fact_seller_monthly` | `n_items_placed` | INT | không | đếm | Mọi dòng item, mọi status. Cộng được qua seller |
 | `fact_seller_monthly` | `n_items_valid` | INT | không | đếm | Cùng tập item với `gmv`. Cộng được qua seller |
-| `fact_seller_monthly` | `gmv` | DECIMAL(18,2) | không | GMV | `sum(price)` item của đơn không thuộc `canceled` hoặc `unavailable`. Kể cả đơn nhiều seller |
+| `fact_seller_monthly` | `gmv` | DECIMAL(18,2) | không | GMV | `sum(price)` item của đơn không thuộc `canceled` hoặc `unavailable`. Kể cả đơn nhiều seller. Không cộng freight |
 | `fact_seller_monthly` | `aov` | DOUBLE | có | trung bình | `gmv / n_orders_valid` khi mẫu > 0, else null. Không SUM |
 | `fact_seller_monthly` | `late_ship_count` | INT | không | tử | §3.6 |
 | `fact_seller_monthly` | `late_ship_eligible` | INT | không | mẫu | §3.6. Gồm cờ 0 và cờ 1 |
@@ -678,14 +693,14 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `fact_seller_monthly` | `late_delivery_count` | INT | không | tử | Đơn phân biệt, `late_flag` = 1. Đơn `canceled` hoặc `unavailable` không vào |
 | `fact_seller_monthly` | `late_delivery_eligible` | INT | không | mẫu | Đơn phân biệt, `late_flag` khác null. Đơn `canceled` hoặc `unavailable` ở ngoài mẫu |
 | `fact_seller_monthly` | `late_delivery_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null. Không cộng qua seller |
-| `fact_seller_monthly` | `review_score_sum` | INT | không | tử | Đơn có điểm và không thuộc điều kiện loại review. Một lần mỗi `order_id` |
+| `fact_seller_monthly` | `review_score_sum` | INT | không | tử | Đơn có điểm, `n_sellers` = 1, `shared_review_type` thuộc `none` hoặc `same_seller`. Một lần mỗi `order_id` |
 | `fact_seller_monthly` | `review_count` | INT | không | mẫu | `COUNT(DISTINCT order_id)` của tập đó. Không đếm `review_id` |
 | `fact_seller_monthly` | `avg_review` | DOUBLE | có | tỷ lệ | sum/count khi count > 0, else null |
 | `fact_seller_monthly` | `negative_review_count` | INT | không | tử | `negative_review_flag` = 1, đếm `order_id` phân biệt |
 | `fact_seller_monthly` | `negative_review_eligible` | INT | không | mẫu | Bằng `review_count`. `COUNT(DISTINCT order_id)` |
 | `fact_seller_monthly` | `negative_review_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
-| `fact_seller_monthly` | `bad_experience_count` | INT | không | tử | `bad_experience_flag` = 1 |
-| `fact_seller_monthly` | `bad_experience_eligible` | INT | không | mẫu | Cờ khác null. `COUNT(DISTINCT order_id)`. Gồm đơn có `late_flag` khác null dù review bị loại |
+| `fact_seller_monthly` | `bad_experience_count` | INT | không | tử | §3.6. Review xấu của seller hoặc `late_flag` = 1. Không copy cờ mức đơn |
+| `fact_seller_monthly` | `bad_experience_eligible` | INT | không | mẫu | §3.6. `COUNT(DISTINCT order_id)`. Gồm đơn có `late_flag` khác null dù review bị loại khỏi measure seller |
 | `fact_seller_monthly` | `bad_experience_rate` | DOUBLE | có | tỷ lệ | Chia khi mẫu > 0, else null |
 | `fact_seller_monthly` | `cancel_count` | INT | không | tử | Đơn `canceled` hoặc `unavailable` |
 | `fact_seller_monthly` | `cancel_eligible` | INT | không | mẫu | Bằng `n_orders_placed` |
@@ -745,12 +760,12 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 | Timestamp null hoặc đảo | Null approved 160, carrier 1.783, customer 2.965. Đảo trên raw: carrier trước approved 1.359; carrier trước purchase 166; customer trước carrier 23. G2: 9 đơn `delivered` thiếu một trong hai mốc (96.478 − 96.469) | Cột chính thức null, `raw_*` giữ vết, `ts_inversion_flag`. Notebook in số dòng cờ bằng 1. Measure thời gian chỉ dùng cột chính thức |
 | Review trùng cùng `review_id` | 789 `review_id` gắn nhiều đơn; 814 dòng thừa; 98.410 `review_id` nếu chỉ khử theo `review_id` (99.224 − 814) | `silver.order_reviews` grain (`review_id`, `order_id`): cast, bỏ dòng trùng y hệt, rồi giữ một dòng nếu cùng khóa khác giá trị: `ROW_NUMBER() OVER (PARTITION BY review_id, order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST) = 1`. Số nhóm lệch in ở notebook, chỉ cảnh báo. [GIẢ ĐỊNH] Olist chưa xác nhận nguyên nhân. Đỉnh tháng 3/2018 khoảng 1,6% review. Cần sensitivity check top-40 sau khi build Gold |
 | 547 đơn có nhiều review | 547 đơn trên file thô, trước dedupe | `silver.order_reviews_dedup` giữ một dòng mỗi `order_id`: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id) = 1`. `fact_order` chỉ đọc bảng này. Không lấy trung bình điểm. Chọn bản cuối có thể bỏ một review sớm báo trễ; nhánh `late_flag` của `bad_experience_flag` vẫn tính |
-| Review dùng chung nhiều seller | Cùng 789 / 814 ở dòng trên. Chưa đo số đơn có seller_set nhiều hơn một seller | Sau dedupe, seller_set của `review_id` là tập seller của mọi đơn mang review đó. Nếu tập có nhiều seller, các đơn đó ra khỏi `avg_review`, `negative_review_rate` và nhánh review của `bad_experience_flag`, cùng điều kiện với `n_sellers` > 1. Không thêm cột. Review dùng chung một seller thì tính bình thường. Mẫu mọi tỷ lệ review là `COUNT(DISTINCT order_id)` |
+| Review dùng chung nhiều seller | Cùng 789 `review_id` / 814 dòng thừa ở dòng trên. Chưa đo số đơn theo `shared_review_type`. Đỉnh tháng 3/2018 khoảng 1,6% là [GIẢ ĐỊNH] | [GIẢ ĐỊNH] Olist chưa xác nhận nguyên nhân. Luật tạm (§3.6): cột `shared_review_type`. Measure review của seller loại `cross_seller` và đơn `n_sellers` > 1; giữ `none` và `same_seller` khi đơn một seller. KPI sàn giữ `cross_seller` trên `review_score`. Mẫu là `COUNT(DISTINCT order_id)`. `late_flag` vẫn tính khi review bị loại khỏi measure seller. Luật cuối chờ sensitivity top-40 sau Gold |
 | Review tạo trước ngày nhận | Chưa đo ở phiên 22/10/2026 | Giữ lại. `review_creation_date` là ngày gửi khảo sát, không phải ngày trả lời. `review_answer_timestamp` là lúc khách trả lời. Olist gửi khảo sát khi khách đã nhận hoặc khi tới ngày hẹn. Review xấu lúc hàng chưa tới là tín hiệu giao trễ; xóa sẽ che các đơn đó |
 | Payment lạ | 3 `not_defined`; 9 value 0; 2 installments 0; 387 / 98.665 đơn lệch > 0,01 | `not_defined` và rỗng → null, FK `-1`, nhãn `'Unknown'`. Giữ số 0. Không xóa đơn lệch |
 | Zip dạng chuỗi | 0 zip ngắn hơn 5; min length 5 | STRING suốt pipeline |
 | Cửa sổ 2016-09-04 → 2018-10-17 | Tháng thưa đã liệt kê ở §2.4. 19 tháng ≥ 1.000 đơn | Không cắt |
-| Đơn nhiều seller: review không quy cho seller | 1.278 / 98.666 | Không xóa đơn. `n_sellers` > 1 nằm trong điều kiện loại review ở §3.6, cùng review dùng chung nhiều seller. `review_score` và `negative_review_flag` null. Nhánh `late_flag` của `bad_experience_flag` vẫn tính. `gmv`, `n_orders_valid`, `n_items_valid` vẫn tính phần không hủy. `n_orders_placed` và `n_items_placed` đếm mọi status. Cờ bàn giao và cờ giao trễ vẫn tính |
+| Đơn nhiều seller: review không quy cho seller | 1.278 / 98.666 | Không xóa đơn. `review_score` giữ trên `fact_order` để KPI sàn đọc. Measure review của seller loại `n_sellers` > 1. Nhánh `late_flag` của trải nghiệm xấu trên snapshot seller vẫn tính. `gmv` vẫn là `sum(price)` phần không hủy, không cộng freight. `n_orders_valid`, `n_items_valid` vẫn tính phần không hủy. `n_orders_placed` và `n_items_placed` đếm mọi status. Cờ bàn giao và cờ giao trễ vẫn tính |
 | Một mốc bàn giao cho cả đơn | 1.278 đơn nhiều seller | Nguồn chỉ có `order_delivered_carrier_date` ở cấp đơn. Mọi seller trong đơn đó dùng chung mốc này khi tính `seller_ship_late_flag`, nên cờ kém tin cậy hơn đơn một seller |
 | Thiếu carrier so với ngày chốt; đơn hủy | Chưa đo ở phiên 22/10/2026 | `seller_ship_late_flag` = 1 khi carrier thật sự thiếu và `TO_DATE(shipping_limit_date) < snapshot_date`. Hạn từ `snapshot_date` trở đi thì null. `snapshot_date` là hằng số `DATE '2018-10-17'` trong config. Mỗi lần MERGE Gold tính lại cờ cho mọi item. `canceled` và `unavailable` thì null, ghi nhận qua `cancel_rate` với mẫu `n_orders_placed`. Carrier null vì đảo timestamp thì cờ null |
 
@@ -791,7 +806,7 @@ flowchart LR
 |---|---|
 | Tỷ lệ bàn giao trễ | `fact_seller_monthly.late_ship_rate` và tử/mẫu. Cửa sổ 3 tháng do Phase 5 tự cộng, không lưu sẵn |
 | Điểm review | `avg_review`, `review_score` |
-| GMV | `gmv` = tổng `price` của item thuộc đơn không `canceled` và không `unavailable`, trong tháng mua. Kể cả đơn nhiều seller |
+| GMV | `gmv` = tổng `price` của item thuộc đơn không `canceled` và không `unavailable`, trong tháng mua. Kể cả đơn nhiều seller. Không cộng freight |
 | Số đơn | `n_orders_placed` (mọi status, mẫu `cancel_rate`) và `n_orders_valid` (mẫu `aov`). Không cộng hai cột này qua seller. M1 dùng `n_orders_valid` cho volume. `min_orders` mặc định 5 là tham số DSS trên cột này, không phải bộ lọc Gold. Tập train M1 dùng ngưỡng G1 (≥ 10 item/tháng trong ≥ 6 tháng), khác `min_orders` |
 | AOV | `aov` = `gmv / n_orders_valid` khi mẫu > 0, else null. Không SUM |
 | Vùng | `dim_seller.region_name` |
@@ -807,9 +822,9 @@ X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải c
 
 Thứ tự Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss.
 
-setup tạo schema và DDL nếu chưa có, rồi đọc config. `snapshot_date` trong config là hằng số `DATE '2018-10-17'`. Bronze và Silver mỗi bước là FULL LOAD, OVERWRITE của ảnh hiện tại. Gold dims chèn member `-1` trước fact. Gold facts `MERGE` `fact_order` và `fact_order_item` theo grain. `fact_seller_monthly` `MERGE` sau hai fact đó. Cả 3 fact và 7 dimension dùng `WHEN NOT MATCHED BY SOURCE THEN DELETE`, trừ member `-1` trên dimension (§2). Mỗi bước ghi dòng `gold.etl_audit` của bảng đích trong cùng `run_id`. Bước dss thuộc Phase 5: job ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse, một dòng mới cho mỗi quyết định đã chốt. Job vẫn để sẵn chỗ trong chuỗi.
+setup tạo schema và DDL nếu chưa có, rồi đọc config. `snapshot_date` trong config là hằng số `DATE '2018-10-17'`. Bronze và Silver mỗi bước là FULL LOAD, OVERWRITE của ảnh hiện tại. Gold dims chèn member `-1` trước fact. Gold facts `MERGE` `fact_order` và `fact_order_item` theo grain. `fact_seller_monthly` `MERGE` sau hai fact đó. Cả 3 fact và 7 dimension chỉ dùng `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT` (§2). Không viết `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Mỗi bước ghi dòng `gold.etl_audit` của bảng đích trong cùng `run_id`. Bước dss thuộc Phase 5: job ghi `dss.seller_risk_score` và `dss.policy_scenario`. `dss.decision_log` do Streamlit ghi qua SQL Warehouse, một dòng mới cho mỗi quyết định đã chốt. Job ETL Gold không ghi `dss.decision_log`. Job vẫn để sẵn chỗ trong chuỗi.
 
-`silver.order_reviews_dedup` dựng lại từ `silver.order_reviews` trong cùng lần OVERWRITE Silver. `fact_order` chỉ đọc review từ bảng dedupe. `order_status` giữ đúng chuỗi nguồn. Không điền `shipped`, `approved`, hay `created`.
+`silver.order_reviews_dedup` dựng lại từ `silver.order_reviews` trong cùng lần OVERWRITE Silver, rồi gắn `shared_review_type` khi `silver.order_items` của lần đó đã có. `fact_order` chỉ đọc review từ bảng dedupe. `order_status` giữ đúng chuỗi nguồn. Không điền `shipped`, `approved`, hay `created`.
 
 **Future work (R28).** Incremental theo watermark, append, CDF và Auto Loader không thuộc phạm vi hiện tại.
 
@@ -822,7 +837,7 @@ setup tạo schema và DDL nếu chưa có, rồi đọc config. `snapshot_date`
 | `fact_order_item` | `chk_foi_money` | `price IS NULL OR price >= 0`, và `freight_value IS NULL OR freight_value >= 0` |
 | `fact_order_item` | `chk_foi_flags` | `seller_ship_late_flag` và `late_delivery_flag` mỗi cờ null hoặc thuộc {0, 1} |
 | `fact_order` | `chk_fo_amounts_counts` | `items_value >= 0 AND freight_total >= 0 AND payment_total >= 0 AND n_items >= 0 AND n_sellers >= 0` |
-| `fact_order` | `chk_fo_review` | `review_score IS NULL OR review_score BETWEEN 1 AND 5` |
+| `fact_order` | `chk_fo_review` | `review_score IS NULL OR review_score BETWEEN 1 AND 5`. `shared_review_type` null hoặc thuộc `none`, `same_seller`, `cross_seller`. Điểm null thì `shared_review_type` null, và ngược lại |
 | `fact_order` | `chk_fo_flags` | `late_flag`, `negative_review_flag`, `bad_experience_flag` mỗi cờ null hoặc thuộc {0, 1}, và `ts_inversion_flag IN (0, 1)` |
 | `fact_seller_monthly` | `chk_fsm_totals` | `n_orders_placed >= 1 AND n_items_placed >= 1 AND n_orders_valid >= 0 AND n_orders_valid <= n_orders_placed AND n_items_valid >= 0 AND n_items_valid <= n_items_placed AND gmv >= 0 AND cancel_eligible = n_orders_placed AND ((n_orders_valid = 0 AND aov IS NULL) OR (n_orders_valid > 0 AND aov >= 0))` |
 | `fact_seller_monthly` | `chk_fsm_num_den` | `late_ship_count >= 0 AND late_ship_eligible >= late_ship_count` và cùng dạng đó cho late delivery, negative review, bad experience, cancel. `review_count >= 0`. `review_score_sum >= 0`. `handling_days_count >= 0 AND handling_days_sum >= 0`. Không ràng `handling_days_sum` ≤ `handling_days_count` vì tổng số ngày có thể lớn hơn số item |
@@ -841,13 +856,13 @@ Việc Phase 3 phải kiểm:
 | Unknown | Dòng fact thiếu natural key vẫn còn, đếm ở `rows_unknown_fk`. Không có member `'unknown'` thứ hai |
 | SCD | Type 1, ghi đè. `dim_seller` có `effective_from`, `effective_to`, `is_current` nhưng mỗi `seller_id` một dòng, `is_current = 1`. Không sinh lịch sử |
 | Timestamp | Mốc đảo null trên cột chính thức, còn ở `raw_*`. Notebook in số dòng `ts_inversion_flag` = 1. Không lưu cột audit. Measure thời gian dùng cột chính thức |
-| Review | `silver.order_reviews` một dòng mỗi (`review_id`, `order_id`) theo cửa sổ §2.3. Nhóm khóa khác giá trị in ở notebook, không fail, không lưu cột audit. `silver.order_reviews_dedup` một `order_id` theo cửa sổ §2.3. `fact_order` chỉ đọc bảng dedupe. Không trung bình điểm. Không xóa review tạo trước ngày nhận. Review dùng chung nhiều seller ra khỏi measure review, không thêm cột |
+| Review | `silver.order_reviews` một dòng mỗi (`review_id`, `order_id`) theo cửa sổ §2.3. Nhóm khóa khác giá trị in ở notebook, không fail, không lưu cột audit. `silver.order_reviews_dedup` một `order_id` theo cửa sổ §2.3 và có `shared_review_type`. `fact_order` chỉ đọc bảng dedupe. Không trung bình điểm. Không xóa review tạo trước ngày nhận. Measure review seller loại `cross_seller` và `n_sellers` > 1. KPI sàn giữ điểm `cross_seller`. Mẫu `COUNT(DISTINCT order_id)`. `late_flag` vẫn tính |
 | Geolocation | `silver.geolocation_zip` unique theo prefix (kỳ vọng 0 dòng prefix trùng). Join khách/seller không nhân dòng (kỳ vọng 0). Tỷ lệ `geo_match_level` in ở notebook. Cả ba chỉ cảnh báo, không lưu cột audit |
 | Category | Translation unique theo `product_category_name` (kỳ vọng 0). `dim_product` trừ dòng `-1` bằng `silver.products` (kỳ vọng 0). Đếm sản phẩm `'Unknown'` và số category thiếu bản dịch. In ở notebook, chỉ cảnh báo |
 | Giá | `sum(price)` item nguồn = `sum(price)` trên `fact_order_item` sau khi trừ reject. In ở notebook. Không đối soát tổng này với tổng `gmv`, vì `gmv` bỏ đơn `canceled` và `unavailable` |
 | Đọc / nạp / loại | Audit lưu `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`. Notebook in `rows_dropped_by_dedup` và kiểm `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` trong cùng `run_id` |
 | Zip và id | Kiểu STRING đến Gold |
-| Đơn nhiều seller | Vẫn nằm trong fact item, `gmv` (nếu không hủy), `n_orders_placed`, `n_orders_valid`, `n_items_placed`, `n_items_valid`, cờ bàn giao và `late_flag`. `review_score` và `negative_review_flag` null. `bad_experience_flag` vẫn theo `late_flag` |
+| Đơn nhiều seller | Vẫn nằm trong fact item, `gmv` (nếu không hủy; `gmv` không gồm freight), `n_orders_placed`, `n_orders_valid`, `n_items_placed`, `n_items_valid`, cờ bàn giao và `late_flag`. `review_score` giữ trên `fact_order`. Measure review seller loại các đơn này. Snapshot seller vẫn dùng `late_flag` |
 | Tháng thưa | Còn nếu có đơn. Không bịa dòng seller-tháng bằng 0 |
 | IBGE | Đọc `/Volumes/olist_catalog/bronze/raw/ref/ibge_state_region.csv`. Không thay bằng file bịa |
 | `order_status` | Giữ chuỗi nguồn. Không điền `shipped`, `approved`, hay `created` |
@@ -876,7 +891,7 @@ Các mục dưới đây không chặn DDL. Phase 3 ghi số khi chạy, không 
 | Mục | Vì sao pending |
 |---|---|
 | Số nhóm khóa trùng của `order_id`, (`order_id`, `order_item_id`), (`order_id`, `payment_sequential`), `mql_id`, `seller_id`, `product_id` | Notebook có thống kê nhưng SPEC §3 không ghi số |
-| Số dòng `silver.order_reviews` theo (`review_id`, `order_id`) và số dòng `silver.order_reviews_dedup` | 98.410 chỉ là số `review_id` nếu khử theo `review_id`. Hai grain mới chưa đếm. Số đơn có seller_set nhiều hơn một seller chưa đo |
+| Số dòng `silver.order_reviews` theo (`review_id`, `order_id`) và số dòng `silver.order_reviews_dedup` | 98.410 chỉ là số `review_id` nếu khử theo `review_id`. Hai grain mới chưa đếm. Số đơn theo `shared_review_type` chưa đo. 789 và 814 là số file thô đã ghi ở §7 |
 | Số zip `silver.geolocation_zip` sau bbox | 19.015 là số zip trước khi bỏ 31 điểm ngoài bbox |
 | Số cặp `fact_seller_monthly` | 173 là số seller đạt ngưỡng G1, không phải số dòng fact |
 | Max của từng timestamp giao, hẹn, hạn ship, review | SPEC chỉ ghi min/max của `order_purchase_timestamp` |
