@@ -4,7 +4,7 @@ Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)*
 
 **Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS), locked on 15/10/2026 after gates G1–G6. It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit.
 
-**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels) with a Streamlit UI. The OLAP dashboard is Power BI (ROLAP through a Databricks SQL Warehouse). Local rerun path: pyspark + delta-spark on `data/sample/`.
+**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels) with a Streamlit UI. The OLAP dashboard is Power BI (ROLAP through a Databricks SQL Warehouse). Phase 3 warehouse ETL runs on Databricks only. A local rerun on `data/sample/` remains R46 (S6, Phase 6, Phase 7), not part of the Phase 3 job.
 
 **Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Bronze and Silver are full-load overwrites. Gold is a Kimball star schema of Delta tables loaded with `MERGE` (`WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only): `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. Streamlit appends `dss.decision_log` through the SQL Warehouse. The Gold ETL job does not write that table. The diagram is in [docs/architecture.md](docs/architecture.md). The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
 
@@ -46,8 +46,8 @@ olist-dw-dss/
    python src/notebooks/00_verify_and_sample.py
    ```
 2. Copy `.env.example` to `.env` and fill in the Databricks variables. `DATABRICKS_TOKEN` stays empty in `.env.example`. Do not commit `.env`.
-3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Bronze → Silver → Gold ETL is filled in during Phase 3.
-4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): filled in after spike S6.
+3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Phase 3 ETL is Databricks-only: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Notebooks under `src/etl/` do not use `USE_SAMPLE`.
+4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): not part of Phase 3. It stays with R46 after spike S6 (Phase 6 and Phase 7).
 
 ## Status
-Phase 2 (warehouse design) is locked. The load contract of 26/10/2026 was corrected on 05/11/2026 (MERGE without delete-by-source, Streamlit-only `decision_log`, seller GMV as sum of price). Next is Phase 3 (ETL). Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open connection or local-runtime checks. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+Phase 2 (warehouse design) is locked. The load contract of 26/10/2026 was corrected on 05/11/2026 (MERGE without delete-by-source, Streamlit-only `decision_log`, seller GMV as sum of price). The Phase 3 plan is Cloud-only; ETL notebooks are not written yet. Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2, S3, and S6 are still open. S6 does not block Phase 3. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).

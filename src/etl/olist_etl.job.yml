@@ -1,0 +1,35 @@
+# Skeleton for a Databricks serverless job. This file is not a full Asset Bundle.
+# In the workspace UI, create job olist_etl on serverless compute.
+# Prefix each notebook_path with the Git folder path. Do not add a dss task.
+# Pass run_id as {{job.run_id}} so every task shares one audit run.
+
+name: olist_etl
+compute: serverless
+tasks:
+  - task_key: setup
+    notebook_path: src/etl/00_setup.py
+    depends_on: []
+  - task_key: bronze
+    notebook_path: src/etl/01_bronze.py
+    depends_on: [setup]
+  - task_key: silver
+    notebook_path: src/etl/02_silver.py
+    depends_on: [bronze]
+  - task_key: gold_dims
+    notebook_path: src/etl/03_gold_dims.py
+    depends_on: [silver]
+  - task_key: gold_facts
+    notebook_path: src/etl/04_gold_facts.py
+    depends_on: [gold_dims]
+  - task_key: fact_seller_monthly
+    notebook_path: src/etl/05_gold_seller_monthly.py
+    depends_on: [gold_facts]
+base_parameters:
+  uc_catalog: olist_catalog
+  bronze_schema: bronze
+  silver_schema: silver
+  gold_schema: gold
+  dss_schema: dss
+  volume_root: /Volumes/olist_catalog/bronze/raw
+  snapshot_date: "2018-10-17"
+  run_id: "{{job.run_id}}"

@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản | v0.5 — 05/11/2026 |
+| Phiên bản | v0.6 — 05/11/2026 |
 | Hạn nộp | **23:59 Chủ nhật 15/11/2026** (ZIP qua LMS) — mốc nội bộ: **đóng băng 14/11** |
 | Thứ tự hiện thực | **Cloud trước, local sau.** DW, ETL, OLAP SQL và DSS chạy trên Databricks Free Edition trước. Đường local (pyspark + delta-spark trên `data/sample/`, R46) chỉ làm khi phần Cloud tương ứng đã chạy được — để người chấm chạy lại, không phải nơi dựng hệ thống trước. |
 
@@ -18,7 +18,7 @@ Mỗi task ghi mã yêu cầu trong SPEC §2 (R-xx).
 | **Local → Cloud** | Chạy trên laptop nhưng đọc/ghi Databricks (SQL warehouse, token). Không dựng DW trên máy |
 | **Local** | Chỉ trên laptop: repo, tài liệu, pytest, Power BI Desktop, Streamlit, pyspark + delta-spark trên `data/sample/` |
 
-Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud**, rồi **Local**.
+Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud**, rồi **Local**. Ngoại lệ: Phase 3 (ETL warehouse) chỉ Cloud. Đường local của R46 nằm ở S6, Phase 6 và Phase 7.
 
 ---
 
@@ -101,28 +101,136 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **DoD:** mọi cột fact/dim có nguồn và quy tắc; hợp đồng layer (R45) ghi trong DESIGN; cả nhóm review.
 **Phụ thuộc:** Phase 1 Cloud. **Rủi ro:** thiết kế quá rộng → giới hạn 3 fact.
 
-## Phase 3 — Database và ETL · 21/10 → 31/10
+## Phase 3 — Database và ETL (Cloud only) · 21/10 → 31/10
 
-**Mục tiêu:** Gold nạp đầy đủ trên Databricks trước. Cùng mã đó chạy lại trên sample local chỉ sau khi load Cloud đã chạy.
+Nguồn khóa: `docs/DESIGN.md` §2–3, §6, §9; `docs/SPEC.md` §6; `docs/architecture.md`. Grain, KPI và SCD Type 1 không đổi. R41 (SCD2 thật) không làm trong phase này; mã giữ ☐.
 
-**Cloud** (làm trước)
+### Mục tiêu và DoD Cloud
 
-- [ ] DDL Delta cho schema `bronze`, `silver`, `gold`, `dss`, gồm `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R42, R47)
-- [ ] Bronze: đọc CSV (id/zip dạng chuỗi) từ Volume, FULL LOAD OVERWRITE, mọi cột STRING as-is, thêm `_ingest_ts`, `_source_file` (R07, R30, R45)
-- [ ] Silver: FULL LOAD OVERWRITE; cast kiểu, dedupe trong file (geolocation, review), chuẩn hóa thành phố, dịch category, map state → region (R07, R27, R45)
-- [ ] Gold: bảng Delta; tra surrogate key, member `-1`, `MERGE` 7 dimension và 3 fact theo grain (`WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT`, không `WHEN NOT MATCHED BY SOURCE THEN DELETE`); SCD2 `gold.dim_seller` nếu làm điểm cộng (R07, R02, R41)
-- Future work (R28), không làm trong Phase 3: incremental theo watermark, append, CDF, Auto Loader
-- [ ] Delta constraints (`NOT NULL`, `CHECK`) trên Gold; `gold.etl_audit` ghi số dòng từng nguồn theo 10 cột ở SPEC §6. Cảnh báo geo, translation, conflict in ở notebook (R27)
-- [ ] Databricks Jobs, S4 đã đạt: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss (R40)
+Gold trên `olist_catalog` nạp đủ từ Volume, idempotent, có audit. Chưa đo ở phiên ghi plan; số dòng file giữ baseline DESIGN §2.2, không bịa số mới. Đo được khi một Job serverless chạy xong:
 
-**Local** (sau khi load Cloud chạy được; R46)
+- Job `olist_etl` thành công, đúng 6 task: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Không có task `dss`.
+- `gold.etl_audit` của `run_id` đó: đúng 1 dòng mỗi bảng đích (12 Bronze + 14 Silver + 7 dim + `fact_order` + `fact_order_item` + `fact_seller_monthly`). Đủ 10 cột SPEC §6. `rows_unknown_fk` null nếu đích không phải fact.
+- Chạy lại cùng Job: count grain 3 fact không tăng; audit chỉ thêm dòng log (không MERGE đè lịch sử).
+- SQL sau load: 0 dòng trùng khóa MERGE; mọi FK fact tồn tại trong dim (kể cả `-1`); 7 dim đều có đúng một dòng `-1` nhãn `'Unknown'`.
+- Notebook in (không fail job): `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected`; `SUM(price)` Silver item = `SUM(price)` `fact_order_item` sau reject; `gmv` seller-tháng = `SUM(price)` item không thuộc `canceled`/`unavailable`, không cộng freight.
+- `dss` chỉ là schema rỗng. Không bảng `decision_log`, `seller_risk_score`, `policy_scenario`.
 
-- [ ] Chạy lại pipeline với `USE_SAMPLE=1` trên `data/sample/` bằng pyspark + delta-spark (R46)
-- [ ] pytest trên sample: đối soát đếm dòng/tổng, orphan FK, unique grain (R27, R46)
+### Giả định và ngoài phạm vi
 
-**Sản phẩm:** `src/sql/ddl/`, `src/etl/`, `src/tests/`.
-**DoD:** load Cloud chạy và `gold.etl_audit` có số dòng; load local + pytest là bước sau, không thay DoD Cloud.
-**Phụ thuộc:** Phase 2 và S1. S6 nên đạt trước bước Local. **Rủi ro:** lỗi dữ liệu → set null, đếm `rows_rejected` khi dòng bị bỏ hẳn, in DQ trong notebook. Không chặn pipeline Cloud.
+- Catalog/Volume đã có (S1): `olist_catalog`, `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`). Git folder S5, Jobs serverless S4. Đường workspace của notebook xác nhận lúc tạo Job; không đoán path thứ hai.
+- **No local warehouse.** Không có `USE_SAMPLE`, `data/sample/`, pyspark local, delta-spark local, pytest local. S6 không chặn Phase 3. R46 giữ ☐ ở S6, Phase 6 và Phase 7.
+- Ngoài scope: incremental, append, CDF, Auto Loader (R28, giữ ⏸); SCD2 lịch sử (R41 giữ ☐); view OLAP (R42, Phase 4); M1/M2 và ghi `dss.*` (Phase 5); partition; `_batch_id`; watermark; `WHEN NOT MATCHED BY SOURCE THEN DELETE`.
+- Job ETL không ghi `dss.decision_log`. Mũi tên `dss` trên architecture là chỗ Phase 5.
+
+Notebook nguồn là `.py` có `# Databricks notebook source`, cùng kiểu `src/notebooks/01_profiling.py`. DDL song song trong `src/sql/ddl/` để review. Widget (không đọc `.env` trên serverless, không hardcode catalog trong SQL): `uc_catalog` (default `olist_catalog`), ba schema, `dss_schema`, `volume_root`, `snapshot_date=2018-10-17`, `run_id` từ `{{job.run_id}}`.
+
+Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`.
+
+### Setup
+
+- [ ] DDL schema và `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R47). File: `src/etl/00_setup.py`, `src/sql/ddl/00_schemas.sql`, `src/sql/ddl/gold_etl_audit.sql`.
+  - Tạo schema `bronze`, `silver`, `gold`, `dss` nếu chưa có. Chạy DDL Gold và `etl_audit`. Không tạo bảng nghiệp vụ `dss`.
+  - `snapshot_date` hằng số trong widget. Không partition.
+  - Accept: 4 schema tồn tại; `gold.etl_audit` đủ 10 cột; chưa có bảng `decision_log`.
+
+### Bronze — FULL LOAD OVERWRITE
+
+- [ ] 12 bảng DESIGN §2.2 từ Volume (R07, R30, R45). File: `src/etl/01_bronze.py`, `src/sql/ddl/bronze.sql`.
+  - `spark.read` header, mọi cột nghiệp vụ STRING (kể cả zip/id), không trim. Thêm `_ingest_ts`, `_source_file`. Bỏ BOM và ngoặc kép tên cột như `normalize_columns` của profiling. Overwrite ảnh hiện tại.
+  - Không join, không cast nghiệp vụ, không `_batch_id`.
+  - Accept: 12 dòng audit `layer=bronze`; `rows_rejected=0`; count bảng = count file lần đọc (so baseline §2.2, lệch thì in, không bịa số).
+
+### Silver — FULL LOAD OVERWRITE
+
+- [ ] 14 bảng DESIGN §2.3 (R07, R27, R45). File: `src/etl/02_silver.py`, `src/sql/ddl/silver.sql`.
+  - Thứ tự trong notebook: `state_region`, `category_translation`, `geolocation_zip`, `geolocation_city`, rồi `orders`, `order_items`, `order_payments`, `products`, `customers`, `sellers`, rồi `order_reviews`, `order_reviews_dedup`, rồi `closed_deals`, `marketing_qualified_leads`.
+  - Cast DESIGN §6. Id/zip STRING. Timestamp `yyyy-MM-dd HH:mm:ss`, lỗi parse → null, không bật `ts_inversion_flag`. Âm hoặc ngoài miền → null, giữ dòng, in DQ, không tính `rows_rejected`.
+  - `city_norm`: trim, lower, `translate` đúng bảng accent trong `01_profiling.py`. State upper, left join IBGE. Không khớp vùng → null.
+  - Geo: bbox lat [-34, 6], lng [-74, -28]; điểm ngoài bbox = reject. `percentile_approx` 0.5. Mode city/state, hòa thì chuỗi nhỏ nhất. Zip không còn điểm trong bbox thì không có dòng. Khách/seller: zip → (`city_norm`, state) → null, `geo_match_level` `zip|city|none`. Không điền 0.
+  - Orders: mốc đảo → null cột chính thức, giữ `raw_*`, so sánh trên `raw_*` (DESIGN §3.3). `order_status` trim+lower, không điền `shipped`/`approved`/`created`.
+  - Dedupe trong file: review grain (`review_id`, `order_id`) rồi `order_reviews_dedup` một `order_id` (cửa sổ §2.3). `shared_review_type` gắn sau khi `order_items` của cùng lần overwrite đã có. Khóa grain khác, ngoài hai luật đó: một dòng, chuỗi nghiệp vụ lớn nhất theo thứ tự từ điển. Không chọn bản theo `_ingest_ts`.
+  - `fact_order` chỉ đọc `order_reviews_dedup`. MQL lên Silver; `dim_seller` không đọc MQL.
+  - Accept: unique grain §2.3; prefix zip trùng = 0 (in); join geo không nhân dòng (in); nhóm review lệch giá trị chỉ cảnh báo.
+
+### Gold dims — MERGE, SCD1, Unknown -1
+
+- [ ] 7 dimension, member `-1`, MERGE hai nhánh (R07, R02). File: `src/etl/03_gold_dims.py`, `src/sql/ddl/gold_dims.sql`. R41 không làm: không sinh lịch sử SCD2.
+  - Chèn member `-1` trước fact: PK `-1`; natural key null; chữ OLAP `'Unknown'`; số/ngày/cờ null (kể cả `is_weekend`, `has_closed_deal`). Không member `'unknown'` thứ hai.
+  - Surrogate còn lại: natural key `ORDER BY` tăng dần, `max(key)+1` từ 1. Cùng tập key thì rerun cùng số. Không hash. `date_key = year*10000+month*100+day`. `month_key = year*100+month`.
+  - `dim_date`: mọi ngày từ min đến max timestamp chính thức Silver (purchase, approved, carrier, customer, estimated, shipping limit, review). Không lịch lễ. `dim_month` rút từ `dim_date`.
+  - `dim_customer`: một `customer_unique_id`, không địa chỉ. `dim_seller`: một `seller_id`; deal = `won_date` sớm nhất, hòa `mql_id` tăng dần; không deal thì segment null (không `'Unknown'`). SCD2-ready: `effective_from=1900-01-01`, `effective_to` null, `is_current=1`. Dòng `-1` ba cột hiệu lực null.
+  - `dim_product`: category null → `'Unknown'` + `category_group` §3.4 + `size_band` §3.4. Giữ lỗi chính tả nguồn đến Silver; Gold đổi `name_length` / `description_length`.
+  - `dim_order_status` / `dim_payment_type`: distinct chuỗi đã chuẩn hóa; payment null không thành member.
+  - MERGE mỗi dim: `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT` trên surrogate (đã tra natural key). Không `NOT MATCHED BY SOURCE DELETE`. `rows_loaded` không cộng dòng `-1`.
+  - Accept: 7 dòng `-1`; mỗi `seller_id` một dòng `is_current=1`; `dim_product` trừ `-1` khớp `silver.products` (in, cảnh báo nếu lệch).
+
+### Gold facts — MERGE
+
+- [ ] `fact_order_item` rồi `fact_order` trong cùng task (R07, R02). File: `src/etl/04_gold_facts.py`, `src/sql/ddl/gold_facts.sql`. Comment grain ở đầu hàm load. Cờ mức đơn tính từ Silver, lặp lên item, rồi MERGE item trước và order sau. Không đọc Volume.
+  - `fact_order`: grain `order_id`. Accumulating snapshot. Năm mốc date role-playing. Địa chỉ khách của đúng `customer_id` nằm trên fact. Review chỉ từ `order_reviews_dedup` (không trung bình, không xóa review tạo trước ngày nhận). `payment_type_key`: một loại chính theo §3.7; `payment_total` vẫn sum mọi dòng. `items_value`/`freight_total` sum mọi status (đơn không item → 0). Không xóa đơn lệch giá.
+  - `fact_order_item`: grain (`order_id`, `order_item_id`). Transaction. FK date (purchase, shipping limit), customer, seller, product, order status. Thiếu natural key → `-1`, không bỏ dòng, đếm `rows_unknown_fk`. `late_delivery_flag` là bản copy, không SUM theo item. `price` và `freight_value` là measure riêng. `distance_km` haversine 6371 km, null nếu thiếu tọa độ.
+  - `seller_ship_late_flag` tính lại mỗi MERGE từ `snapshot_date` (§3.6): null nếu `canceled`/`unavailable`; null nếu limit null, limit trước purchase, hoặc carrier null vì đảo; 1 nếu carrier sau limit; nếu carrier thật sự thiếu thì 1 khi `TO_DATE(limit) < snapshot_date`, else null.
+  - `source_name`: order = `silver.orders` (`rows_read` = số đơn, không cộng review); item = `silver.order_items`.
+  - Cùng hai nhánh MERGE. Khóa đã có trên Gold nhưng mất khỏi ảnh Silver thì giữ.
+  - Accept: grain unique; không orphan FK; Σ price in khớp; `shared_review_type` chỉ `none|same_seller|cross_seller` hoặc null cùng `review_score`.
+
+### fact_seller_monthly
+
+- [ ] MERGE sau hai fact (R07). File: `src/etl/05_gold_seller_monthly.py`. DDL nằm trong `src/sql/ddl/gold_facts.sql`.
+  - Grain: một seller × một tháng `order_purchase_timestamp` có ít nhất một item. MERGE trên (`seller_key`, `month_key`). `source_name=gold.fact_order_item`. `rows_read` = số item; `rows_loaded` = số cặp. Đọc Gold fact, không đọc Bronze.
+  - `gmv = SUM(price)` loại `canceled` và `unavailable`, kể cả đơn nhiều seller. Không cộng `freight_value`. Tháng mọi đơn hủy vẫn có dòng, `gmv=0`. Không bịa seller-tháng 0. Không lọc `min_orders`.
+  - Review seller: chỉ đơn `n_sellers=1` và `shared_review_type` thuộc `none|same_seller`. Mẫu `COUNT(DISTINCT order_id)`. `late_flag` vẫn vào bad-experience khi review bị loại. Rate và `aov` không dùng để SUM; lưu cả tử và mẫu.
+  - `n_orders_placed` và `n_orders_valid` không cộng ngang seller.
+  - Accept: `gmv` đối soát bằng SQL trên item (không so với Σ price full fact); `chk_fsm_totals` không vỡ; không có dòng `n_orders_placed < 1`.
+
+### Jobs
+
+- [ ] Job serverless `olist_etl`, 6 task tuần tự, không task `dss` (R40). File mô tả: `src/etl/olist_etl.job.yml` (task + `depends_on`, không phải DAB đầy đủ). Tạo Job trên workspace trỏ Git folder, compute Serverless (cùng kiểu `s4_smoke`).
+  - Một `run_id` cho cả chuỗi. Task sau chỉ chạy khi task trước success.
+  - Accept: Run now xanh; lịch có thể lưu Paused (không bắt buộc bật). R40 vẫn ◐ cho đến khi Job ETL thật chạy, rồi mới ☑.
+
+### DQ và audit
+
+- [ ] `gold.etl_audit` 10 cột và CHECK Gold (R27). Helper: `src/etl/_audit.py`, `src/etl/_dq.py`.
+  - `audit_id = max+1`. Append, không MERGE. Một dòng mỗi bảng đích mỗi `run_id`.
+  - Delta `NOT NULL` trên grain/FK và `CHECK` đúng tên DESIGN §9: `chk_foi_money`, `chk_foi_flags`, `chk_fo_amounts_counts`, `chk_fo_review`, `chk_fo_flags`, `chk_fsm_totals`, `chk_fsm_num_den`, `chk_fsm_rates`. Constraint làm fail ghi dòng xấu.
+  - Cảnh báo geo, translation, conflict review, đảo timestamp, G2 delivered thiếu mốc ≤ 5% chỉ in, không fail. Không thêm cột audit.
+  - Future work (R28), không làm trong Phase 3: incremental theo watermark, append, CDF, Auto Loader.
+
+### Thứ tự phụ thuộc trong Job
+
+1. `setup` — không phụ thuộc.
+2. `bronze` — sau setup.
+3. `silver` — sau bronze.
+4. `gold_dims` — sau silver (gồm chèn `-1`).
+5. `gold_facts` — sau dims. Trong task: `fact_order_item` trước, `fact_order` sau. Cờ `late_delivery_flag` vẫn là cờ mức đơn tính từ Silver.
+6. `fact_seller_monthly` — sau gold facts.
+
+### Checklist trước merge code ETL
+
+- Grain comment đúng 3 fact; MERGE key đúng DESIGN §2.4.
+- SQL MERGE chỉ hai nhánh UPDATE/INSERT. Không có `NOT MATCHED BY SOURCE`.
+- `gmv` không cộng `freight_value` hay `freight_total`. `items_value` không áp lọc hủy.
+- Fan-out: geo 1 dòng/khóa; một payment type mỗi đơn; một review mỗi đơn trên fact; đơn nhiều seller không bị xóa; `late_delivery_flag` không SUM theo item.
+- `-1` có trước fact; FK hỏng trỏ `-1`; không drop dòng fact; không nhãn `'unknown'` thứ hai.
+- `dim_seller` một dòng mỗi `seller_id`, không SCD2 history.
+- Zip và id vẫn STRING đến Gold.
+- Job không ghi `dss` và không đọc `data/sample` hay `data/raw`.
+- `rows_loaded` của dim không cộng dòng `-1`.
+
+### Rủi ro Free Edition / serverless
+
+- S4 đã chứng minh Job serverless chạy được. Quota phút, timeout, số task tối đa chưa đo — ghi [GIẢ ĐỊNH] nếu Run now fail, đưa 2 phương án (tách job hoặc giảm collect), không tự đổi kiến trúc.
+- Geolocation khoảng 1 triệu dòng: không `collect` / `toPandas`. Overwrite một bảng, không cache cả Volume.
+- Serverless không thấy `.env` laptop: mọi tham số qua widget Job. Sai catalog → dừng, không tạo catalog mới.
+- Git folder lệch `main`: pull trước Run now.
+- Constraint CHECK fail cả batch: sửa dòng (set null đúng DESIGN §6) rồi chạy lại; không tắt constraint.
+- `audit_id = max+1` an toàn vì 6 task tuần tự, không ghi audit song song.
+- SQL Warehouse (S2/S3) không cần cho Job ETL.
+
+**Sản phẩm:** `src/sql/ddl/`, `src/etl/`. Không có `src/tests/` trong Phase 3.
+**Phụ thuộc:** Phase 2 và S1. **Rủi ro:** lỗi dữ liệu → set null, đếm `rows_rejected` khi dòng bị bỏ hẳn, in DQ trong notebook. Không chặn pipeline Cloud.
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11
 
@@ -222,7 +330,7 @@ Mọi yêu cầu mức **BB** và **BB\*** trong SPEC §2 phải xuất hiện �
 |---|---|---|
 | BB [ĐỀ] | R01, R02, R03, R04, R05, R06, R07, R08, R09, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20 | ☑ tất cả có task |
 | BB\* [SUY LUẬN] | R21, R22, R23, R24, R25, R27, R30, R31, R32, R33, R34, R36, R37, R38, R45 | ☑ tất cả có task |
-| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 3 Local, Phase 6 Local, Phase 7) |
+| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 6 Local, Phase 7. Phase 3 không có đường local warehouse.) |
 | ĐC | R35, R40, R41, R43, R47 | ☑ tất cả có task (R47: comment bảng/cột Gold ở Phase 3 Cloud) |
 
 **R-xx bắt buộc chưa có task:** không có. Yêu cầu NC/ĐC chưa có task: không có. Kiểm tra lại mỗi khi sửa SPEC hoặc PLAN (13/10/2026: tách Cloud / Local, không thêm hoặc bỏ R-xx).

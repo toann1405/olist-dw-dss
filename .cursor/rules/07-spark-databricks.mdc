@@ -1,5 +1,5 @@
 ---
-description: PySpark notebooks — widgets, no large collects, dual Databricks and local sample run
+description: PySpark notebooks — widgets, no large collects, Phase 3 warehouse ETL on Databricks only
 globs: src/etl/**,src/notebooks/**
 alwaysApply: false
 ---
@@ -10,11 +10,13 @@ alwaysApply: false
 
 Store notebooks as `.py` source files under `src/etl/` or `src/notebooks/` so git can diff them. Do not add `.ipynb` as the source of truth.
 
-Pass parameters through Databricks widgets or environment variables (`USE_SAMPLE`, schema names, Volume path). Do not hardcode tokens, catalog names, or absolute Windows paths.
+Pass catalog, schema, Volume path, `snapshot_date`, and `run_id` through Databricks widgets on the Job. Do not hardcode tokens, catalog names, or absolute Windows paths. Do not read the laptop `.env` inside a serverless job.
+
+Notebooks under `src/etl/` do not take `USE_SAMPLE` and do not read `data/sample/` or `data/raw/`.
 
 ```python
-catalog = os.environ["UC_CATALOG"]  # S1 recorded olist_catalog; read the env var, do not hardcode
-gold = os.environ.get("GOLD_SCHEMA", "gold")
+catalog = dbutils.widgets.get("uc_catalog")  # job parameter; S1 recorded olist_catalog
+gold = dbutils.widgets.get("gold_schema")
 ```
 
 ## Spark usage
@@ -25,11 +27,11 @@ gold = os.environ.get("GOLD_SCHEMA", "gold")
 
 ## Dual runtime (R46)
 
-Transform code must run on Databricks and locally with `pyspark` + `delta-spark` when `USE_SAMPLE=1` (input `data/sample/`). Keep filesystem paths behind one function so the Databricks path reads the Volume and the local path reads the sample directory.
+Phase 3 warehouse ETL (`src/etl/`) runs on Databricks only. Do not add a `USE_SAMPLE` branch, a local `pyspark` + `delta-spark` path, or pytest on `data/sample/` in that phase.
 
-Local Delta support is `[GIẢ ĐỊNH]` until spike S6. If S6 fails, stop and list two options; do not drop the local path silently.
+R46 stays open for S6, Phase 6, and Phase 7. If S6 fails, stop and list two options; do not drop those later tasks silently, and do not pull them into Phase 3.
 
-Databricks Jobs work on this workspace. S4 passed on 13/10/2026 (`s4_smoke`, Serverless). The ETL job itself is still Phase 3 work. Order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss.
+Databricks Jobs work on this workspace. S4 passed on 13/10/2026 (`s4_smoke`, Serverless). The ETL job itself is still Phase 3 work. Phase 3 order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Do not add a `dss` task. The DSS job is Phase 5.
 
 ## Partitioning
 
