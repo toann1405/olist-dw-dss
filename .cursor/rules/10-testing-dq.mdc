@@ -1,5 +1,5 @@
 ---
-description: pytest on the sample and the required reconciliation checks before calling work done
+description: Phase 3 DQ is Databricks constraints and notebook prints; pytest on the sample is later R46
 globs: src/tests/**,src/etl/**
 alwaysApply: false
 ---
@@ -8,9 +8,9 @@ alwaysApply: false
 
 ## Where tests run
 
-- Framework is pytest.
-- Default input is `data/sample/` (`USE_SAMPLE=1`), not the full raw extract.
-- Tests live in `src/tests/`. ETL jobs should expose the same checks they assert, so a test can call them.
+Phase 3 data-quality checks run on Databricks: Delta `NOT NULL` and `CHECK` constraints, plus the reconciliation prints in the notebook. A printed warning does not fail the job. A constraint reject does. Pytest on `data/sample/` (`USE_SAMPLE=1`) is not the Phase 3 definition of done. That local check stays with R46 (S6, Phase 6, Phase 7). Do not add `src/tests/` as a Phase 3 deliverable.
+
+When a later phase adds pytest, the framework is pytest, the default input is `data/sample/`, and tests live in `src/tests/`. The notebook prints the same checks the test will call.
 
 ## Required checks
 

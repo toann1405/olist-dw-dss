@@ -37,4 +37,4 @@ Gold uses Delta `MERGE` on the grain: `WHEN MATCHED THEN UPDATE` and `WHEN NOT M
 
 Incremental load, append of historical batches, CDF, and Auto Loader are future work (R28). Do not implement them in the current ETL.
 
-Job order: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. `snapshot_date` is the config constant `DATE '2018-10-17'`, not a watermark.
+Full chain: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. The Phase 3 ETL job stops at `fact_seller_monthly` and does not write `dss`. The dss task is Phase 5. `snapshot_date` is the config constant `DATE '2018-10-17'`, not a watermark.

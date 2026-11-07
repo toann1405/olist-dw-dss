@@ -3,8 +3,8 @@
 | Mục | Giá trị |
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
-| Phiên bản | v0.8 — 05/11/2026 |
-| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** Load và frontend 26/10/2026; sửa MERGE, `decision_log`, GMV và review dùng chung ngày 05/11/2026. Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE không xóa theo nguồn, ROLAP, Power BI + Streamlit. S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 (ETL). S2, S3, S6 chưa chạy (S2–S3 là kiểm kết nối, không còn chọn công cụ). Hợp đồng schema: `docs/DESIGN.md`. Sơ đồ: `docs/architecture.md` |
+| Phiên bản | v0.9 — 05/11/2026 |
+| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** Load và frontend 26/10/2026; sửa MERGE, `decision_log`, GMV và review dùng chung ngày 05/11/2026. Cùng ngày: ETL warehouse Phase 3 chỉ Databricks, không đường local. Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE không xóa theo nguồn, ROLAP, Power BI + Streamlit. S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Plan Phase 3 đã ghi; ETL chưa viết. S2, S3, S6 chưa chạy (S2–S3 là kiểm kết nối, không còn chọn công cụ). S6 không chặn Phase 3. Hợp đồng schema: `docs/DESIGN.md`. Sơ đồ: `docs/architecture.md` |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -36,11 +36,11 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Mã | Nội dung | Mức | Nguồn | Phase | Sản phẩm đầu ra | TT |
 |---|---|---|---|---|---|---|
 | R01 | Phân tích nghiệp vụ, bài toán quyết định cụ thể (decision maker, alternatives, principle of choice) | BB | Mục 1.1 (mục tiêu 1), 3.1(c); Trang 2–3 | 0–1 | `TOPIC_EVALUATION.md`, SPEC §1 | ☑ |
-| R02 | DW là cốt lõi, phục vụ phân tích và ra quyết định | BB | 3.1(a); Trang 3 | 2–3 | `DESIGN.md`, `src/sql/ddl/` | ◐ |
+| R02 | DW là cốt lõi, phục vụ phân tích và ra quyết định | BB | 3.1(a); Trang 3 | 2–3 | `DESIGN.md`, DDL trong `src/etl/` | ◐ |
 | R03 | Nguồn dữ liệu hợp lệ, ghi license và quy mô | BB | 3.1(b); Trang 3 | 0 | `data/README.md` | ☑ |
 | R04 | Thiết kế DW đa chiều (star/snowflake) | BB | 1.1 (mục tiêu 2); Trang 2 | 2 | `DESIGN.md` | ☑ |
 | R05 | Thiết kế quy trình ETL | BB | 1.1 (mục tiêu 2); Trang 2 | 2 | `DESIGN.md` (ETL mapping) | ☑ |
-| R06 | Hiện thực DW trên Delta Lake (bronze/silver/gold) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | Unity Catalog schemas + DDL trong `src/sql/ddl/` | ☐ |
+| R06 | Hiện thực DW trên Delta Lake (bronze/silver/gold) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | Unity Catalog schemas + DDL trong `src/etl/` | ☐ |
 | R07 | Hiện thực ETL medallion chạy được end-to-end (Bronze ingest → Silver clean/conform → Gold MERGE) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | `src/etl/` | ☐ |
 | R08 | Hiện thực OLAP | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/sql/olap_queries/`, `src/sql/views/` | ☐ |
 | R09 | Frontend: dashboard / giao diện truy vấn | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/frontend/` | ☐ |
@@ -61,7 +61,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R24 | ≥ 2 dimension có hierarchy | BB\* | L.O.2.3; slide Ch2 | 2 | `DESIGN.md` | ☑ |
 | R25 | Đủ 5 phép OLAP (slice, dice, drill-down, roll-up, pivot), mỗi phép trả lời 1 câu hỏi nghiệp vụ | BB\* | Mục tiêu 3; slide Ch2–3 | 4 | `src/sql/olap_queries/`, `src/frontend/` | ☐ |
 | R26 | ROLAP qua Databricks SQL Warehouse. Power BI đọc Gold. Streamlit là giao diện truy vấn và DSS. HOLAP và MOLAP không dùng | NC | slide Ch2–3 | 0–2 | SPEC §5, §7 | ☑ |
-| R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain, pytest trên sample) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/`, `src/tests/` | ◐ |
+| R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain). Pytest trên sample không thuộc DoD Phase 3 (R46) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/` | ◐ |
 | R28 | Incremental load theo watermark, append, CDF, Auto Loader — **deferred / future work**. Đề cho phép incremental hoặc full refresh. Dataset tĩnh nên full refresh: Bronze/Silver FULL LOAD OVERWRITE; Gold `MERGE` theo grain | NC | slide Ch2 | — | SPEC §6, DESIGN §9 | ⏸ |
 | R29 | Data dictionary, metadata, source-to-target mapping | NC | slide Ch2-cont, Ch6 | 2 | `DESIGN.md` | ☑ |
 | R30 | Tích hợp thật nhiều bảng/nguồn, có bằng chứng | BB\* | 3.1(a) + lý do bỏ DataCo | 1–3 | SPEC §3, `DESIGN.md`, `src/etl/` | ◐ |
@@ -75,13 +75,13 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R38 | Phân loại DSS | BB\* | L.O.3.1 | 5 | SPEC §8 | ◐ |
 | R39 | Phương pháp phát triển (SDLC/prototyping), rủi ro dự án | NC | L.O.4.1 | 7 | Báo cáo | ☐ |
 | R40 | Lịch chạy ETL tự động bằng Databricks Jobs (S4 đạt 13/10/2026: Free Edition tạo được Job và lưu lịch; ETL chưa gắn vào Job) | ĐC | slide Ch2 (batch ETL) | 3 | `src/etl/` | ◐ |
-| R41 | Surrogate key + SCD Type 2 cho ≥ 1 dimension (`dim_seller` nếu làm điểm cộng) | ĐC | Kimball (TLTK [2]) | 2–3 | `src/sql/ddl/`, `src/etl/` | ☐ |
+| R41 | Surrogate key + SCD Type 2 cho ≥ 1 dimension (`dim_seller` nếu làm điểm cộng) | ĐC | Kimball (TLTK [2]) | 2–3 | `src/etl/` | ☐ |
 | R42 | Aggregate / view trên Gold cho OLAP (không partition vì dữ liệu nhỏ) | NC | slide Ch1–2 | 3–4 | `src/sql/views/` | ☐ |
 | R43 | Knowledge subsystem: luật khuyến nghị hành động | ĐC | slide Ch6 | 5 | `src/dss/` | ☐ |
 | R44 | Đánh giá mô hình (metric, backtest) | NC | slide Ch7 | 5–6 | `src/dss/`, báo cáo | ☐ |
 | R45 | Hợp đồng giữa các layer (Bronze FULL LOAD OVERWRITE, metadata `_ingest_ts` và `_source_file`; Silver FULL LOAD OVERWRITE, làm sạch/conform; Gold bảng Delta star schema, `MERGE` theo grain; downstream chỉ đọc Gold) | BB\* | [SUY LUẬN] / hợp đồng medallion | 2–3 | SPEC §4–6, `DESIGN.md` | ☑ |
-| R46 | Khả năng tái lập cho người chấm (README hướng dẫn, chạy local trên sample) | NC | [SUY LUẬN] / tái lập cho người chấm | 0, 3, 6 | README, `src/tests/`, chạy local `data/sample/` | ☐ |
-| R47 | Metadata/lineage: comment bảng/cột Gold trong Unity Catalog | ĐC | [SUY LUẬN] / metadata | 3 | DDL trong `src/sql/ddl/` | ☐ |
+| R46 | Khả năng tái lập cho người chấm (README hướng dẫn, chạy local trên sample). Không thuộc DoD Phase 3 | NC | [SUY LUẬN] / tái lập cho người chấm | 0, 6, 7 | README, `src/tests/`, chạy local `data/sample/` | ☐ |
+| R47 | Metadata/lineage: comment bảng/cột Gold trong Unity Catalog | ĐC | [SUY LUẬN] / metadata | 3 | DDL Gold trong `src/etl/03_gold_dims.py`, `04_gold_facts.py`, `05_gold_seller_monthly.py` | ☐ |
 
 
 **Đối chiếu đề (PDF) ↔ file phân tích** — không có mâu thuẫn trực tiếp về yêu cầu; các điểm cần lưu ý (làm theo PDF):
@@ -174,7 +174,7 @@ Sơ đồ đầy đủ: `docs/architecture.md`.
 - **Lưu trữ:** Databricks Free Edition (đăng ký bằng email cá nhân), Delta Lake, Unity Catalog. Catalog `olist_catalog` (S1, 13/10/2026). Schema: `bronze`, `silver`, `gold`, `dss`. Chỉ **batch**.
 - **Hợp đồng layer (R45):** Bronze FULL LOAD OVERWRITE, metadata `_ingest_ts` và `_source_file`. Silver FULL LOAD OVERWRITE, làm sạch và conform, dedup trong file. Gold là bảng Delta, star schema, `MERGE` theo grain: chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Job DSS đọc Gold và ghi `dss.seller_risk_score`, `dss.policy_scenario`. Power BI và Streamlit đọc Gold và `dss` qua SQL Warehouse. Streamlit chỉ ghi thêm `dss.decision_log` (append). Streamlit không sở hữu schema `dss` ngoài các dòng đó. Job ETL Gold không ghi `dss.decision_log`.
 - **Lệch có chủ đích:** mô hình DSS huấn luyện trên Gold, không trên Silver, để DSS dựa trên DW theo mục tiêu 4 của đề.
-- **Tái lập (R46):** mã transform chạy trên Databricks và chạy local (pyspark + delta-spark) trên `data/sample/`, phòng Free Edition bị giới hạn và để người chấm chạy lại.
+- **Tái lập (R46):** người chấm chạy lại trên `data/sample/` vẫn là việc của S6, Phase 6 và Phase 7. ETL warehouse Phase 3 chỉ Databricks (quyết định 05/11/2026): notebook `src/etl/` không có nhánh `USE_SAMPLE`.
 
 **Ánh xạ medallion ↔ khái niệm DW trên slide**
 
@@ -195,8 +195,8 @@ Sơ đồ đầy đủ: `docs/architecture.md`.
 | DSS | Python (scikit-learn / statsmodels). Feature view chỉ trên `gold.*`. Kết quả ghi `dss.*`. Huấn luyện trên Gold. UI là Streamlit, đọc Gold và `dss` | Kết nối SQL Warehouse từ máy local (**[GIẢ ĐỊNH]**, S2) | Đọc `data/raw` hoặc `read_csv` trong `src/dss/`: vi phạm mục tiêu 4 |
 | OLAP frontend | Power BI: dashboard, đọc Gold qua SQL Warehouse. Streamlit: giao diện truy vấn và DSS, không phải dashboard OLAP | Kết nối Power BI tới SQL Warehouse (**[GIẢ ĐỊNH]**, S3) | Databricks AI/BI Dashboard: không chọn (26/10/2026) |
 | Loại OLAP | ROLAP qua SQL Warehouse trên bảng Gold (26/10/2026) | — | HOLAP và MOLAP |
-| Tái lập | Mã transform phải chạy được trên Databricks và local trên `data/sample/` | pyspark + delta-spark local chạy được hay không (S6) | — |
-| Kiểm thử | pytest trên sample, đối soát số dòng và tổng, Delta constraints (`NOT NULL`, `CHECK`) | — | — |
+| Tái lập | ETL warehouse Phase 3 chỉ Databricks. Đường local trên `data/sample/` thuộc R46 (S6, Phase 6, Phase 7), không thuộc DoD Phase 3 | pyspark + delta-spark local chạy được hay không (S6) | — |
+| Kiểm thử | Phase 3: Delta constraints (`NOT NULL`, `CHECK`) và đối soát in ở notebook trên Databricks. Pytest local trên sample không thuộc DoD Phase 3 | pytest trên sample khi làm R46 | — |
 
 Chỉ xử lý batch. Nếu một spike không đạt, ghi hai phương án vào PROGRESS_LOG và SPEC §10 rồi chờ nhóm — không tự chọn.
 
@@ -242,9 +242,9 @@ Chỉ batch. Notebook/pipeline lưu ở `src/etl/` dạng `.py`.
 | Gold | Bảng Delta, không phải view. Tra surrogate key, member `-1` nhãn `'Unknown'`. Dimension SCD Type 1. `dim_seller` có cột SCD2 nhưng không sinh phiên bản. Lịch sử SCD2 (R41) chưa làm. Nạp 7 dimension và 3 fact bằng Delta `MERGE` theo grain, idempotent: chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE` |
 | `snapshot_date` | Hằng số `DATE '2018-10-17'` trong config. Không suy từ watermark. Mỗi lần MERGE Gold tính lại `seller_ship_late_flag` cho mọi item |
 | `gold.etl_audit` | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Cảnh báo geo, translation, conflict, đảo timestamp, đối soát giá: notebook in kết quả, không lưu cột riêng |
-| Lịch chạy | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. S4 đạt 13/10/2026. Spike dùng job `s4_smoke` (Serverless); lịch đã lưu và đang Paused. Job ETL gắn ở Phase 3 |
+| Lịch chạy | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Job ETL Phase 3 dừng ở `fact_seller_monthly`; task `dss` thuộc Phase 5. S4 đạt 13/10/2026. Spike dùng job `s4_smoke` (Serverless); lịch đã lưu và đang Paused. Job ETL gắn ở Phase 3 |
 | Future work | Incremental theo watermark, append, CDF, Auto Loader (R28). Không làm trong ETL hiện tại |
-| Kiểm thử DQ | Delta constraints (`NOT NULL`, `CHECK` miền giá trị ở DESIGN §9) + đối soát số dòng và tổng + pytest local trên `data/sample/`. `gold.etl_audit` lưu các số đếm ở dòng trên. Notebook in `rows_dropped_by_dedup` và kiểm `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` trong cùng `run_id`. Σprice nguồn = Σprice fact in ở notebook, cùng `run_id`. Không orphan FK. Grain không trùng. Ngưỡng tỷ lệ giữ G2: đơn `delivered` thiếu một mốc giao ≤ 5% |
+| Kiểm thử DQ | Delta constraints (`NOT NULL`, `CHECK` miền giá trị ở DESIGN §9) và đối soát số dòng, tổng, in ở notebook trên Databricks. Pytest local trên `data/sample/` không thuộc DoD Phase 3 (R46: S6, Phase 6, Phase 7). `gold.etl_audit` lưu các số đếm ở dòng trên. Notebook in `rows_dropped_by_dedup` và kiểm `rows_read = rows_loaded + rows_dropped_by_dedup + rows_rejected` trong cùng `run_id`. Σprice nguồn = Σprice fact in ở notebook, cùng `run_id`. Không orphan FK. Grain không trùng. Ngưỡng tỷ lệ giữ G2: đơn `delivered` thiếu một mốc giao ≤ 5% |
 
 ---
 
@@ -336,21 +336,21 @@ flowchart LR
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
 | `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (T1 chốt 15/10/2026; G1–G6 đã đo trên Volume) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.8: MERGE, `decision_log`, GMV và review dùng chung, 05/11/2026. Còn mở: thuyết trình, vai trò, S2–S3, S6) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.9: ETL warehouse Phase 3 chỉ Databricks, 05/11/2026. Còn mở: thuyết trình, vai trò, S2–S3, S6) |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
 | `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2 khóa 22/10/2026; load 26/10/2026; sửa hợp đồng 05/11/2026. DDL thuộc Phase 3) |
-| `docs/architecture.md` | Sơ đồ kiến trúc: object, load, transform, data model | 2 | ☑ (26/10/2026) |
+| `docs/architecture.md` | Sơ đồ kiến trúc: object, load, transform, data model | 2 | ☑ (26/10/2026; Job Phase 3 dừng ở `fact_seller_monthly`, 05/11/2026) |
 | `docs/PROGRESS_LOG.md` | Nhật ký tiến độ | 0→7 | ◐ |
 | `docs/report/` | Nháp báo cáo, hình | 6–7 | ☐ |
 | `data/README.md` | Nguồn, license, cách tải, mô tả file, upload Volume | 0 | ☑ |
 | `data/raw/` · `data/external/` · `data/sample/` | Dữ liệu gốc · bổ sung · mẫu (local và nộp bài) | 0–1 | ☑ Olist + Funnel + sample + `ibge_state_region.csv` (local 27 dòng; nhóm xác nhận đã ở Volume `ref/`). Không dùng lịch ngày lễ |
 | `src/notebooks/00_verify_and_sample.py` | Kiểm tra file tải về + tạo mẫu giữ khóa | 0 | ☑ |
 | `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☑ `01_profiling.py` chạy trên Volume 15/10/2026 |
-| `src/sql/ddl/` · `src/sql/views/` · `src/sql/olap_queries/` | Delta DDL (bronze/silver/gold/dss) · view · truy vấn OLAP Spark SQL trên Gold | 3–4 | ☐ |
-| `src/etl/` | Notebook/pipeline Bronze, Silver, Gold | 3 | ☐ |
+| `src/etl/` | Notebook Phase 3, gồm DDL schema, Silver, Gold và `etl_audit`. `olist_etl.job.yml` là skeleton, chưa deploy | 3 | ☐ |
+| `src/sql/views/` · `src/sql/olap_queries/` | View và truy vấn OLAP Spark SQL trên Gold. Chưa viết | 4 | ☐ |
 | `src/dss/` | M1, M2, goal seek, sensitivity, rules; đọc Gold, ghi `dss.*` | 5 | ☐ |
 | `src/frontend/` | Power BI (dashboard) và Streamlit (truy vấn / DSS) | 4–5 | ☐ |
-| `src/tests/` | Test ETL và DQ, gồm pytest local trên sample | 3–6 | ☐ |
+| `src/tests/` | Pytest local trên sample khi làm R46. Không thuộc DoD Phase 3 | 6 | ☐ |
 
 ---
 
@@ -362,7 +362,7 @@ flowchart LR
 | Giới hạn Databricks Free Edition (SQL Warehouse) — **[GIẢ ĐỊNH]** cho đến S2–S3. Unity Catalog, Volume, Jobs và Git folder đã kiểm (S1, S4, S5, 13/10/2026). Công cụ đã chốt: Power BI và Streamlit, ROLAP | Không kết nối được từ máy local | S2, S3; đường local pyspark + delta-spark trên `data/sample/` (R46); nếu fail thì ghi 2 phương án và chờ nhóm |
 | Mất tài khoản Free Edition (email cá nhân) | Mất workspace, người chấm không vào được | Mã trong Git; lưu screenshot và output làm bằng chứng; README hướng dẫn chạy local (R46) |
 | Người chấm không chạy lại được trên cloud | Khó chấm ETL/DSS | R46: chạy local trên sample; hướng dẫn trong README; nộp kèm output/screenshot |
-| Đường cong học Spark | Trễ Phase 3 | Chỉ batch; dữ liệu nhỏ; notebook `.py`; thử trên sample trước (S6) |
+| Đường cong học Spark | Trễ Phase 3 | Chỉ batch; dữ liệu nhỏ; notebook `.py` trên Databricks. S6 không chặn Phase 3 |
 | Kết nối từ ngoài vào Free Edition (Python local, Power BI, Streamlit) | OLAP hoặc DSS UI không đọc được Gold | S2 và S3; nếu fail thì ghi 2 phương án và chờ nhóm, không tự đổi công cụ |
 | Seller thưa (G1 không đạt) | M1 nhiễu | G1 đạt 173 seller (15/10/2026). Giữ ngưỡng ≥ 10 item/tháng trong ≥ 6 tháng |
 | DSS bị cắt vì trễ tiến độ | Hụt L.O.3.3/4.2 | M2 + what-if là phần tối thiểu, làm trước; M1 bắt đầu bằng baseline đơn giản |
@@ -404,6 +404,7 @@ flowchart LR
 | Review, luật tạm [GIẢ ĐỊNH] (Olist chưa xác nhận review dùng chung). `silver.order_reviews`: một dòng mỗi (`review_id`, `order_id`), `ROW_NUMBER() OVER (PARTITION BY review_id, order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST) = 1`. Số nhóm lệch in ở notebook DQ, chỉ cảnh báo, không ghi audit. `silver.order_reviews_dedup`: một dòng mỗi `order_id`, `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_answer_timestamp DESC NULLS LAST, review_creation_date DESC NULLS LAST, review_id) = 1` (`review_id` tăng dần chỉ để phá hòa). Không chọn bản giữa các lần nạp theo cột ingest. Không có `_batch_id`. `shared_review_type`: `none` (một đơn), `same_seller` (nhiều đơn, đúng một seller), `cross_seller` (nhiều đơn, không đúng một seller); null khi không có review. `fact_order` giữ điểm kể cả `cross_seller`. Measure review của seller loại `cross_seller` và `n_sellers` > 1. KPI sàn giữ `cross_seller`. Mẫu `COUNT(DISTINCT order_id)`. Review bị loại không tắt `late_flag`. Đã đo 789 `review_id` gắn nhiều đơn và 814 dòng thừa. Đỉnh tháng 3/2018 khoảng 1,6% là [GIẢ ĐỊNH]. Luật cuối chờ sensitivity top-40 sau Gold | 05/11/2026 |
 | `silver.geolocation_zip`: một dòng mỗi prefix. Lat/lng = `percentile_approx` 0.5 sau bbox lat [-34, 6], lng [-74, -28]. `silver.geolocation_city` fallback theo (`city_norm`, state). Khách và seller: zip → city → null, `geo_match_level`, không điền 0. `distance_km` là haversine ở mức item; trung bình seller-tháng bỏ null | 22/10/2026 |
 | `dim_product`: LEFT JOIN translation. `category_pt` và `category_en` = `COALESCE` về `'Unknown'` khi thiếu tên, cùng chữ với dòng `-1`, `category_group` và `size_band`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume. DQ chỉ cảnh báo: translation unique; `dim_product` trừ dòng `-1` bằng `silver.products`; đếm sản phẩm `'Unknown'` và số category thiếu bản dịch | 22/10/2026 |
+| ETL warehouse Phase 3 chỉ Databricks. Notebook `src/etl/` không có nhánh `USE_SAMPLE`, không đọc `data/sample/` hay `data/raw/`, không có pytest local. Job Phase 3 là setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Không có task `dss`. DQ Phase 3 là Delta constraints và cảnh báo in ở notebook. Pytest local trên sample thuộc R46 (S6, Phase 6, Phase 7), không phải DoD Phase 3. R46 giữ mở | 05/11/2026 |
 
 ### Lịch sử quyết định
 

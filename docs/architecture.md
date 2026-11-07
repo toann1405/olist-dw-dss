@@ -1,6 +1,6 @@
 # Sơ đồ kiến trúc
 
-Quyết định 26/10/2026, sửa MERGE và `decision_log` ngày 05/11/2026. Lý do: `docs/DESIGN.md`, mục Decision update và mục Sửa hợp đồng. Grain, star schema, SCD và surrogate key không nằm trong sơ đồ này vì không đổi.
+Quyết định 26/10/2026, sửa MERGE và `decision_log` ngày 05/11/2026. Cùng ngày: Job ETL Phase 3 dừng ở `fact_seller_monthly`. Task `dss` trên sơ đồ là chỗ Phase 5, không phải task của Job Phase 3. Lý do: `docs/DESIGN.md`, mục Decision update và mục Sửa hợp đồng, và SPEC §10. Grain, star schema, SCD và surrogate key không nằm trong sơ đồ này vì không đổi.
 
 ## Luồng
 
@@ -59,13 +59,13 @@ flowchart TB
 | SQL Warehouse | Endpoint truy vấn | Không lưu mart | SQL trên bảng Gold và `dss` | ROLAP |
 | Power BI | Dashboard | Đọc. Không ghi kho | Lọc, drill, 5 phép OLAP | Đọc Gold qua SQL Warehouse |
 | Streamlit | App local | Đọc Gold và `dss`. Chỉ ghi thêm `dss.decision_log` (append) | Truy vấn, what-if, goal seek, xuất quyết định | Qua SQL Warehouse. Không sở hữu schema `dss` ngoài `decision_log`. Không ghi hai bảng điểm và kịch bản. Job ETL Gold không ghi `decision_log` |
-| GitHub | Repo mã nguồn | Không phải lớp dữ liệu | — | Notebook `.py`, SQL, tài liệu. Git folder Databricks đã nối (S5, nhánh `main`) |
+| GitHub | Repo mã nguồn | Không phải lớp dữ liệu | — | Notebook `.py` trong `src/etl/` (DDL nằm trong notebook đó). `olist_etl.job.yml` là skeleton, chưa deploy. Git folder Databricks đã nối (S5, nhánh `main`) |
 
 ## Legend
 
 | Nét | Nghĩa |
 |---|---|
-| `==>` | Thứ tự Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss job |
+| `==>` | Thứ tự đầy đủ: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss job. Job ETL Phase 3 dừng ở `fact_seller_monthly`. Task `dss` thuộc Phase 5 |
 | `-->` | Luồng dữ liệu: Volume → bronze, gold dims → job DSS, Gold và `dss` → SQL Warehouse → Power BI và Streamlit, Streamlit → `dss.decision_log` |
 | `-.->` | Ghi `gold.etl_audit`. Một dòng mỗi bảng đích mỗi `run_id` |
 

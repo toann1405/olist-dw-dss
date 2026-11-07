@@ -10,15 +10,47 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 2 thiết kế đã khóa 22/10/2026. Load 26/10/2026, sửa hợp đồng 05/11/2026. T1 chốt 15/10/2026. X=10, N=40. Việc tiếp theo là Phase 3 |
-| Đang làm | — |
-| Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. Công cụ đã chốt, không còn chờ chọn. File IBGE đã được nhóm xác nhận trên Volume `ref/`; phiên này không đọc lại Volume |
-| Việc tiếp theo | Phase 3: DDL Delta và ETL theo hợp đồng 05/11/2026 trong `docs/DESIGN.md`. Không viết notebook trong phiên tài liệu này |
-| Cập nhật | 05/11/2026 (sửa hợp đồng MERGE, decision_log, GMV, review dùng chung) |
+| Phase hiện tại | Phase 3 notebook Databricks-only. DDL nằm trong notebook sở hữu bảng. Job vẫn là skeleton, chưa Run now. T1 chốt 15/10/2026. X=10, N=40 |
+| Đang làm | Gắn Job `olist_etl` trên Databricks và Run now |
+| Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. S6 không chặn Phase 3. Job ETL chưa chạy trên workspace |
+| Việc tiếp theo | Tạo Job serverless 6 task từ Git folder, Run now, rồi mới xét tick PLAN và R07/R40/R47 |
+| Cập nhật | 07/11/2026 (refactor notebook, static checks only, chưa Run now) |
 
 ---
 
 ## Nhật ký
+
+### 07/11/2026 — Phase 3 — Notebook Databricks-only, DDL về notebook
+
+- **Đã làm:** bỏ lớp `_spark()` / `SparkSession.getActiveSession()`. `00_setup` chỉ tạo 4 schema và `gold.etl_audit`, rồi kiểm tra Volume, không tạo lại Volume. DDL Gold chuyển vào notebook Gold, `CREATE TABLE IF NOT EXISTS` trước MERGE, giữ kiểu, `NOT NULL`, CHECK và comment. Silver giữ `NOT NULL` bằng DDL trong `02_silver.py` và overwrite không `overwriteSchema`. Bronze không có DDL riêng vì không có ràng buộc và ghi tạo bảng STRING. Xóa bản `src/sql/ddl/` đã có trong working tree, không khôi phục và không giữ hai bản. `olist_etl.job.yml` vẫn là skeleton, không phải file deploy. Giữ logic GMV status null, seller `-1` trên snapshot tháng, audit 10 cột và DQ grain.
+- **Không làm:** không Run now. Không tick PLAN. Không đổi trạng thái R02, R06, R07, R40, R41, R47. Không đổi grain, KPI, surrogate key. Không commit.
+- **File đã sửa:** `src/etl/`, `docs/PLAN.md`, `docs/DESIGN.md` §9, `docs/SPEC.md` (đường dẫn bằng chứng), `docs/architecture.md`, `README.md`, `docs/PROGRESS_LOG.md`.
+- **Tự kiểm:** static checks only. Chưa chạy Databricks nên không kết luận pipeline chạy được.
+- **Việc tiếp theo:** gắn Job trên workspace và Run now.
+
+### 06/11/2026 — Phase 3 — Chốt GMV, seller -1, rows_loaded
+
+- **Đã làm:** `fact_seller_monthly` vẫn loại seller `-1` và tháng mua thiếu, đếm `rows_rejected`, không tạo dòng tháng cho `-1`. Audit ghi `rows_unknown_fk=0`. `gmv`, `n_orders_valid` và `n_items_valid` giữ đơn có `order_status` null. `rows_loaded` vẫn là số dòng source của lần MERGE. Notebook in thêm grain before/source/after, số khóa Gold không có trong source, và tổng price/GMV của source batch so với tổng bảng.
+- **Không làm:** không Run now. Không tick PLAN. Không đóng R07, R40, R47.
+- **File đã sửa:** `src/etl/04_gold_facts.py`, `src/etl/05_gold_seller_monthly.py`, `src/etl/_dq.py`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** gắn Job trên workspace và Run now.
+
+### 05/11/2026 — Phase 3 — Scaffold ETL Cloud
+
+- **Đã làm:** viết notebook `src/etl/` (`00_setup` đến `05_gold_seller_monthly`, `_audit`, `_dq`), DDL `src/sql/ddl/`, và skeleton `src/etl/olist_etl.job.yml`. Bronze/Silver FULL LOAD OVERWRITE. Gold MERGE chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Trong task facts: `fact_order_item` trước, `fact_order` sau; cờ trễ vẫn là cờ mức đơn tính từ Silver. `gmv` chỉ cộng `price`. Schema `dss` để trống. Không đường local.
+- **Không làm:** không Run now trên workspace. Không đo số dòng mới. Không pytest. Không tick checkbox PLAN. Không đóng R07, R40, R47.
+- **File đã sửa:** `src/etl/`, `src/sql/ddl/`, `docs/PLAN.md` (một câu thứ tự fact), `docs/DESIGN.md` §9, `docs/PROGRESS_LOG.md`.
+- **RTM:** R07 giữ ☐, R40 giữ ◐, R47 giữ ☐. R27 giữ ◐. R46 giữ ☐.
+- **Việc tiếp theo:** trên Databricks, kéo Git folder, tạo Job serverless `olist_etl` với 6 task theo `src/etl/olist_etl.job.yml`, `run_id={{job.run_id}}`, rồi Run now.
+
+### 05/11/2026 — Phase 3 — Plan ETL Cloud-only
+
+- **Đã làm:** ghi plan Phase 3 chỉ trên Databricks. Job `olist_etl` có 6 task: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Không task `dss`. Không `USE_SAMPLE`, không `data/sample/`, không pytest local. DQ Phase 3 là Delta constraints và cảnh báo in ở notebook. Trong task gold facts: `fact_order` trước, rồi copy `late_delivery_flag` sang `fact_order_item`.
+- **Không làm:** không viết DDL, notebook, job, hay test. Không đo lại Volume. Không đóng R07, R27, R40, R46, R47. R27 giữ ◐. R46 giữ ☐ (S6, Phase 6, Phase 7). R41 giữ ☐.
+- **File đã sửa:** `docs/PLAN.md` (v0.6), `docs/SPEC.md` (v0.9), `docs/DESIGN.md` §9, `docs/architecture.md`, `docs/PROGRESS_LOG.md`, `README.md`, `.env.example`, `.cursor/rules/` (`04-data-integrity`, `05-medallion-layers`, `07-spark-databricks`, `10-testing-dq`).
+- **Quyết định:** SPEC §10, ngày 05/11/2026. ETL warehouse Phase 3 chỉ Databricks. Không sửa mục nhật ký cũ.
+- **RTM:** không đổi trạng thái R07 ☐, R27 ◐, R40 ◐, R46 ☐, R47 ☐. R27 bỏ pytest khỏi sản phẩm Phase 3. R46 bỏ phase 3 khỏi cột phase.
+- **Việc tiếp theo:** viết DDL và notebook theo checklist Phase 3. Checkbox vẫn trống vì load chưa chạy.
 
 ### 05/11/2026 — Phase 2 — Sửa hợp đồng trước khi sang Phase 3
 - **Đã làm:** một luật hiện hành cho từng chủ đề. Gold `MERGE` chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE`. `dss.decision_log` do Streamlit append qua SQL Warehouse. Job ETL Gold không ghi bảng này. Job DSS vẫn ghi điểm và kịch bản. Bronze/Silver FULL LOAD OVERWRITE; Jobs setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss; Power BI + Streamlit qua SQL Warehouse; `etl_audit` 10 cột; không `_batch_id`, không watermark trong hợp đồng hiện tại. `gmv` = `sum(price)`, freight là measure riêng. Review dùng chung là [GIẢ ĐỊNH]: grain (`review_id`, `order_id`), một review mới nhất mỗi `order_id`, cột `shared_review_type` (`none` / `same_seller` / `cross_seller`). Measure seller loại `cross_seller` và đơn nhiều seller. KPI sàn giữ `cross_seller`. Mẫu `COUNT(DISTINCT order_id)`. `late_flag` vẫn tính khi review bị loại. 789 `review_id` và 814 dòng thừa là số đã đo. Đỉnh tháng 3/2018 khoảng 1,6% vẫn là [GIẢ ĐỊNH]. Luật cuối chờ sensitivity top-40 sau Gold. X=10, N=40 giữ nguyên. Câu bị thay nằm ở SPEC §10, mục lịch sử.
