@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 """Phase 1 read-only profiling of the Olist CSVs.
 
 Official numbers come from a Databricks Run All with SOURCE=volume.

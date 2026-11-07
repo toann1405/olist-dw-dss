@@ -41,7 +41,15 @@ def city_norm(column: str):
 
 
 def parse_ts(column: str):
-    return F.to_timestamp(blank(column), TS_FMT)
+    """Datetime first. A date-only value such as 2018-02-01 becomes midnight.
+
+    try_to_timestamp returns null on a bad string. ANSI to_timestamp fails the task.
+    """
+    text = blank(column)
+    return F.coalesce(
+        F.try_to_timestamp(text, F.lit(TS_FMT)),
+        F.try_to_timestamp(text, F.lit("yyyy-MM-dd")),
+    )
 
 
 def parse_int(column: str):
