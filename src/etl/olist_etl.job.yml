@@ -1,5 +1,5 @@
-# Skeleton for a Databricks serverless job. This file is not a full Asset Bundle.
-# In the workspace UI, create job olist_etl on serverless compute.
+# Skeleton for a Databricks serverless job. Not deploy-ready and not a full Asset Bundle.
+# Do not deploy this file. In the workspace UI, create job olist_etl on serverless compute.
 # Prefix each notebook_path with the Git folder path. Do not add a dss task.
 # Pass run_id as {{job.run_id}} so every task shares one audit run.
 

@@ -59,7 +59,7 @@ flowchart TB
 | SQL Warehouse | Endpoint truy vấn | Không lưu mart | SQL trên bảng Gold và `dss` | ROLAP |
 | Power BI | Dashboard | Đọc. Không ghi kho | Lọc, drill, 5 phép OLAP | Đọc Gold qua SQL Warehouse |
 | Streamlit | App local | Đọc Gold và `dss`. Chỉ ghi thêm `dss.decision_log` (append) | Truy vấn, what-if, goal seek, xuất quyết định | Qua SQL Warehouse. Không sở hữu schema `dss` ngoài `decision_log`. Không ghi hai bảng điểm và kịch bản. Job ETL Gold không ghi `decision_log` |
-| GitHub | Repo mã nguồn | Không phải lớp dữ liệu | — | Notebook `.py`, SQL, tài liệu. Git folder Databricks đã nối (S5, nhánh `main`) |
+| GitHub | Repo mã nguồn | Không phải lớp dữ liệu | — | Notebook `.py` trong `src/etl/` (DDL nằm trong notebook đó). `olist_etl.job.yml` là skeleton, chưa deploy. Git folder Databricks đã nối (S5, nhánh `main`) |
 
 ## Legend
 

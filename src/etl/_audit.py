@@ -3,19 +3,8 @@
 
 # COMMAND ----------
 
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import LongType, StringType, StructField, StructType, TimestampType
-
-
-def _spark() -> SparkSession:
-    existing = globals().get("spark")
-    if isinstance(existing, SparkSession):
-        return existing
-    active = SparkSession.getActiveSession()
-    if active is None:
-        raise RuntimeError("No active Spark session")
-    return active
 
 
 def append_audit(
@@ -31,7 +20,6 @@ def append_audit(
     rows_unknown_fk: int | None,
 ) -> None:
     """Insert one log row. audit_id = max + 1. Does not MERGE history."""
-    spark = _spark()
     table = f"{catalog}.{gold_schema}.etl_audit"
     current = spark.sql(f"SELECT COALESCE(MAX(audit_id), 0) AS max_id FROM {table}").first()
     audit_id = int(current["max_id"]) + 1

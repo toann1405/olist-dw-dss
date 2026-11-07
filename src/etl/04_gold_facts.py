@@ -18,20 +18,10 @@ and repeats that flag. fact_order is merged second with the same flag.
 
 # COMMAND ----------
 
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
 # COMMAND ----------
-
-def _spark() -> SparkSession:
-    existing = globals().get("spark")
-    if isinstance(existing, SparkSession):
-        return existing
-    active = SparkSession.getActiveSession()
-    if active is None:
-        raise RuntimeError("No active Spark session")
-    return active
-
 
 def widget(name: str, default: str) -> str:
     dbutils.widgets.text(name, default)
@@ -93,7 +83,6 @@ def haversine(lat1, lng1, lat2, lng2):
 
 # COMMAND ----------
 
-spark = _spark()
 catalog = widget("uc_catalog", "olist_catalog")
 silver = widget("silver_schema", "silver")
 gold = widget("gold_schema", "gold")
@@ -107,6 +96,98 @@ def silver_table(name: str) -> DataFrame:
 
 def gold_name(name: str) -> str:
     return f"{catalog}.{gold}.{name}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- grain: one row = one order item (order_id, order_item_id)
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.fact_order_item (
+# MAGIC   order_id STRING NOT NULL COMMENT 'Degenerate grain key',
+# MAGIC   order_item_id STRING NOT NULL COMMENT 'Degenerate grain key',
+# MAGIC   purchase_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when purchase is null',
+# MAGIC   shipping_limit_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when the limit is null',
+# MAGIC   customer_key BIGINT NOT NULL COMMENT 'FK dim_customer. -1 when the person key is missing',
+# MAGIC   seller_key BIGINT NOT NULL COMMENT 'FK dim_seller. -1 when seller_id does not match',
+# MAGIC   product_key BIGINT NOT NULL COMMENT 'FK dim_product. -1 when product_id does not match',
+# MAGIC   order_status_key BIGINT NOT NULL COMMENT 'FK dim_order_status from the order',
+# MAGIC   price DECIMAL(18, 2) COMMENT 'Item price. Not freight',
+# MAGIC   freight_value DECIMAL(18, 2) COMMENT 'Item freight. Not part of seller gmv',
+# MAGIC   seller_ship_late_flag INT COMMENT '0, 1, or null. Do not sum across items of different orders',
+# MAGIC   seller_handling_days DOUBLE COMMENT 'Official carrier minus official approved, in days',
+# MAGIC   delivery_days DOUBLE COMMENT 'Copied from the order',
+# MAGIC   delay_days DOUBLE COMMENT 'Copied from the order. Do not sum',
+# MAGIC   late_delivery_flag INT COMMENT 'Copy of fact_order.late_flag. Do not sum',
+# MAGIC   distance_km DOUBLE COMMENT 'Haversine kilometers. Null when a coordinate is missing'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'grain: one row = one order item (order_id, order_item_id)';
+# MAGIC
+# MAGIC -- grain: one row = one order
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.fact_order (
+# MAGIC   order_id STRING NOT NULL COMMENT 'Grain',
+# MAGIC   purchase_date_key INT NOT NULL COMMENT 'FK dim_date',
+# MAGIC   approved_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when official approved is null',
+# MAGIC   delivered_carrier_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when official carrier is null',
+# MAGIC   delivered_customer_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when official customer is null',
+# MAGIC   estimated_date_key INT NOT NULL COMMENT 'FK dim_date. -1 when official estimated is null',
+# MAGIC   customer_key BIGINT NOT NULL COMMENT 'FK dim_customer via customer_unique_id',
+# MAGIC   customer_zip_prefix STRING COMMENT 'Zip of this order customer_id',
+# MAGIC   customer_city_name STRING COMMENT 'Normalized city of this order',
+# MAGIC   customer_state_code STRING COMMENT 'State of this order',
+# MAGIC   customer_region_id STRING COMMENT 'IBGE region of this order',
+# MAGIC   customer_region_code STRING COMMENT 'IBGE region code of this order',
+# MAGIC   customer_region_name STRING COMMENT 'IBGE region name of this order',
+# MAGIC   order_status_key BIGINT NOT NULL COMMENT 'FK dim_order_status',
+# MAGIC   payment_type_key BIGINT NOT NULL COMMENT 'FK dim_payment_type. Primary type, else -1',
+# MAGIC   items_value DECIMAL(18, 2) NOT NULL COMMENT 'Sum of price for every status. 0 when the order has no items',
+# MAGIC   freight_total DECIMAL(18, 2) NOT NULL COMMENT 'Sum of freight. Not subtracted from items_value',
+# MAGIC   payment_total DECIMAL(18, 2) NOT NULL COMMENT 'Sum of every payment_value. 0 when none',
+# MAGIC   n_items INT NOT NULL COMMENT 'Item rows. 0 when the order has no items',
+# MAGIC   n_sellers INT NOT NULL COMMENT 'Distinct sellers. 0 when the order has no items',
+# MAGIC   delivery_days DOUBLE COMMENT 'Official customer minus purchase, in days',
+# MAGIC   estimated_days DOUBLE COMMENT 'Date diff of official estimated and purchase',
+# MAGIC   delay_days DOUBLE COMMENT 'Date diff of official customer and official estimated',
+# MAGIC   late_flag INT COMMENT '1 when delay_days > 0. Null for canceled, unavailable, or a missing date',
+# MAGIC   review_score INT COMMENT 'Score from order_reviews_dedup. Null when the order has no review',
+# MAGIC   shared_review_type STRING COMMENT 'none, same_seller, or cross_seller. Null when there is no review',
+# MAGIC   negative_review_flag INT COMMENT '1 when score <= 2. Null when there is no score',
+# MAGIC   bad_experience_flag INT COMMENT 'Order-level flag. Not copied onto the seller-month snapshot',
+# MAGIC   ts_inversion_flag INT NOT NULL COMMENT 'Copied from silver.orders'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'grain: one row = one order';
+# MAGIC
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order_item DROP CONSTRAINT IF EXISTS chk_foi_money;
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order_item ADD CONSTRAINT chk_foi_money CHECK (
+# MAGIC   (price IS NULL OR price >= 0) AND (freight_value IS NULL OR freight_value >= 0)
+# MAGIC );
+# MAGIC
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order_item DROP CONSTRAINT IF EXISTS chk_foi_flags;
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order_item ADD CONSTRAINT chk_foi_flags CHECK (
+# MAGIC   (seller_ship_late_flag IS NULL OR seller_ship_late_flag IN (0, 1))
+# MAGIC   AND (late_delivery_flag IS NULL OR late_delivery_flag IN (0, 1))
+# MAGIC );
+# MAGIC
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order DROP CONSTRAINT IF EXISTS chk_fo_amounts_counts;
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order ADD CONSTRAINT chk_fo_amounts_counts CHECK (
+# MAGIC   items_value >= 0 AND freight_total >= 0 AND payment_total >= 0 AND n_items >= 0 AND n_sellers >= 0
+# MAGIC );
+# MAGIC
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order DROP CONSTRAINT IF EXISTS chk_fo_review;
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order ADD CONSTRAINT chk_fo_review CHECK (
+# MAGIC   (review_score IS NULL OR review_score BETWEEN 1 AND 5)
+# MAGIC   AND (shared_review_type IS NULL OR shared_review_type IN ('none', 'same_seller', 'cross_seller'))
+# MAGIC   AND (
+# MAGIC     (review_score IS NULL AND shared_review_type IS NULL)
+# MAGIC     OR (review_score IS NOT NULL AND shared_review_type IS NOT NULL)
+# MAGIC   )
+# MAGIC );
+# MAGIC
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order DROP CONSTRAINT IF EXISTS chk_fo_flags;
+# MAGIC ALTER TABLE ${uc_catalog}.${gold_schema}.fact_order ADD CONSTRAINT chk_fo_flags CHECK (
+# MAGIC   (late_flag IS NULL OR late_flag IN (0, 1))
+# MAGIC   AND (negative_review_flag IS NULL OR negative_review_flag IN (0, 1))
+# MAGIC   AND (bad_experience_flag IS NULL OR bad_experience_flag IN (0, 1))
+# MAGIC   AND ts_inversion_flag IN (0, 1)
+# MAGIC );
 
 # COMMAND ----------
 
@@ -286,11 +367,30 @@ item_unknown = unknown_pointers(
         "order_status_key",
     ],
 )
-item_dup = item_fact.groupBy("order_id", "order_item_id").count().where(F.col("count") > 1).count()
+item_keys = ["order_id", "order_item_id"]
+item_dup = item_fact.groupBy(*item_keys).count().where(F.col("count") > 1).count()
 print_warn("fact_order_item.duplicate_grain", f"groups={item_dup} expected=0")
+item_grain_before = spark.table(item_table).select(*item_keys).dropDuplicates(item_keys).count()
+item_source_keys = item_fact.select(*item_keys).dropDuplicates(item_keys)
+# rows_loaded is this run's source row count, not the Gold table count after MERGE.
 item_loaded = int(item_fact.count())
 merge_fact(item_table, item_fact, "t.order_id = s.order_id AND t.order_item_id = s.order_item_id")
 print_recon(item_table, item_rows, item_loaded, 0, 0)
+item_grain_after = spark.table(item_table).select(*item_keys).dropDuplicates(item_keys).count()
+item_orphans = (
+    spark.table(item_table)
+    .join(item_source_keys, item_keys, "left_anti")
+    .select(*item_keys)
+    .dropDuplicates(item_keys)
+    .count()
+)
+print_grain_retention(
+    item_table,
+    int(item_grain_before),
+    int(item_source_keys.count()),
+    int(item_grain_after),
+    int(item_orphans),
+)
 append_audit(
     catalog,
     gold,
@@ -304,8 +404,12 @@ append_audit(
     item_unknown,
 )
 silver_price = silver_table("order_items").select(F.sum("price").alias("price")).first()["price"]
-fact_price = spark.table(item_table).select(F.sum("price").alias("price")).first()["price"]
-print_warn("fact_order_item.price_sum", f"silver={silver_price} fact={fact_price}")
+source_price = item_fact.select(F.sum("price").alias("price")).first()["price"]
+table_price = spark.table(item_table).select(F.sum("price").alias("price")).first()["price"]
+print_warn(
+    "fact_order_item.price_sum",
+    f"silver={silver_price} source_batch={source_price} gold_table={table_price}",
+)
 
 # COMMAND ----------
 
@@ -326,9 +430,27 @@ order_unknown = unknown_pointers(
 )
 order_dup = order_calc.groupBy("order_id").count().where(F.col("count") > 1).count()
 print_warn("fact_order.duplicate_grain", f"groups={order_dup} expected=0")
+order_grain_before = spark.table(order_table).select("order_id").dropDuplicates(["order_id"]).count()
+order_source_keys = order_calc.select("order_id").dropDuplicates(["order_id"])
+# rows_loaded is this run's source row count, not the Gold table count after MERGE.
 order_loaded = int(order_calc.count())
 merge_fact(order_table, order_calc, "t.order_id = s.order_id")
 print_recon(order_table, order_rows, order_loaded, 0, 0)
+order_grain_after = spark.table(order_table).select("order_id").dropDuplicates(["order_id"]).count()
+order_orphans = (
+    spark.table(order_table)
+    .join(order_source_keys, "order_id", "left_anti")
+    .select("order_id")
+    .dropDuplicates(["order_id"])
+    .count()
+)
+print_grain_retention(
+    order_table,
+    int(order_grain_before),
+    int(order_source_keys.count()),
+    int(order_grain_after),
+    int(order_orphans),
+)
 append_audit(
     catalog,
     gold,

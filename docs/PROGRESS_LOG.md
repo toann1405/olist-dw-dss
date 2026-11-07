@@ -10,15 +10,30 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 3 ETL Cloud đã có notebook, DDL và skeleton Job. Chưa Run now trên workspace. T1 chốt 15/10/2026. X=10, N=40 |
+| Phase hiện tại | Phase 3 notebook Databricks-only. DDL nằm trong notebook sở hữu bảng. Job vẫn là skeleton, chưa Run now. T1 chốt 15/10/2026. X=10, N=40 |
 | Đang làm | Gắn Job `olist_etl` trên Databricks và Run now |
 | Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. S6 không chặn Phase 3. Job ETL chưa chạy trên workspace |
 | Việc tiếp theo | Tạo Job serverless 6 task từ Git folder, Run now, rồi mới xét tick PLAN và R07/R40/R47 |
-| Cập nhật | 05/11/2026 (scaffold ETL Cloud, chưa Run now) |
+| Cập nhật | 07/11/2026 (refactor notebook, static checks only, chưa Run now) |
 
 ---
 
 ## Nhật ký
+
+### 07/11/2026 — Phase 3 — Notebook Databricks-only, DDL về notebook
+
+- **Đã làm:** bỏ lớp `_spark()` / `SparkSession.getActiveSession()`. `00_setup` chỉ tạo 4 schema và `gold.etl_audit`, rồi kiểm tra Volume, không tạo lại Volume. DDL Gold chuyển vào notebook Gold, `CREATE TABLE IF NOT EXISTS` trước MERGE, giữ kiểu, `NOT NULL`, CHECK và comment. Silver giữ `NOT NULL` bằng DDL trong `02_silver.py` và overwrite không `overwriteSchema`. Bronze không có DDL riêng vì không có ràng buộc và ghi tạo bảng STRING. Xóa bản `src/sql/ddl/` đã có trong working tree, không khôi phục và không giữ hai bản. `olist_etl.job.yml` vẫn là skeleton, không phải file deploy. Giữ logic GMV status null, seller `-1` trên snapshot tháng, audit 10 cột và DQ grain.
+- **Không làm:** không Run now. Không tick PLAN. Không đổi trạng thái R02, R06, R07, R40, R41, R47. Không đổi grain, KPI, surrogate key. Không commit.
+- **File đã sửa:** `src/etl/`, `docs/PLAN.md`, `docs/DESIGN.md` §9, `docs/SPEC.md` (đường dẫn bằng chứng), `docs/architecture.md`, `README.md`, `docs/PROGRESS_LOG.md`.
+- **Tự kiểm:** static checks only. Chưa chạy Databricks nên không kết luận pipeline chạy được.
+- **Việc tiếp theo:** gắn Job trên workspace và Run now.
+
+### 06/11/2026 — Phase 3 — Chốt GMV, seller -1, rows_loaded
+
+- **Đã làm:** `fact_seller_monthly` vẫn loại seller `-1` và tháng mua thiếu, đếm `rows_rejected`, không tạo dòng tháng cho `-1`. Audit ghi `rows_unknown_fk=0`. `gmv`, `n_orders_valid` và `n_items_valid` giữ đơn có `order_status` null. `rows_loaded` vẫn là số dòng source của lần MERGE. Notebook in thêm grain before/source/after, số khóa Gold không có trong source, và tổng price/GMV của source batch so với tổng bảng.
+- **Không làm:** không Run now. Không tick PLAN. Không đóng R07, R40, R47.
+- **File đã sửa:** `src/etl/04_gold_facts.py`, `src/etl/05_gold_seller_monthly.py`, `src/etl/_dq.py`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** gắn Job trên workspace và Run now.
 
 ### 05/11/2026 — Phase 3 — Scaffold ETL Cloud
 

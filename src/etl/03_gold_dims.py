@@ -11,7 +11,7 @@
 
 # COMMAND ----------
 
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
 # COMMAND ----------
@@ -105,16 +105,6 @@ CATEGORY_GROUPS = {
 
 # COMMAND ----------
 
-def _spark() -> SparkSession:
-    existing = globals().get("spark")
-    if isinstance(existing, SparkSession):
-        return existing
-    active = SparkSession.getActiveSession()
-    if active is None:
-        raise RuntimeError("No active Spark session")
-    return active
-
-
 def widget(name: str, default: str) -> str:
     dbutils.widgets.text(name, default)
     value = dbutils.widgets.get(name)
@@ -194,7 +184,6 @@ def publish_dim(table: str, source_name: str, rows_read: int, rows_loaded: int) 
 
 # COMMAND ----------
 
-spark = _spark()
 catalog = widget("uc_catalog", "olist_catalog")
 silver = widget("silver_schema", "silver")
 gold = widget("gold_schema", "gold")
@@ -207,6 +196,97 @@ def silver_table(name: str) -> DataFrame:
 
 def gold_table(name: str) -> str:
     return f"{catalog}.{gold}.{name}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Gold dimensions. Unknown member -1 is inserted by the cells below, not by this DDL.
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_date (
+# MAGIC   date_key INT NOT NULL COMMENT 'yyyyMMdd. Unknown member is -1',
+# MAGIC   full_date DATE COMMENT 'Calendar date. Null only on member -1',
+# MAGIC   year INT COMMENT 'Year of full_date',
+# MAGIC   quarter INT COMMENT 'Quarter 1-4',
+# MAGIC   month INT COMMENT 'Month 1-12',
+# MAGIC   day_of_month INT COMMENT 'Day of month',
+# MAGIC   day_of_week INT COMMENT 'Spark dayofweek. 1 = Sunday',
+# MAGIC   is_weekend INT COMMENT '1 when day_of_week is 1 or 7. Null on member -1',
+# MAGIC   month_key INT COMMENT 'yyyyMM link to dim_month'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'Role-playing date dimension. One row per calendar day in the observed range';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_month (
+# MAGIC   month_key INT NOT NULL COMMENT 'yyyyMM. Unknown member is -1',
+# MAGIC   year INT COMMENT 'Year',
+# MAGIC   quarter INT COMMENT 'Quarter 1-4',
+# MAGIC   month INT COMMENT 'Month 1-12',
+# MAGIC   year_month STRING NOT NULL COMMENT 'yyyy-MM label. Unknown on member -1'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'Shrunken month dimension taken from dim_date';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_customer (
+# MAGIC   customer_key BIGINT NOT NULL COMMENT 'Surrogate. Unknown member is -1',
+# MAGIC   customer_unique_id STRING COMMENT 'Natural key of the person. Null on member -1'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'One row per customer_unique_id. Address stays on fact_order';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_seller (
+# MAGIC   seller_key BIGINT NOT NULL COMMENT 'Surrogate. Unknown member is -1',
+# MAGIC   seller_id STRING COMMENT 'Natural key. Null on member -1',
+# MAGIC   effective_from DATE COMMENT 'SCD2-ready constant 1900-01-01. Null on member -1',
+# MAGIC   effective_to DATE COMMENT 'Null while the single current row is open',
+# MAGIC   is_current INT COMMENT '1 on a real seller. Null on member -1',
+# MAGIC   zip_prefix STRING COMMENT 'Seller zip prefix',
+# MAGIC   city_name STRING COMMENT 'Normalized city',
+# MAGIC   state_code STRING COMMENT 'Seller state',
+# MAGIC   region_id STRING COMMENT 'IBGE region id',
+# MAGIC   region_code STRING COMMENT 'IBGE region code',
+# MAGIC   region_name STRING COMMENT 'IBGE region name',
+# MAGIC   has_closed_deal INT COMMENT '1 when at least one closed deal exists',
+# MAGIC   mql_id STRING COMMENT 'Earliest won deal. Null when the seller has no deal',
+# MAGIC   sdr_id STRING COMMENT 'From the chosen deal',
+# MAGIC   sr_id STRING COMMENT 'From the chosen deal',
+# MAGIC   won_date DATE COMMENT 'Date portion of the chosen deal won_date',
+# MAGIC   business_segment STRING COMMENT 'Null when there is no deal. Unknown only on member -1',
+# MAGIC   lead_type STRING COMMENT 'From the chosen deal',
+# MAGIC   business_type STRING COMMENT 'From the chosen deal',
+# MAGIC   lead_behaviour_profile STRING COMMENT 'From the chosen deal',
+# MAGIC   has_company STRING COMMENT 'Source string from the chosen deal',
+# MAGIC   has_gtin STRING COMMENT 'Source string from the chosen deal',
+# MAGIC   average_stock STRING COMMENT 'Source string from the chosen deal',
+# MAGIC   declared_product_catalog_size STRING COMMENT 'Source string from the chosen deal',
+# MAGIC   declared_monthly_revenue STRING COMMENT 'Source string from the chosen deal'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'One current row per seller_id. SCD2 columns are present. History is not built';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_product (
+# MAGIC   product_key BIGINT NOT NULL COMMENT 'Surrogate. Unknown member is -1',
+# MAGIC   product_id STRING COMMENT 'Natural key. Null on member -1',
+# MAGIC   category_pt STRING NOT NULL COMMENT 'Portuguese category or Unknown',
+# MAGIC   category_en STRING NOT NULL COMMENT 'English category, else Portuguese name, else Unknown',
+# MAGIC   category_group STRING NOT NULL COMMENT 'Eight groups plus Unknown',
+# MAGIC   weight_g INT COMMENT 'Weight in grams',
+# MAGIC   length_cm INT COMMENT 'Length in centimeters',
+# MAGIC   height_cm INT COMMENT 'Height in centimeters',
+# MAGIC   width_cm INT COMMENT 'Width in centimeters',
+# MAGIC   name_length INT COMMENT 'Renamed from product_name_lenght',
+# MAGIC   description_length INT COMMENT 'Renamed from product_description_lenght',
+# MAGIC   photos_qty INT COMMENT 'Photo count',
+# MAGIC   volume_cm3 INT COMMENT 'length * height * width when all three exist',
+# MAGIC   size_band STRING NOT NULL COMMENT 'bulky, medium, small, or Unknown'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'One row per product_id. A missing category keeps a positive key';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_order_status (
+# MAGIC   order_status_key BIGINT NOT NULL COMMENT 'Surrogate. Unknown member is -1',
+# MAGIC   order_status STRING NOT NULL COMMENT 'Lowercase source status. Unknown on member -1'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'Distinct order statuses. No guessed shipped, approved, or created value';
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${gold_schema}.dim_payment_type (
+# MAGIC   payment_type_key BIGINT NOT NULL COMMENT 'Surrogate. Unknown member is -1',
+# MAGIC   payment_type STRING NOT NULL COMMENT 'Lowercase payment type. Unknown on member -1'
+# MAGIC ) USING DELTA
+# MAGIC COMMENT 'Distinct non-null payment types. not_defined does not become a member';
 
 # COMMAND ----------
 

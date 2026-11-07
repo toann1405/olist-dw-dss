@@ -123,27 +123,27 @@ Gold trên `olist_catalog` nạp đủ từ Volume, idempotent, có audit. Chưa
 - Ngoài scope: incremental, append, CDF, Auto Loader (R28, giữ ⏸); SCD2 lịch sử (R41 giữ ☐); view OLAP (R42, Phase 4); M1/M2 và ghi `dss.*` (Phase 5); partition; `_batch_id`; watermark; `WHEN NOT MATCHED BY SOURCE THEN DELETE`.
 - Job ETL không ghi `dss.decision_log`. Mũi tên `dss` trên architecture là chỗ Phase 5.
 
-Notebook nguồn là `.py` có `# Databricks notebook source`, cùng kiểu `src/notebooks/01_profiling.py`. DDL song song trong `src/sql/ddl/` để review. Widget (không đọc `.env` trên serverless, không hardcode catalog trong SQL): `uc_catalog` (default `olist_catalog`), ba schema, `dss_schema`, `volume_root`, `snapshot_date=2018-10-17`, `run_id` từ `{{job.run_id}}`.
+Notebook nguồn là `.py` có `# Databricks notebook source`, cùng kiểu `src/notebooks/01_profiling.py`. DDL chỉ nằm trong notebook sở hữu bảng: setup tạo schema và `gold.etl_audit`; Silver tạo 14 bảng trước overwrite; mỗi notebook Gold tạo bảng của mình trước MERGE. Không còn bản song song ở `src/sql/ddl/`. Widget (không đọc `.env` trên serverless, không hardcode catalog trong SQL): `uc_catalog` (default `olist_catalog`), ba schema, `dss_schema`, `volume_root`, `snapshot_date=2018-10-17`, `run_id` từ `{{job.run_id}}`.
 
 Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`.
 
 ### Setup
 
-- [ ] DDL schema và `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R47). File: `src/etl/00_setup.py`, `src/sql/ddl/00_schemas.sql`, `src/sql/ddl/gold_etl_audit.sql`.
-  - Tạo schema `bronze`, `silver`, `gold`, `dss` nếu chưa có. Chạy DDL Gold và `etl_audit`. Không tạo bảng nghiệp vụ `dss`.
+- [ ] DDL schema và `gold.etl_audit`; comment bảng/cột Gold trên Unity Catalog (R06, R47). File: `src/etl/00_setup.py` cho schema và `etl_audit`. Comment Gold nằm trong `03_gold_dims.py`, `04_gold_facts.py`, `05_gold_seller_monthly.py`.
+  - Tạo schema `bronze`, `silver`, `gold`, `dss` nếu chưa có. Setup chỉ tạo `etl_audit`. DDL Gold chạy ở notebook Gold, trước MERGE đầu tiên. Không tạo bảng nghiệp vụ `dss`. Volume đã có: kiểm tra, không tạo lại.
   - `snapshot_date` hằng số trong widget. Không partition.
   - Accept: 4 schema tồn tại; `gold.etl_audit` đủ 10 cột; chưa có bảng `decision_log`.
 
 ### Bronze — FULL LOAD OVERWRITE
 
-- [ ] 12 bảng DESIGN §2.2 từ Volume (R07, R30, R45). File: `src/etl/01_bronze.py`, `src/sql/ddl/bronze.sql`.
+- [ ] 12 bảng DESIGN §2.2 từ Volume (R07, R30, R45). File: `src/etl/01_bronze.py`. Bảng tạo lúc overwrite, mọi cột nghiệp vụ STRING. Không DDL Bronze riêng.
   - `spark.read` header, mọi cột nghiệp vụ STRING (kể cả zip/id), không trim. Thêm `_ingest_ts`, `_source_file`. Bỏ BOM và ngoặc kép tên cột như `normalize_columns` của profiling. Overwrite ảnh hiện tại.
   - Không join, không cast nghiệp vụ, không `_batch_id`.
   - Accept: 12 dòng audit `layer=bronze`; `rows_rejected=0`; count bảng = count file lần đọc (so baseline §2.2, lệch thì in, không bịa số).
 
 ### Silver — FULL LOAD OVERWRITE
 
-- [ ] 14 bảng DESIGN §2.3 (R07, R27, R45). File: `src/etl/02_silver.py`, `src/sql/ddl/silver.sql`.
+- [ ] 14 bảng DESIGN §2.3 (R07, R27, R45). File: `src/etl/02_silver.py`. `CREATE TABLE IF NOT EXISTS` trong notebook này, rồi overwrite dữ liệu, không `overwriteSchema`, để giữ `NOT NULL`.
   - Thứ tự trong notebook: `state_region`, `category_translation`, `geolocation_zip`, `geolocation_city`, rồi `orders`, `order_items`, `order_payments`, `products`, `customers`, `sellers`, rồi `order_reviews`, `order_reviews_dedup`, rồi `closed_deals`, `marketing_qualified_leads`.
   - Cast DESIGN §6. Id/zip STRING. Timestamp `yyyy-MM-dd HH:mm:ss`, lỗi parse → null, không bật `ts_inversion_flag`. Âm hoặc ngoài miền → null, giữ dòng, in DQ, không tính `rows_rejected`.
   - `city_norm`: trim, lower, `translate` đúng bảng accent trong `01_profiling.py`. State upper, left join IBGE. Không khớp vùng → null.
@@ -155,7 +155,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ### Gold dims — MERGE, SCD1, Unknown -1
 
-- [ ] 7 dimension, member `-1`, MERGE hai nhánh (R07, R02). File: `src/etl/03_gold_dims.py`, `src/sql/ddl/gold_dims.sql`. R41 không làm: không sinh lịch sử SCD2.
+- [ ] 7 dimension, member `-1`, MERGE hai nhánh (R07, R02). File: `src/etl/03_gold_dims.py`, gồm DDL dim trước MERGE. R41 không làm: không sinh lịch sử SCD2.
   - Chèn member `-1` trước fact: PK `-1`; natural key null; chữ OLAP `'Unknown'`; số/ngày/cờ null (kể cả `is_weekend`, `has_closed_deal`). Không member `'unknown'` thứ hai.
   - Surrogate còn lại: natural key `ORDER BY` tăng dần, `max(key)+1` từ 1. Cùng tập key thì rerun cùng số. Không hash. `date_key = year*10000+month*100+day`. `month_key = year*100+month`.
   - `dim_date`: mọi ngày từ min đến max timestamp chính thức Silver (purchase, approved, carrier, customer, estimated, shipping limit, review). Không lịch lễ. `dim_month` rút từ `dim_date`.
@@ -167,7 +167,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ### Gold facts — MERGE
 
-- [ ] `fact_order_item` rồi `fact_order` trong cùng task (R07, R02). File: `src/etl/04_gold_facts.py`, `src/sql/ddl/gold_facts.sql`. Comment grain ở đầu hàm load. Cờ mức đơn tính từ Silver, lặp lên item, rồi MERGE item trước và order sau. Không đọc Volume.
+- [ ] `fact_order_item` rồi `fact_order` trong cùng task (R07, R02). File: `src/etl/04_gold_facts.py`, gồm DDL hai fact và CHECK trước MERGE. Comment grain ở đầu notebook. Cờ mức đơn tính từ Silver, lặp lên item, rồi MERGE item trước và order sau. Không đọc Volume.
   - `fact_order`: grain `order_id`. Accumulating snapshot. Năm mốc date role-playing. Địa chỉ khách của đúng `customer_id` nằm trên fact. Review chỉ từ `order_reviews_dedup` (không trung bình, không xóa review tạo trước ngày nhận). `payment_type_key`: một loại chính theo §3.7; `payment_total` vẫn sum mọi dòng. `items_value`/`freight_total` sum mọi status (đơn không item → 0). Không xóa đơn lệch giá.
   - `fact_order_item`: grain (`order_id`, `order_item_id`). Transaction. FK date (purchase, shipping limit), customer, seller, product, order status. Thiếu natural key → `-1`, không bỏ dòng, đếm `rows_unknown_fk`. `late_delivery_flag` là bản copy, không SUM theo item. `price` và `freight_value` là measure riêng. `distance_km` haversine 6371 km, null nếu thiếu tọa độ.
   - `seller_ship_late_flag` tính lại mỗi MERGE từ `snapshot_date` (§3.6): null nếu `canceled`/`unavailable`; null nếu limit null, limit trước purchase, hoặc carrier null vì đảo; 1 nếu carrier sau limit; nếu carrier thật sự thiếu thì 1 khi `TO_DATE(limit) < snapshot_date`, else null.
@@ -177,7 +177,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ### fact_seller_monthly
 
-- [ ] MERGE sau hai fact (R07). File: `src/etl/05_gold_seller_monthly.py`. DDL nằm trong `src/sql/ddl/gold_facts.sql`.
+- [ ] MERGE sau hai fact (R07). File: `src/etl/05_gold_seller_monthly.py`, gồm DDL `fact_seller_monthly` và CHECK trước MERGE.
   - Grain: một seller × một tháng `order_purchase_timestamp` có ít nhất một item. MERGE trên (`seller_key`, `month_key`). `source_name=gold.fact_order_item`. `rows_read` = số item; `rows_loaded` = số cặp. Đọc Gold fact, không đọc Bronze.
   - `gmv = SUM(price)` loại `canceled` và `unavailable`, kể cả đơn nhiều seller. Không cộng `freight_value`. Tháng mọi đơn hủy vẫn có dòng, `gmv=0`. Không bịa seller-tháng 0. Không lọc `min_orders`.
   - Review seller: chỉ đơn `n_sellers=1` và `shared_review_type` thuộc `none|same_seller`. Mẫu `COUNT(DISTINCT order_id)`. `late_flag` vẫn vào bad-experience khi review bị loại. Rate và `aov` không dùng để SUM; lưu cả tử và mẫu.
@@ -229,7 +229,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 - `audit_id = max+1` an toàn vì 6 task tuần tự, không ghi audit song song.
 - SQL Warehouse (S2/S3) không cần cho Job ETL.
 
-**Sản phẩm:** `src/sql/ddl/`, `src/etl/`. Không có `src/tests/` trong Phase 3.
+**Sản phẩm:** `src/etl/`. DDL nằm trong các notebook đó. `src/etl/olist_etl.job.yml` chỉ là skeleton, chưa phải file deploy. Không có `src/tests/` trong Phase 3. Không có `src/sql/ddl/`.
 **Phụ thuộc:** Phase 2 và S1. **Rủi ro:** lỗi dữ liệu → set null, đếm `rows_rejected` khi dòng bị bỏ hẳn, in DQ trong notebook. Không chặn pipeline Cloud.
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11

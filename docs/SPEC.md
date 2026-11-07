@@ -36,11 +36,11 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | Mã | Nội dung | Mức | Nguồn | Phase | Sản phẩm đầu ra | TT |
 |---|---|---|---|---|---|---|
 | R01 | Phân tích nghiệp vụ, bài toán quyết định cụ thể (decision maker, alternatives, principle of choice) | BB | Mục 1.1 (mục tiêu 1), 3.1(c); Trang 2–3 | 0–1 | `TOPIC_EVALUATION.md`, SPEC §1 | ☑ |
-| R02 | DW là cốt lõi, phục vụ phân tích và ra quyết định | BB | 3.1(a); Trang 3 | 2–3 | `DESIGN.md`, `src/sql/ddl/` | ◐ |
+| R02 | DW là cốt lõi, phục vụ phân tích và ra quyết định | BB | 3.1(a); Trang 3 | 2–3 | `DESIGN.md`, DDL trong `src/etl/` | ◐ |
 | R03 | Nguồn dữ liệu hợp lệ, ghi license và quy mô | BB | 3.1(b); Trang 3 | 0 | `data/README.md` | ☑ |
 | R04 | Thiết kế DW đa chiều (star/snowflake) | BB | 1.1 (mục tiêu 2); Trang 2 | 2 | `DESIGN.md` | ☑ |
 | R05 | Thiết kế quy trình ETL | BB | 1.1 (mục tiêu 2); Trang 2 | 2 | `DESIGN.md` (ETL mapping) | ☑ |
-| R06 | Hiện thực DW trên Delta Lake (bronze/silver/gold) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | Unity Catalog schemas + DDL trong `src/sql/ddl/` | ☐ |
+| R06 | Hiện thực DW trên Delta Lake (bronze/silver/gold) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | Unity Catalog schemas + DDL trong `src/etl/` | ☐ |
 | R07 | Hiện thực ETL medallion chạy được end-to-end (Bronze ingest → Silver clean/conform → Gold MERGE) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | `src/etl/` | ☐ |
 | R08 | Hiện thực OLAP | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/sql/olap_queries/`, `src/sql/views/` | ☐ |
 | R09 | Frontend: dashboard / giao diện truy vấn | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/frontend/` | ☐ |
@@ -75,13 +75,13 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R38 | Phân loại DSS | BB\* | L.O.3.1 | 5 | SPEC §8 | ◐ |
 | R39 | Phương pháp phát triển (SDLC/prototyping), rủi ro dự án | NC | L.O.4.1 | 7 | Báo cáo | ☐ |
 | R40 | Lịch chạy ETL tự động bằng Databricks Jobs (S4 đạt 13/10/2026: Free Edition tạo được Job và lưu lịch; ETL chưa gắn vào Job) | ĐC | slide Ch2 (batch ETL) | 3 | `src/etl/` | ◐ |
-| R41 | Surrogate key + SCD Type 2 cho ≥ 1 dimension (`dim_seller` nếu làm điểm cộng) | ĐC | Kimball (TLTK [2]) | 2–3 | `src/sql/ddl/`, `src/etl/` | ☐ |
+| R41 | Surrogate key + SCD Type 2 cho ≥ 1 dimension (`dim_seller` nếu làm điểm cộng) | ĐC | Kimball (TLTK [2]) | 2–3 | `src/etl/` | ☐ |
 | R42 | Aggregate / view trên Gold cho OLAP (không partition vì dữ liệu nhỏ) | NC | slide Ch1–2 | 3–4 | `src/sql/views/` | ☐ |
 | R43 | Knowledge subsystem: luật khuyến nghị hành động | ĐC | slide Ch6 | 5 | `src/dss/` | ☐ |
 | R44 | Đánh giá mô hình (metric, backtest) | NC | slide Ch7 | 5–6 | `src/dss/`, báo cáo | ☐ |
 | R45 | Hợp đồng giữa các layer (Bronze FULL LOAD OVERWRITE, metadata `_ingest_ts` và `_source_file`; Silver FULL LOAD OVERWRITE, làm sạch/conform; Gold bảng Delta star schema, `MERGE` theo grain; downstream chỉ đọc Gold) | BB\* | [SUY LUẬN] / hợp đồng medallion | 2–3 | SPEC §4–6, `DESIGN.md` | ☑ |
 | R46 | Khả năng tái lập cho người chấm (README hướng dẫn, chạy local trên sample). Không thuộc DoD Phase 3 | NC | [SUY LUẬN] / tái lập cho người chấm | 0, 6, 7 | README, `src/tests/`, chạy local `data/sample/` | ☐ |
-| R47 | Metadata/lineage: comment bảng/cột Gold trong Unity Catalog | ĐC | [SUY LUẬN] / metadata | 3 | DDL trong `src/sql/ddl/` | ☐ |
+| R47 | Metadata/lineage: comment bảng/cột Gold trong Unity Catalog | ĐC | [SUY LUẬN] / metadata | 3 | DDL Gold trong `src/etl/03_gold_dims.py`, `04_gold_facts.py`, `05_gold_seller_monthly.py` | ☐ |
 
 
 **Đối chiếu đề (PDF) ↔ file phân tích** — không có mâu thuẫn trực tiếp về yêu cầu; các điểm cần lưu ý (làm theo PDF):
@@ -346,8 +346,8 @@ flowchart LR
 | `data/raw/` · `data/external/` · `data/sample/` | Dữ liệu gốc · bổ sung · mẫu (local và nộp bài) | 0–1 | ☑ Olist + Funnel + sample + `ibge_state_region.csv` (local 27 dòng; nhóm xác nhận đã ở Volume `ref/`). Không dùng lịch ngày lễ |
 | `src/notebooks/00_verify_and_sample.py` | Kiểm tra file tải về + tạo mẫu giữ khóa | 0 | ☑ |
 | `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☑ `01_profiling.py` chạy trên Volume 15/10/2026 |
-| `src/sql/ddl/` · `src/sql/views/` · `src/sql/olap_queries/` | Delta DDL (bronze/silver/gold/dss) · view · truy vấn OLAP Spark SQL trên Gold | 3–4 | ☐ |
-| `src/etl/` | Notebook/pipeline Bronze, Silver, Gold | 3 | ☐ |
+| `src/etl/` | Notebook Phase 3, gồm DDL schema, Silver, Gold và `etl_audit`. `olist_etl.job.yml` là skeleton, chưa deploy | 3 | ☐ |
+| `src/sql/views/` · `src/sql/olap_queries/` | View và truy vấn OLAP Spark SQL trên Gold. Chưa viết | 4 | ☐ |
 | `src/dss/` | M1, M2, goal seek, sensitivity, rules; đọc Gold, ghi `dss.*` | 5 | ☐ |
 | `src/frontend/` | Power BI (dashboard) và Streamlit (truy vấn / DSS) | 4–5 | ☐ |
 | `src/tests/` | Pytest local trên sample khi làm R46. Không thuộc DoD Phase 3 | 6 | ☐ |

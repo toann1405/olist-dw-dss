@@ -22,3 +22,18 @@ def print_recon(
 
 def print_warn(check: str, detail: str) -> None:
     print(f"DQ warn {check}: {detail}")
+
+
+def print_grain_retention(
+    target: str,
+    grain_before: int,
+    grain_source: int,
+    grain_after: int,
+    orphans: int,
+) -> None:
+    """Grain counts only. Do not store these on etl_audit.rows_loaded."""
+    increased = grain_after - grain_before
+    print(
+        f"DQ grain {target}: before={grain_before} source={grain_source} "
+        f"after={grain_after} increased={increased} orphans_not_in_source={orphans}"
+    )

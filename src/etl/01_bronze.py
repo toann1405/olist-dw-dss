@@ -11,7 +11,6 @@
 
 # COMMAND ----------
 
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 # COMMAND ----------
@@ -170,16 +169,6 @@ TABLES = [
 
 # COMMAND ----------
 
-def _spark() -> SparkSession:
-    existing = globals().get("spark")
-    if isinstance(existing, SparkSession):
-        return existing
-    active = SparkSession.getActiveSession()
-    if active is None:
-        raise RuntimeError("No active Spark session")
-    return active
-
-
 def widget(name: str, default: str) -> str:
     dbutils.widgets.text(name, default)
     value = dbutils.widgets.get(name)
@@ -195,7 +184,7 @@ def normalize_columns(df):
     return df
 
 
-def read_csv(spark: SparkSession, path: str):
+def read_csv(path: str):
     frame = (
         spark.read.option("header", True)
         .option("inferSchema", False)
@@ -212,7 +201,6 @@ def read_csv(spark: SparkSession, path: str):
 
 # COMMAND ----------
 
-spark = _spark()
 catalog = widget("uc_catalog", "olist_catalog")
 bronze = widget("bronze_schema", "bronze")
 gold = widget("gold_schema", "gold")
@@ -223,7 +211,7 @@ run_id = widget("run_id", "manual")
 
 for table, relative_path, columns in TABLES:
     path = f"{volume_root}/{relative_path}"
-    raw = read_csv(spark, path)
+    raw = read_csv(path)
     selected = []
     for column in columns:
         if column in raw.columns:
@@ -237,6 +225,8 @@ for table, relative_path, columns in TABLES:
     )
     rows_read = loaded.count()
     target = f"{catalog}.{bronze}.{table}"
+    # No NOT NULL and no CHECK on Bronze. This write is the table definition:
+    # every business column is STRING, plus _ingest_ts and _source_file.
     (
         loaded.write.format("delta")
         .mode("overwrite")

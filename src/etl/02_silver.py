@@ -11,7 +11,7 @@
 
 # COMMAND ----------
 
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
 # COMMAND ----------
@@ -23,16 +23,6 @@ LAT_MIN, LAT_MAX = -34.0, 6.0
 LNG_MIN, LNG_MAX = -74.0, -28.0
 
 # COMMAND ----------
-
-def _spark() -> SparkSession:
-    existing = globals().get("spark")
-    if isinstance(existing, SparkSession):
-        return existing
-    active = SparkSession.getActiveSession()
-    if active is None:
-        raise RuntimeError("No active Spark session")
-    return active
-
 
 def widget(name: str, default: str) -> str:
     dbutils.widgets.text(name, default)
@@ -81,7 +71,9 @@ def reject_blank_keys(df: DataFrame, keys: list[str]) -> tuple[DataFrame, int]:
 
 
 def overwrite(df: DataFrame, table: str) -> None:
-    df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    # The DDL cell created the types and NOT NULL. Replacing the schema would drop them.
+    spark.table(table)
+    df.write.format("delta").mode("overwrite").saveAsTable(table)
 
 
 def publish(table: str, source: str, frame: DataFrame, rows_read: int, rows_rejected: int, rows_dropped: int) -> None:
@@ -103,7 +95,6 @@ def publish(table: str, source: str, frame: DataFrame, rows_read: int, rows_reje
 
 # COMMAND ----------
 
-spark = _spark()
 catalog = widget("uc_catalog", "olist_catalog")
 bronze = widget("bronze_schema", "bronze")
 silver = widget("silver_schema", "silver")
@@ -117,6 +108,158 @@ def bronze_table(name: str) -> DataFrame:
 
 def silver_name(name: str) -> str:
     return f"{catalog}.{silver}.{name}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Typed Silver tables. NOT NULL stays because the load overwrites rows, not the schema.
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.state_region (
+# MAGIC   state_id STRING,
+# MAGIC   state_code STRING NOT NULL,
+# MAGIC   state_name STRING,
+# MAGIC   region_id STRING,
+# MAGIC   region_code STRING,
+# MAGIC   region_name STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.category_translation (
+# MAGIC   product_category_name STRING NOT NULL,
+# MAGIC   product_category_name_english STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.geolocation_zip (
+# MAGIC   zip_prefix STRING NOT NULL,
+# MAGIC   lat DOUBLE,
+# MAGIC   lng DOUBLE,
+# MAGIC   city_name STRING,
+# MAGIC   state_code STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.geolocation_city (
+# MAGIC   city_norm STRING NOT NULL,
+# MAGIC   state_code STRING NOT NULL,
+# MAGIC   lat DOUBLE,
+# MAGIC   lng DOUBLE
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.orders (
+# MAGIC   order_id STRING NOT NULL,
+# MAGIC   customer_id STRING,
+# MAGIC   order_status STRING,
+# MAGIC   order_purchase_timestamp TIMESTAMP,
+# MAGIC   raw_approved_at TIMESTAMP,
+# MAGIC   raw_delivered_carrier_date TIMESTAMP,
+# MAGIC   raw_delivered_customer_date TIMESTAMP,
+# MAGIC   raw_estimated_delivery_date TIMESTAMP,
+# MAGIC   order_approved_at TIMESTAMP,
+# MAGIC   order_delivered_carrier_date TIMESTAMP,
+# MAGIC   order_delivered_customer_date TIMESTAMP,
+# MAGIC   order_estimated_delivery_date TIMESTAMP,
+# MAGIC   ts_inversion_flag INT NOT NULL
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.order_items (
+# MAGIC   order_id STRING NOT NULL,
+# MAGIC   order_item_id STRING NOT NULL,
+# MAGIC   product_id STRING,
+# MAGIC   seller_id STRING,
+# MAGIC   shipping_limit_date TIMESTAMP,
+# MAGIC   price DECIMAL(18, 2),
+# MAGIC   freight_value DECIMAL(18, 2)
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.order_payments (
+# MAGIC   order_id STRING NOT NULL,
+# MAGIC   payment_sequential STRING NOT NULL,
+# MAGIC   payment_type STRING,
+# MAGIC   payment_installments INT,
+# MAGIC   payment_value DECIMAL(18, 2)
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.products (
+# MAGIC   product_id STRING NOT NULL,
+# MAGIC   product_category_name STRING,
+# MAGIC   product_name_lenght INT,
+# MAGIC   product_description_lenght INT,
+# MAGIC   product_photos_qty INT,
+# MAGIC   product_weight_g INT,
+# MAGIC   product_length_cm INT,
+# MAGIC   product_height_cm INT,
+# MAGIC   product_width_cm INT,
+# MAGIC   category_name_en STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.customers (
+# MAGIC   customer_id STRING NOT NULL,
+# MAGIC   customer_unique_id STRING,
+# MAGIC   customer_zip_code_prefix STRING,
+# MAGIC   customer_city STRING,
+# MAGIC   customer_state STRING,
+# MAGIC   lat DOUBLE,
+# MAGIC   lng DOUBLE,
+# MAGIC   geo_match_level STRING NOT NULL,
+# MAGIC   region_id STRING,
+# MAGIC   region_code STRING,
+# MAGIC   region_name STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.sellers (
+# MAGIC   seller_id STRING NOT NULL,
+# MAGIC   seller_zip_code_prefix STRING,
+# MAGIC   seller_city STRING,
+# MAGIC   seller_state STRING,
+# MAGIC   lat DOUBLE,
+# MAGIC   lng DOUBLE,
+# MAGIC   geo_match_level STRING NOT NULL,
+# MAGIC   region_id STRING,
+# MAGIC   region_code STRING,
+# MAGIC   region_name STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.order_reviews (
+# MAGIC   review_id STRING NOT NULL,
+# MAGIC   order_id STRING NOT NULL,
+# MAGIC   review_score INT,
+# MAGIC   review_comment_title STRING,
+# MAGIC   review_comment_message STRING,
+# MAGIC   review_creation_date TIMESTAMP,
+# MAGIC   review_answer_timestamp TIMESTAMP
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.order_reviews_dedup (
+# MAGIC   review_id STRING NOT NULL,
+# MAGIC   order_id STRING NOT NULL,
+# MAGIC   review_score INT,
+# MAGIC   review_comment_title STRING,
+# MAGIC   review_comment_message STRING,
+# MAGIC   review_creation_date TIMESTAMP,
+# MAGIC   review_answer_timestamp TIMESTAMP,
+# MAGIC   shared_review_type STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.closed_deals (
+# MAGIC   mql_id STRING,
+# MAGIC   seller_id STRING,
+# MAGIC   sdr_id STRING,
+# MAGIC   sr_id STRING,
+# MAGIC   won_date TIMESTAMP,
+# MAGIC   business_segment STRING,
+# MAGIC   lead_type STRING,
+# MAGIC   lead_behaviour_profile STRING,
+# MAGIC   has_company STRING,
+# MAGIC   has_gtin STRING,
+# MAGIC   average_stock STRING,
+# MAGIC   business_type STRING,
+# MAGIC   declared_product_catalog_size STRING,
+# MAGIC   declared_monthly_revenue STRING
+# MAGIC ) USING DELTA;
+# MAGIC
+# MAGIC CREATE TABLE IF NOT EXISTS ${uc_catalog}.${silver_schema}.marketing_qualified_leads (
+# MAGIC   mql_id STRING NOT NULL,
+# MAGIC   first_contact_date TIMESTAMP,
+# MAGIC   landing_page_id STRING,
+# MAGIC   origin STRING
+# MAGIC ) USING DELTA;
 
 # COMMAND ----------
 
