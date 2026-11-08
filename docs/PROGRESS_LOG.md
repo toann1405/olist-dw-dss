@@ -10,15 +10,23 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 3 notebook Databricks-only. DDL nằm trong notebook sở hữu bảng. Job vẫn là skeleton, chưa Run now. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Gắn Job `olist_etl` trên Databricks và Run now |
-| Blocker | Không có blocker thiết kế. SQL Warehouse từ máy local (S2) và kết nối Power BI (S3) chưa kiểm. S6 không chặn Phase 3. Job ETL chưa chạy trên workspace |
-| Việc tiếp theo | Tạo Job serverless 6 task từ Git folder, Run now, rồi mới xét tick PLAN và R07/R40/R47 |
-| Cập nhật | 07/11/2026 (refactor notebook, static checks only, chưa Run now) |
+| Phase hiện tại | Phase 4. Năm câu OLAP đã chạy trên SQL Warehouse 07/11/2026. Power BI chưa nối. T1 chốt 15/10/2026. X=10, N=40 |
+| Đang làm | Nối Power BI Desktop DirectQuery rồi publish lên app.powerbi.com |
+| Blocker | S3 chưa kiểm. License Pro không tạo kết nối Databricks ngay trên web. S2 chưa kiểm |
+| Việc tiếp theo | Power BI Desktop dùng hostname và HTTP path của warehouse `cfb33f9733d84eff`, DirectQuery, rồi Publish |
+| Cập nhật | 07/11/2026 (năm câu OLAP chạy được; Power BI chưa nối) |
 
 ---
 
 ## Nhật ký
+
+### 07/11/2026 — Phase 4 — Năm câu OLAP trên SQL Warehouse
+
+- **Đã làm:** thêm `src/sql/olap_queries/` với năm file, mỗi file một phép SPEC §7. Chạy trên warehouse `Serverless Starter Warehouse`, id `cfb33f9733d84eff`, catalog `olist_catalog`. Cả năm câu `SUCCEEDED`, kết quả không bị cắt. Số dòng: roll-up 665, drill-down 634, slice 612, dice 13, pivot 9. Mức tất cả của roll-up: `late_items` 11132, `eligible_items` 110550, `late_ship_rate` 0.10069651741293532. Slice lọc ví dụ `electronics_it_telephony`. Tick checkbox năm câu trong PLAN. R08 và R25 sang ☑. R42 và Power BI giữ ☐.
+- **Không làm:** không tạo `src/sql/views/`. Không mở Power BI. Không xuất CSV. Không tick R09. Không đếm lại `gold.etl_audit` của Job ETL. Không commit.
+- **Power BI, chưa nối:** hostname `dbc-6a3fb372-922e.cloud.databricks.com`, HTTP path `/sql/1.0/warehouses/cfb33f9733d84eff`. Token để trong `.env`, không ghi ở đây. License Pro: dựng bằng Power BI Desktop, DirectQuery, rồi Publish lên app.powerbi.com. Không dùng nút Publish trong Catalog.
+- **File đã sửa:** `src/sql/olap_queries/`, `docs/PLAN.md`, `docs/SPEC.md`, `docs/PROGRESS_LOG.md`.
+- **Việc tiếp theo:** người dùng nối Power BI Desktop. Nếu không nối được, ghi hai phương án và dừng.
 
 ### 07/11/2026 — Phase 3 — Notebook Databricks-only, DDL về notebook
 

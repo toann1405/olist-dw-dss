@@ -42,7 +42,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R05 | Thiết kế quy trình ETL | BB | 1.1 (mục tiêu 2); Trang 2 | 2 | `DESIGN.md` (ETL mapping) | ☑ |
 | R06 | Hiện thực DW trên Delta Lake (bronze/silver/gold) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | Unity Catalog schemas + DDL trong `src/etl/` | ☐ |
 | R07 | Hiện thực ETL medallion chạy được end-to-end (Bronze ingest → Silver clean/conform → Gold MERGE) | BB | 1.1 (mục tiêu 3); Trang 2 | 3 | `src/etl/` | ☐ |
-| R08 | Hiện thực OLAP | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/sql/olap_queries/`, `src/sql/views/` | ☐ |
+| R08 | Hiện thực OLAP | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/sql/olap_queries/`, `src/sql/views/` | ☑ |
 | R09 | Frontend: dashboard / giao diện truy vấn | BB | 1.1 (mục tiêu 3); Trang 2 | 4 | `src/frontend/` | ☐ |
 | R10 | Thành phần DSS dựa trên DW đã xây | BB | 1.1 (mục tiêu 4); Trang 2 | 5 | `src/dss/` | ☐ |
 | R11 | Đánh giá kết quả | BB | 1.1 (mục tiêu 5); Trang 2 | 6 | `docs/report/` | ☐ |
@@ -59,7 +59,7 @@ Mức: **BB** = bắt buộc [ĐỀ] · **BB\*** = nhóm tự đặt là bắt b
 | R22 | Kiến trúc tổng thể source → Volume → Bronze → Silver → Gold (DW) → OLAP → DSS; cách tiếp cận DW có lý do | BB\* | L.O.1.2, 2.1 | 2 | SPEC §4, `DESIGN.md` | ☑ |
 | R23 | Khai báo granularity cho từng fact | BB\* | L.O.2.2; slide Ch2 | 2 | `DESIGN.md` | ☑ |
 | R24 | ≥ 2 dimension có hierarchy | BB\* | L.O.2.3; slide Ch2 | 2 | `DESIGN.md` | ☑ |
-| R25 | Đủ 5 phép OLAP (slice, dice, drill-down, roll-up, pivot), mỗi phép trả lời 1 câu hỏi nghiệp vụ | BB\* | Mục tiêu 3; slide Ch2–3 | 4 | `src/sql/olap_queries/`, `src/frontend/` | ☐ |
+| R25 | Đủ 5 phép OLAP (slice, dice, drill-down, roll-up, pivot), mỗi phép trả lời 1 câu hỏi nghiệp vụ | BB\* | Mục tiêu 3; slide Ch2–3 | 4 | `src/sql/olap_queries/`, `src/frontend/` | ☑ |
 | R26 | ROLAP qua Databricks SQL Warehouse. Power BI đọc Gold. Streamlit là giao diện truy vấn và DSS. HOLAP và MOLAP không dùng | NC | slide Ch2–3 | 0–2 | SPEC §5, §7 | ☑ |
 | R27 | Làm sạch dữ liệu + kiểm thử chất lượng (Delta constraints, đếm dòng, đối soát tổng, RI, unique grain). Pytest trên sample không thuộc DoD Phase 3 (R46) | BB\* | Mục tiêu 3; slide Ch1–2 | 3 | `src/etl/` | ◐ |
 | R28 | Incremental load theo watermark, append, CDF, Auto Loader — **deferred / future work**. Đề cho phép incremental hoặc full refresh. Dataset tĩnh nên full refresh: Bronze/Silver FULL LOAD OVERWRITE; Gold `MERGE` theo grain | NC | slide Ch2 | — | SPEC §6, DESIGN §9 | ⏸ |
@@ -347,7 +347,8 @@ flowchart LR
 | `src/notebooks/00_verify_and_sample.py` | Kiểm tra file tải về + tạo mẫu giữ khóa | 0 | ☑ |
 | `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☑ `01_profiling.py` chạy trên Volume 15/10/2026 |
 | `src/etl/` | Notebook Phase 3, gồm DDL schema, Silver, Gold và `etl_audit`. `olist_etl.job.yml` là skeleton, chưa deploy | 3 | ☐ |
-| `src/sql/views/` · `src/sql/olap_queries/` | View và truy vấn OLAP Spark SQL trên Gold. Chưa viết | 4 | ☐ |
+| `src/sql/olap_queries/` | Năm câu OLAP trên Gold. Chạy SQL Warehouse 07/11/2026 | 4 | ☑ |
+| `src/sql/views/` | View tổng hợp OLAP (R42). Chưa viết | 4 | ☐ |
 | `src/dss/` | M1, M2, goal seek, sensitivity, rules; đọc Gold, ghi `dss.*` | 5 | ☐ |
 | `src/frontend/` | Power BI (dashboard) và Streamlit (truy vấn / DSS) | 4–5 | ☐ |
 | `src/tests/` | Pytest local trên sample khi làm R46. Không thuộc DoD Phase 3 | 6 | ☐ |

@@ -239,7 +239,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 **Cloud**
 
 - [ ] View phục vụ OLAP trên Gold, nếu làm R42. Fact và dimension vẫn là bảng Delta (R08, R42)
-- [ ] 5 truy vấn OLAP bằng Spark SQL trên Gold: slice, dice, drill-down, roll-up, pivot — mỗi truy vấn 1 câu hỏi (R25, R08)
+- [x] 5 truy vấn OLAP bằng Spark SQL trên Gold: slice, dice, drill-down, roll-up, pivot — mỗi truy vấn 1 câu hỏi (R25, R08). Chạy trên SQL Warehouse `cfb33f9733d84eff` ngày 07/11/2026.
 - [ ] (ĐC) so sánh thời gian truy vấn có/không aggregate view, đo trên SQL warehouse (R42)
 
 **Local → Cloud**
