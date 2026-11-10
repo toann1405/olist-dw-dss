@@ -281,6 +281,10 @@ def _clean(value):
             return None
     except TypeError:
         pass
+    if isinstance(value, pd.Timestamp):
+        if value.tzinfo is None:
+            value = value.tz_localize("UTC")
+        return value.tz_convert("UTC").to_pydatetime()
     return value
 
 
