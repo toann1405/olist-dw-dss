@@ -124,9 +124,9 @@ def _insert(scores: pd.DataFrame, choice: str, params: PolicyParams, note: str) 
 
 def render(settings=None) -> None:
     del settings
-    st.header("Policy scenario")
-    st.caption("Warehouse Free Edition có thể mất vài phút cho câu đầu.")
-    db.refresh_button("policy")
+    from lib.ui import page_header
+
+    page_header("Policy scenario", "So sánh P0, P1 và P2, rồi ghi một quyết định.", "policy")
     try:
         with st.spinner("Đang hỏi SQL Warehouse..."):
             scores = db.query(*queries.scores())

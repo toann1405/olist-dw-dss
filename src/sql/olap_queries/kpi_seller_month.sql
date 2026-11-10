@@ -28,3 +28,4 @@ WHERE f.seller_key <> -1
   AND s.seller_key <> -1
   AND ({p} IS NULL OR m.year = {p})
   AND ({p} IS NULL OR s.region_name = {p})
+  AND ({p} IS NULL OR s.state_code = {p})

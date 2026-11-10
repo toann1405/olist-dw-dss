@@ -14,11 +14,24 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 10/11/2026 (app Streamlit đã chạy local; KPI đối soát trên warehouse) |
+| Cập nhật | 10/11/2026 (UI Streamlit: theme, Home, KPI card, OLAP tabs) |
 
 ---
 
 ## Nhật ký
+
+### 10/11/2026 — UI Streamlit: theme, Home, KPI card, tab OLAP
+
+- **Đã làm:** theme sáng, `lib/ui.py`, sidebar lọc dùng chung, trang Home, KPI thành card và chart, OLAP thành 5 tab. Không đổi công thức tử/mẫu. Không tick PLAN hay RTM.
+- **Đối soát cùng filter “Tất cả” và “2018 / Sudeste”:** GMV, số đơn, bàn giao trễ, review, cancel khớp từng số đã đo trước refactor (GMV tất cả 13494400.74, đơn 98199, trễ 11132/110550, review 13141/95974, hủy 467/98666). Tổng GMV theo tháng và theo vùng cũng ra 13494400.74 và 11132/110550.
+- **Đã mở app:** Home, KPI, OLAP, Seller risk, Policy đều load. Seller risk với `min_orders` 5 vẫn trống vì bảng điểm chỉ có 1 seller với 1 đơn.
+- **Việc tiếp theo:** chạy `src/dss/dss_job.py` để có đủ điểm seller.
+
+### 10/11/2026 — OLAP Explorer hiện năm phép trên một trang
+
+- **Đã làm:** `src/frontend/pages/olap.py` bỏ ô chọn một phép. Cùng một trang có roll-up (cột ngang), drill-down (đường hoặc vùng), slice (cột ngang), dice (cột nhóm) và pivot (ô nhiệt). SQL và cách chia tử/mẫu không đổi. Không tick PLAN hay RTM.
+- **Đã chạy:** mở Streamlit, trang `/olap` vẽ đủ năm phần trên SQL Warehouse. Không đo lại số KPI.
+- **Việc tiếp theo:** vẫn là chạy `src/dss/dss_job.py` để bảng điểm đủ seller.
 
 ### 10/11/2026 — Phase 4–5 — Một app Streamlit, đã chạy KPI trên warehouse
 

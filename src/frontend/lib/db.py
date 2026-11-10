@@ -154,6 +154,6 @@ Hai phương án:
 
 
 def refresh_button(page: str) -> None:
-    if st.button("Làm mới", key=f"refresh_{page}"):
+    if st.button("Làm mới", key=f"refresh_{page}", width="stretch"):
         st.cache_data.clear()
         st.rerun()

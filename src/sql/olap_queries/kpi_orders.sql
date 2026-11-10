@@ -23,6 +23,7 @@ WITH touched AS (
     AND d.date_key <> -1
     AND ({p} IS NULL OR d.year = {p})
     AND ({p} IS NULL OR s.region_name = {p})
+    AND ({p} IS NULL OR s.state_code = {p})
 )
 SELECT
   SUM(

@@ -35,12 +35,42 @@ def regions() -> tuple[str, tuple]:
     return load("kpi_regions.sql"), ()
 
 
-def kpi_seller_month(year: int | None, region: str | None) -> tuple[str, tuple]:
-    return load("kpi_seller_month.sql"), (year, year, region, region)
+def _place(year: int | None, region: str | None, state: str | None) -> tuple:
+    return (year, year, region, region, state, state)
 
 
-def kpi_orders(year: int | None, region: str | None) -> tuple[str, tuple]:
-    return load("kpi_orders.sql"), (year, year, region, region)
+def kpi_seller_month(year: int | None, region: str | None, state: str | None = None) -> tuple[str, tuple]:
+    return load("kpi_seller_month.sql"), _place(year, region, state)
+
+
+def kpi_orders(year: int | None, region: str | None, state: str | None = None) -> tuple[str, tuple]:
+    return load("kpi_orders.sql"), _place(year, region, state)
+
+
+def states(region: str | None) -> tuple[str, tuple]:
+    return load("kpi_states.sql"), (region, region)
+
+
+def kpi_by_month(year: int | None, region: str | None, state: str | None) -> tuple[str, tuple]:
+    return load("kpi_by_month.sql"), _place(year, region, state)
+
+
+def kpi_top_categories(year: int | None, region: str | None, state: str | None) -> tuple[str, tuple]:
+    return load("kpi_top_categories.sql"), _place(year, region, state)
+
+
+def kpi_late_by_region(year: int | None, state: str | None) -> tuple[str, tuple]:
+    return load("kpi_late_by_region.sql"), (year, year, state, state)
+
+
+def kpi_for_category(
+    year: int | None, region: str | None, state: str | None, category: str
+) -> tuple[str, tuple]:
+    return load("kpi_for_category.sql"), (*_place(year, region, state), category)
+
+
+def pivot_counts() -> tuple[str, tuple]:
+    return load("pivot_counts.sql"), ()
 
 
 def category_groups() -> pd.DataFrame:

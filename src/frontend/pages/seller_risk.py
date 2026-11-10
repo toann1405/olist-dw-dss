@@ -10,9 +10,9 @@ from src.dss.params import MIN_ORDERS
 
 def render(settings=None) -> None:
     del settings
-    st.header("Seller risk")
-    st.caption("Điểm lấy từ lần chạy job DSS gần nhất. Lọc min_orders chỉ đổi bảng trên trang này.")
-    db.refresh_button("risk")
+    from lib.ui import page_header
+
+    page_header("Seller risk", "Điểm M1 của tháng chấm gần nhất. Bộ lọc sidebar không đổi bảng điểm.", "risk")
     min_orders = st.number_input("min_orders", min_value=0, value=MIN_ORDERS, step=1)
     try:
         with st.spinner("Đang hỏi SQL Warehouse..."):
