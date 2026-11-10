@@ -38,6 +38,73 @@ table _Measures
 		formatString: 0
 		lineageTag: 5c2e9a14-7d81-4b3f-9c06-1e8a4f2b73d0
 
+	measure GMV =
+			
+			SUM(fact_seller_monthly[gmv])
+		formatString: #,0
+		lineageTag: 8f512d47-a0b1-4c62-9e83-41bd6c7a80f3
+
+	measure 'Late Delivery Rate' =
+			
+			DIVIDE(
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        fact_order[late_flag] = 1
+			    ),
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        NOT ISBLANK(fact_order[late_flag])
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 9a623e58-b1c2-4d73-af94-52ce7d8b9104
+
+	measure 'Negative Review Rate' =
+			
+			DIVIDE(
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        fact_order[negative_review_flag] = 1
+			    ),
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        NOT ISBLANK(fact_order[negative_review_flag])
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: a0734f69-c2d3-4e84-b0a5-63df8e9c0215
+
+	measure 'Late Rate (dice)' =
+			
+			CALCULATE(
+			    [Late Delivery Rate],
+			    CROSSFILTER(fact_order_item[order_id], fact_order[order_id], Both)
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: b184506a-d3e4-4f95-c1b6-74e09fad1326
+
+	measure 'Seller Negative Review Rate (dice)' =
+			
+			CALCULATE(
+			    DIVIDE(
+			        CALCULATE(
+			            DISTINCTCOUNT(fact_order[order_id]),
+			            fact_order[n_sellers] = 1,
+			            fact_order[shared_review_type] IN { "none", "same_seller" },
+			            fact_order[negative_review_flag] = 1
+			        ),
+			        CALCULATE(
+			            DISTINCTCOUNT(fact_order[order_id]),
+			            fact_order[n_sellers] = 1,
+			            fact_order[shared_review_type] IN { "none", "same_seller" },
+			            NOT ISBLANK(fact_order[negative_review_flag])
+			        )
+			    ),
+			    CROSSFILTER(fact_order_item[order_id], fact_order[order_id], Both)
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: c295617b-e4f5-40a6-d2c7-85f10abe2437
+
 	measure 'Check Slice Sellers' =
 			
 			COUNTROWS(
@@ -59,6 +126,17 @@ table _Measures
 			)
 		formatString: 0
 		lineageTag: 7e401c36-9fa3-4d51-be28-30ac6f4d95f2
+
+	measure 'Check Drill Days' =
+			
+			COUNTROWS(
+			    FILTER(
+			        VALUES(dim_date[full_date]),
+			        NOT ISBLANK([Negative Review Rate])
+			    )
+			)
+		formatString: 0
+		lineageTag: d3a6728c-f506-41b7-e3d8-96021bcf3548
 
 	partition _Measures = m
 		mode: import

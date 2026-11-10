@@ -56,8 +56,7 @@ repo_root = find_repo_root(widget("repo_root", ""))
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-from src.dss.params import PolicyParams
-from src.dss.policy import compare_policies, scenario_record
+from src.dss.policy import PolicyParams, compare_policies, scenario_record
 from src.dss.train import train_and_score
 
 # COMMAND ----------

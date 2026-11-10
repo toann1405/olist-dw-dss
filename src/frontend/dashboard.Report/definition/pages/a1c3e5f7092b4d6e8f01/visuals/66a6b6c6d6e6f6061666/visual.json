@@ -28,6 +28,34 @@
               },
               "queryRef": "dim_seller.state_code",
               "nativeQueryRef": "state_code"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Late Rate (dice)"
+                }
+              },
+              "queryRef": "_Measures.Late Rate (dice)",
+              "nativeQueryRef": "Late Rate (dice)"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Seller Negative Review Rate (dice)"
+                }
+              },
+              "queryRef": "_Measures.Seller Negative Review Rate (dice)",
+              "nativeQueryRef": "Seller Negative Review Rate (dice)"
             }
           ]
         }

@@ -1,0 +1,317 @@
+table fact_order
+	lineageTag: bc7e6adb-4a7d-4aea-936d-af10129554d6
+
+	column order_id
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: eaf027dc-b398-492b-aa49-0fea105e308f
+		summarizeBy: none
+		sourceColumn: order_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column purchase_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: fdf9208b-e4e0-4523-8e1d-daeef9bb8e6b
+		summarizeBy: none
+		sourceColumn: purchase_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column approved_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: b7f2618b-b70a-409b-90c5-8efd616bf9c4
+		summarizeBy: sum
+		sourceColumn: approved_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column delivered_carrier_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 29bdb9e4-7899-42ad-b323-106df231f275
+		summarizeBy: sum
+		sourceColumn: delivered_carrier_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column delivered_customer_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: b32648bb-308c-40cb-95a9-f937c051dd82
+		summarizeBy: sum
+		sourceColumn: delivered_customer_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column estimated_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: f17ac7f8-583a-4274-8637-4d9c36741e3c
+		summarizeBy: sum
+		sourceColumn: estimated_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: ca2edc06-623f-4eb9-9ef8-34d6964e5ce8
+		summarizeBy: sum
+		sourceColumn: customer_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_zip_prefix
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 5fffe7b6-857f-445f-af9d-9ac80c77d6be
+		summarizeBy: none
+		sourceColumn: customer_zip_prefix
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_city_name
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 95775aa8-c47a-49d5-a98d-56980635c215
+		summarizeBy: none
+		sourceColumn: customer_city_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_state_code
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 69d929fb-3fbe-47b7-adf7-b84685b9c416
+		summarizeBy: none
+		sourceColumn: customer_state_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_region_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: b1140a01-2102-4f39-b11c-935f06f02521
+		summarizeBy: none
+		sourceColumn: customer_region_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_region_code
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 662c6297-9df9-4ad3-9491-c8880e71f735
+		summarizeBy: none
+		sourceColumn: customer_region_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_region_name
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 18eb5c47-eb46-4bb0-9bc4-13440ae2653e
+		summarizeBy: none
+		sourceColumn: customer_region_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column order_status_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 420713bb-29cc-4e99-9a08-8f27977594d1
+		summarizeBy: sum
+		sourceColumn: order_status_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column payment_type_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: b02a235e-205d-408e-aa8e-8b741cbbd82b
+		summarizeBy: sum
+		sourceColumn: payment_type_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column items_value
+		dataType: double
+		isNullable: false
+		sourceProviderType: decimal(18, 2)
+		lineageTag: 636de972-1c96-4d67-8913-b9744841d674
+		summarizeBy: sum
+		sourceColumn: items_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column freight_total
+		dataType: double
+		isNullable: false
+		sourceProviderType: decimal(18, 2)
+		lineageTag: 2a0d5b75-f281-41e3-aff7-ba908f4c7523
+		summarizeBy: sum
+		sourceColumn: freight_total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column payment_total
+		dataType: double
+		isNullable: false
+		sourceProviderType: decimal(18, 2)
+		lineageTag: d936da10-9b67-4d2d-887e-c612a0c67bb5
+		summarizeBy: sum
+		sourceColumn: payment_total
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column n_items
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 221729c3-1daa-4134-a358-b9d78b7483e0
+		summarizeBy: sum
+		sourceColumn: n_items
+
+		annotation SummarizationSetBy = Automatic
+
+	column n_sellers
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 81b86622-87f7-4fa9-9410-7ff2840b80bd
+		summarizeBy: sum
+		sourceColumn: n_sellers
+
+		annotation SummarizationSetBy = Automatic
+
+	column delivery_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: e4fefda1-79b3-4c6b-af6a-abe849da2f55
+		summarizeBy: sum
+		sourceColumn: delivery_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column estimated_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: 559c4418-49d1-4e89-bb60-dd653116f42d
+		summarizeBy: sum
+		sourceColumn: estimated_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column delay_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: 0c3ed4fd-9478-467a-bc3a-0cca9df1559d
+		summarizeBy: sum
+		sourceColumn: delay_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column late_flag
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 5aad3a03-f2a2-4b05-a9cf-7a6eb282fcbd
+		summarizeBy: sum
+		sourceColumn: late_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column review_score
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 1a0e3b65-f3cf-4265-ae12-422e9fc5dfa9
+		summarizeBy: sum
+		sourceColumn: review_score
+
+		annotation SummarizationSetBy = Automatic
+
+	column shared_review_type
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 2367a06a-2a88-463f-a3c5-8632656bafb5
+		summarizeBy: none
+		sourceColumn: shared_review_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column negative_review_flag
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: b8a72bb5-1b7a-466f-9e4b-adbe634be7fa
+		summarizeBy: sum
+		sourceColumn: negative_review_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column bad_experience_flag
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 3b33212a-d171-419f-8391-436a13d10bd3
+		summarizeBy: sum
+		sourceColumn: bad_experience_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column ts_inversion_flag
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 3dc06141-c2b2-49c3-a1b4-a19feb63b16f
+		summarizeBy: sum
+		sourceColumn: ts_inversion_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_order = m
+		mode: directQuery
+		source =
+				let
+				    Source = DatabricksMultiCloud.Catalogs("dbc-6a3fb372-922e.cloud.databricks.com", "/sql/1.0/warehouses/cfb33f9733d84eff", [Catalog="olist_catalog", Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    olist_catalog_Database = Source{[Name="olist_catalog",Kind="Database"]}[Data],
+				    gold_Schema = olist_catalog_Database{[Name="gold",Kind="Schema"]}[Data],
+				    fact_order_Table = gold_Schema{[Name="fact_order",Kind="Table"]}[Data]
+				in
+				    fact_order_Table
+

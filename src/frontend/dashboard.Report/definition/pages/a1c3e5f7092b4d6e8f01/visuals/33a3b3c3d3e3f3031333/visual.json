@@ -96,6 +96,24 @@
               "active": true
             }
           ]
+        },
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Negative Review Rate"
+                }
+              },
+              "queryRef": "_Measures.Negative Review Rate",
+              "nativeQueryRef": "Negative Review Rate"
+            }
+          ]
         }
       }
     },
