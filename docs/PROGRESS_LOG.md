@@ -10,15 +10,24 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 4. Năm câu OLAP đã chạy trên SQL Warehouse 07/11/2026. Power BI chưa nối. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Nối Power BI Desktop DirectQuery rồi publish lên app.powerbi.com |
-| Blocker | S3 chưa kiểm. License Pro không tạo kết nối Databricks ngay trên web. S2 chưa kiểm |
-| Việc tiếp theo | Power BI Desktop dùng hostname và HTTP path của warehouse `cfb33f9733d84eff`, DirectQuery, rồi Publish |
-| Cập nhật | 07/11/2026 (năm câu OLAP chạy được; Power BI chưa nối) |
+| Phase hiện tại | Phase 4 dashboard và Phase 5 mã DSS. Power BI chưa nối. Job DSS chưa chạy. T1 chốt 15/10/2026. X=10, N=40 |
+| Đang làm | Người dùng nối Power BI. DSS đã có mã local, chờ chạy notebook trên workspace |
+| Blocker | S2 chưa đạt: `.env` chưa có host, HTTP path, token. Máy chưa có package `databricks`. S3 chưa kiểm |
+| Việc tiếp theo | Điền `.env`, cài connector sau khi đồng ý, rồi `SELECT 1`. Song song: tạo job `olist_dss` và chạy `src/dss/dss_job.py` |
+| Cập nhật | 10/11/2026 (mã Phase 5; chưa có số Gold của DSS) |
 
 ---
 
 ## Nhật ký
+
+### 10/11/2026 — Phase 5 — Mã DSS tối giản, chưa chạy trên warehouse
+
+- **Đã làm:** thêm view `src/sql/views/v_seller_features.sql` chỉ từ `gold.*`. Thêm `src/dss/params.py`, `policy.py`, `train.py`, notebook `dss_job.py` và skeleton `dss_job.yml`. Streamlit `src/frontend/dss_app.py` có bốn trang DSS và một ô SELECT. Ghi cột `dss` vào DESIGN §6.6. Influence diagram SPEC §8 đánh dấu bản cuối. `00_setup.py` cho phép bốn object DSS đã đặt tên, vẫn chặn tên lạ. Không thêm task vào job ETL. Không làm R43. Không tạo `requirements.txt`.
+- **Kiểm tra local:** gọi `train_and_score`, `compare_policies`, `goal_seek` và `tornado` trên DataFrame giả. Hàm chạy xong và trả ba phương án. Đây không phải số của Gold, không ghi AUC hay Brier vào SPEC.
+- **Không làm:** không chạy notebook trên Databricks, không tạo view trên warehouse, không ghi `dss.seller_risk_score`. Không tick checkbox Phase 5 trong PLAN. Không nối Power BI. Không commit.
+- **S2:** chưa gửi `SELECT 1`. File `.env` có mặt nhưng `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH` và `DATABRICKS_TOKEN` đang trống. `import databricks` lỗi `ModuleNotFoundError`. Streamlit đã có. Hai phương án, chưa chọn: (1) điền ba biến và cài `databricks-sql-connector` sau khi nhóm đồng ý, rồi chạy lại `SELECT 1`; (2) giữ app hiện tại và chỉ mở UI sau khi S2 nối được. Không chuyển UI sang đọc CSV.
+- **RTM:** R10, R31, R32, R33, R34, R35 sang ◐. R36, R37, R38 sang ☑ vì sơ đồ, bảng biến, phân loại và ánh xạ pha trong SPEC §8 được chốt. R42 giữ ☐.
+- **Việc tiếp theo:** người dùng điền `.env` và chạy job DSS trên workspace. Nếu job in được `model_name`, AUC hoặc Brier, và ba dòng P0/P1/P2, lúc đó mới tick PLAN.
 
 ### 07/11/2026 — Phase 4 — Năm câu OLAP trên SQL Warehouse
 

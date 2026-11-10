@@ -73,6 +73,12 @@ print(f"etl_audit columns ({len(audit_cols)}): {audit_cols}")
 if len(audit_cols) != 10:
     raise RuntimeError("gold.etl_audit must have 10 columns")
 dss_tables = spark.sql(f"SHOW TABLES IN `{catalog}`.`{dss}`").collect()
-if dss_tables:
-    raise RuntimeError(f"Phase 3 leaves the dss schema empty, found {len(dss_tables)} tables")
-print("dss schema has no tables")
+allowed_dss = {"v_seller_features", "seller_risk_score", "policy_scenario", "decision_log"}
+found_dss = set()
+for row in dss_tables:
+    name = row.tableName if hasattr(row, "tableName") else row[1]
+    found_dss.add(name)
+unexpected = found_dss - allowed_dss
+if unexpected:
+    raise RuntimeError(f"Unexpected objects in {catalog}.{dss}: {sorted(unexpected)}")
+print(f"dss objects: {sorted(found_dss) or 'none'}")

@@ -253,7 +253,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ## Phase 5 — DSS · 26/10 → 08/11
 
-**Mục tiêu:** mô hình đọc Gold trên Databricks, ghi `dss.*` trên workspace trước. UI local chỉ là lớp gọi warehouse.
+**Mục tiêu:** mô hình đọc Gold trên Databricks, ghi `dss.`* trên workspace trước. UI local chỉ là lớp gọi warehouse.
 
 **Cloud**
 
@@ -263,7 +263,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 - [ ] Goal seeking θ theo ràng buộc GMV; sensitivity tornado (R35)
 - [ ] Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario` trên workspace. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse (R31, R37)
 
-**Local → Cloud** (sau khi bảng `dss.*` đã có trên Cloud và S2 đạt)
+**Local → Cloud** (sau khi bảng `dss.`* đã có trên Cloud và S2 đạt)
 
 - [ ] UI DSS và truy vấn: trang Điểm rủi ro, What-if, Goal seek, Quyết định & export. Streamlit local đọc Gold và `dss.*` qua SQL Warehouse (R32, R34). Nếu S2 không đạt: ghi 2 phương án, chờ nhóm, không tự chuyển UI sang đọc CSV
 
@@ -298,7 +298,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 - [ ] Liệt kê hạn chế (dữ liệu, mô hình, giả định e_k/r, giới hạn Free Edition) và hướng phát triển (incremental theo watermark, CDF, Auto Loader, streaming, CDC, Kafka, Lakehouse Federation, Reverse ETL) (R12)
 
 **Sản phẩm:** kết quả test, số liệu đánh giá, hình trong `docs/report/`.
-**DoD:** đường Cloud có hướng dẫn và bằng chứng đã chạy. Đường local trên sample chạy được theo README.
+**DoD:** đường Cloud có hướng dẫn và bằng chứng đã chạy. Đường local trên sample chạy được theo README.  
 **Phụ thuộc:** Phase 4–5 Cloud. **Rủi ro:** lỗi tích hợp → tích hợp sớm trên Databricks, không dồn đường local lên trước.
 
 ## Phase 7 — Báo cáo, slide, video, đóng gói, tập thuyết trình · 09/11 → 15/11
@@ -324,13 +324,13 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ## Kiểm tra chéo RTM
 
-Mọi yêu cầu mức **BB** và **BB\*** trong SPEC §2 phải xuất hiện ở ≥ 1 task phía trên.
+Mọi yêu cầu mức **BB** và **BB** trong SPEC §2 phải xuất hiện ở ≥ 1 task phía trên.
 
-| Mức | Mã | Có task? |
-|---|---|---|
-| BB [ĐỀ] | R01, R02, R03, R04, R05, R06, R07, R08, R09, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20 | ☑ tất cả có task |
-| BB\* [SUY LUẬN] | R21, R22, R23, R24, R25, R27, R30, R31, R32, R33, R34, R36, R37, R38, R45 | ☑ tất cả có task |
-| NC | R26, R28, R29, R39, R42, R44, R46 | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 6 Local, Phase 7. Phase 3 không có đường local warehouse.) |
-| ĐC | R35, R40, R41, R43, R47 | ☑ tất cả có task (R47: comment bảng/cột Gold ở Phase 3 Cloud) |
+| Mức           | Mã                                                                                                 | Có task?                                                                                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BB [ĐỀ]       | R01, R02, R03, R04, R05, R06, R07, R08, R09, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20 | ☑ tất cả có task                                                                                                                                          |
+| BB [SUY LUẬN] | R21, R22, R23, R24, R25, R27, R30, R31, R32, R33, R34, R36, R37, R38, R45                          | ☑ tất cả có task                                                                                                                                          |
+| NC            | R26, R28, R29, R39, R42, R44, R46                                                                  | ☑ tất cả có task (R28: ⏸ deferred / future work, không hiện thực trước hạn nộp. R46: S6, Phase 6 Local, Phase 7. Phase 3 không có đường local warehouse.) |
+| ĐC            | R35, R40, R41, R43, R47                                                                            | ☑ tất cả có task (R47: comment bảng/cột Gold ở Phase 3 Cloud)                                                                                             |
 
 **R-xx bắt buộc chưa có task:** không có. Yêu cầu NC/ĐC chưa có task: không có. Kiểm tra lại mỗi khi sửa SPEC hoặc PLAN (13/10/2026: tách Cloud / Local, không thêm hoặc bỏ R-xx).

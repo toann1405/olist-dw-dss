@@ -1,0 +1,44 @@
+createOrReplace
+
+	table _Measures
+		lineageTag: 357ff5c4-7e57-44b1-87f9-3371d47c48b8
+
+		measure 'Late Items' =
+				
+				CALCULATE(
+				    COUNTROWS(fact_order_item),
+				    fact_order_item[seller_ship_late_flag] = 1,
+				    fact_order_item[seller_key] <> -1
+				)
+			formatString: 0
+			lineageTag: 73bdc610-3c79-4da5-9244-e9f5213d3272
+
+		measure 'Eligible Items' =
+				
+				CALCULATE(
+				    COUNTROWS(fact_order_item),
+				    NOT ISBLANK(fact_order_item[seller_ship_late_flag]),
+				    fact_order_item[seller_key] <> -1
+				)
+			formatString: 0
+			lineageTag: 6b683211-15d3-4494-94d7-4dd32d4ed913
+
+		measure 'Late Ship Rate' = ```
+				DIVIDE([Late Items], [Eligible Items])
+				
+				```
+			formatString: 0.00%;-0.00%;0.00%
+			lineageTag: da809af5-711b-4b5e-9482-9f024d6ee271
+
+		partition _Measures = m
+			mode: import
+			source =
+					let
+					    Source = Table.FromRows(Json.Document(Binary.Decompress(Binary.FromText("i44FAA==", BinaryEncoding.Base64), Compression.Deflate)), let _t = ((type nullable text) meta [Serialized.Text = true]) in type table [Column1 = _t]),
+					    #"Changed Type" = Table.TransformColumnTypes(Source,{{"Column1", type text}}),
+					    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Column1"})
+					in
+					    #"Removed Columns"
+
+		annotation PBI_ResultType = Table
+

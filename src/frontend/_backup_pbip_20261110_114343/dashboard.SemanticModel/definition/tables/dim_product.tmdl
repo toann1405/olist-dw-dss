@@ -1,0 +1,156 @@
+table dim_product
+	lineageTag: 690e3a11-dbc5-4d79-9df0-5b285546805f
+
+	column product_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 66c17404-9bf5-4696-a94a-e2c2f2de16ad
+		summarizeBy: none
+		sourceColumn: product_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column product_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 1638d996-1ad0-443e-8765-382c265360e5
+		summarizeBy: none
+		sourceColumn: product_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column category_pt
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: a7cb87b8-99a0-4331-8b75-c90db3203883
+		summarizeBy: none
+		sourceColumn: category_pt
+
+		annotation SummarizationSetBy = Automatic
+
+	column category_en
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: 02d2f7fc-5b2a-4833-9480-ae04f62b4c44
+		summarizeBy: none
+		sourceColumn: category_en
+
+		annotation SummarizationSetBy = Automatic
+
+	column category_group
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: 26bae56c-9380-4842-9551-bd0df5d71107
+		summarizeBy: none
+		sourceColumn: category_group
+
+		annotation SummarizationSetBy = Automatic
+
+	column weight_g
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 0d97bc1f-a227-4333-8ffb-502152754ff6
+		summarizeBy: none
+		sourceColumn: weight_g
+
+		annotation SummarizationSetBy = Automatic
+
+	column length_cm
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 77686647-f391-4e53-ab10-5067f09ea35e
+		summarizeBy: none
+		sourceColumn: length_cm
+
+		annotation SummarizationSetBy = Automatic
+
+	column height_cm
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: c5358355-2b25-412c-a9bb-d17058ec7fef
+		summarizeBy: none
+		sourceColumn: height_cm
+
+		annotation SummarizationSetBy = Automatic
+
+	column width_cm
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: def57f10-8254-49fc-ab70-d9f63fcb0496
+		summarizeBy: none
+		sourceColumn: width_cm
+
+		annotation SummarizationSetBy = Automatic
+
+	column name_length
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 34a364d9-c45d-479c-813c-8aa194f51845
+		summarizeBy: none
+		sourceColumn: name_length
+
+		annotation SummarizationSetBy = Automatic
+
+	column description_length
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: b80a3c10-40ca-4d9a-b8b2-4ad209564751
+		summarizeBy: none
+		sourceColumn: description_length
+
+		annotation SummarizationSetBy = Automatic
+
+	column photos_qty
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 90ccd6e8-83bc-4526-9ce3-f2438532f143
+		summarizeBy: none
+		sourceColumn: photos_qty
+
+		annotation SummarizationSetBy = Automatic
+
+	column volume_cm3
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: c12f1e78-246c-4337-b108-a0bd756abfb2
+		summarizeBy: none
+		sourceColumn: volume_cm3
+
+		annotation SummarizationSetBy = Automatic
+
+	column size_band
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: a7f21fb4-6083-40fa-9632-9a85339f1eba
+		summarizeBy: none
+		sourceColumn: size_band
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_product = m
+		mode: directQuery
+		source =
+				let
+				    Source = DatabricksMultiCloud.Catalogs("dbc-6a3fb372-922e.cloud.databricks.com", "/sql/1.0/warehouses/cfb33f9733d84eff", [Catalog="olist_catalog", Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    olist_catalog_Database = Source{[Name="olist_catalog",Kind="Database"]}[Data],
+				    gold_Schema = olist_catalog_Database{[Name="gold",Kind="Schema"]}[Data],
+				    dim_product_Table = gold_Schema{[Name="dim_product",Kind="Table"]}[Data]
+				in
+				    dim_product_Table
+
+	annotation PBI_ResultType = Table
+

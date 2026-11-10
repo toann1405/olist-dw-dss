@@ -1,0 +1,15 @@
+# Skeleton for the DSS job. Not deploy-ready and not a full Asset Bundle.
+# Do not deploy this file. Create a separate serverless job in the workspace UI.
+# Do not add this task to olist_etl. The Gold ETL job does not write schema dss.
+
+name: olist_dss
+compute: serverless
+tasks:
+  - task_key: dss
+    notebook_path: src/dss/dss_job.py
+    depends_on: []
+base_parameters:
+  uc_catalog: olist_catalog
+  gold_schema: gold
+  dss_schema: dss
+  repo_root: ""

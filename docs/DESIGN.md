@@ -90,7 +90,7 @@ File IBGE đã có ở `data/external/ibge_state_region.csv` (27 dòng, đếm f
 | `bronze` | Staging. Bản sao CSV của lần nạp hiện tại. Bảng Delta | Vào: file trên Volume, mọi cột `string`, giữ nguyên chuỗi. Ra: cùng các cột đó cộng `_ingest_ts`, `_source_file`. Không join, không ép kiểu nghiệp vụ, không `trim`, không xóa dòng trong file. Load: FULL LOAD, OVERWRITE |
 | `silver` | Integration. Làm sạch, ép kiểu, chuẩn hóa, dedupe trong file. Bảng Delta | Vào: Bronze. Ra: bảng grain đã nêu ở §2. Không publish fact. Load: FULL LOAD, OVERWRITE |
 | `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain: `WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT` (§2). Không xóa khóa vắng mặt trong ảnh hiện tại. Power BI và Streamlit đọc Gold qua SQL Warehouse |
-| `dss` | Đầu ra mô hình Phase 5 | Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. `dss.decision_log` do Streamlit ghi qua SQL Warehouse. Job ETL Gold không ghi `dss`. Cột chi tiết chưa thuộc phase này |
+| `dss` | Đầu ra mô hình Phase 5 | View `dss.v_seller_features` chỉ đọc `gold.*`. Job DSS ghi đè `dss.seller_risk_score` và `dss.policy_scenario` cho tháng chấm. `dss.decision_log` do Streamlit append qua SQL Warehouse. Job ETL Gold không ghi `dss`. Cột ở §6.6 |
 
 Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation: Power BI (dashboard, ROLAP qua SQL Warehouse) và Streamlit (truy vấn / DSS).
 
@@ -599,7 +599,7 @@ Dòng `-1` theo §3.2. SCD Type 1 theo §3.5. `rows_loaded` của audit không c
 | `dim_seller` | `mql_id` | STRING | có | deal | Dòng deal có `won_date` sớm nhất, hòa thì `mql_id` tăng dần. Không deal → null. Null trên `-1` |
 | `dim_seller` | `sdr_id` | STRING | có | deal | Cùng dòng deal vừa chọn |
 | `dim_seller` | `sr_id` | STRING | có | deal | Cùng dòng deal vừa chọn |
-| `dim_seller` | `won_date` | DATE | có | ngày ký | Phần ngày của `won_date` trên dòng deal vừa chọn. Phase 5 tính tuổi bằng `COALESCE(won_date, ngày mua sớm nhất trên fact_order_item)`. Không lưu tuổi trên dim |
+| `dim_seller` | `won_date` | DATE | có | ngày ký | Phần ngày của `won_date` trên dòng deal vừa chọn. `dss.v_seller_features.seller_age_days` = ngày đầu tháng mua trừ `won_date`. Không có deal thì null. Không lưu tuổi trên dim |
 | `dim_seller` | `business_segment` | STRING | có | phân khúc | Cùng dòng deal. Không deal → null, không điền `'Unknown'`. Dòng `-1`: `'Unknown'` |
 | `dim_seller` | `lead_type` | STRING | có | deal | Cùng dòng deal. Dòng `-1`: `'Unknown'` |
 | `dim_seller` | `business_type` | STRING | có | deal | Cùng dòng deal. Dòng `-1`: `'Unknown'` |
@@ -745,6 +745,90 @@ Các kiểm cảnh báo không có cột riêng. Notebook in kết quả, không
 
 Không ghi sẵn các hiệu số chưa đo (số dòng review theo grain mới, số zip sau bbox, số seller-tháng).
 
+### 6.6 Schema `dss` (Phase 5)
+
+Nguồn duy nhất của view là `gold.*`. Job DSS tạo view và ba bảng, rồi ghi đè hai bảng kết quả của tháng chấm (tháng `month_key` lớn nhất trên `fact_seller_monthly`). Job không xóa `dss.decision_log`. Streamlit chỉ `INSERT` bảng đó.
+
+`late_ship_rate_3m` là trung bình `late_ship_rate` của dòng seller-tháng hiện tại và hai dòng seller-tháng liền trước trên fact (bỏ rate null). Fact không có dòng seller-tháng rỗng, nên cửa sổ không điền tháng lịch bị thiếu. `category_group` là nhóm có nhiều item nhất trong tháng; hòa thì lấy tên nhỏ hơn theo thứ tự từ điển. `avg_distance_km` là `AVG(distance_km)` của item, bỏ null. `seller_age_days` null khi `won_date` null.
+
+Tham số P0/P1/P2 không nằm trên Gold. Quy ước số (ngưỡng θ, `e_k`, `r`, `s`, ngưỡng KPI cứng) ghi trong `src/dss/params.py`. `X = 10`, `N = 40`, `min_orders = 5` là giá trị đã chốt hoặc mặc định SPEC.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `seller_key` | BIGINT | không | Từ `fact_seller_monthly`. Bỏ member `-1` |
+| `seller_id` | STRING | không | Degenerate id trên fact |
+| `month_key` | INT | không | Tháng mua `yyyyMM` |
+| `year_month` | STRING | không | Nhãn `yyyy-MM` |
+| `n_orders_valid` | INT | không | Từ fact. Ngưỡng `min_orders` áp ở mô hình, không lọc view |
+| `n_items_valid` | INT | không | Từ fact. Tập train M1 đếm tháng có cột này ≥ 10 |
+| `gmv` | DECIMAL(18, 2) | không | Từ fact |
+| `late_ship_rate` | DOUBLE | có | Từ fact |
+| `avg_review` | DOUBLE | có | Từ fact |
+| `bad_experience_count` | INT | không | Từ fact. Nhãn tháng sau của M1 |
+| `bad_experience_eligible` | INT | không | Từ fact. Mẫu nhãn tháng sau |
+| `region_name` | STRING | có | `dim_seller.region_name` |
+| `has_closed_deal` | INT | có | `dim_seller.has_closed_deal` |
+| `won_date` | DATE | có | `dim_seller.won_date` |
+| `late_ship_rate_3m` | DOUBLE | có | Cửa sổ 3 dòng seller-tháng, bỏ rate null |
+| `avg_distance_km` | DOUBLE | có | Trung bình `fact_order_item.distance_km` theo seller và tháng mua |
+| `category_group` | STRING | có | Nhóm danh mục đông item nhất trong tháng |
+| `seller_age_days` | INT | có | Ngày đầu tháng mua trừ `won_date`. Null nếu không có deal |
+
+`dss.seller_risk_score` — một dòng mỗi seller ở tháng chấm.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `seller_key` | BIGINT | không | Tháng chấm |
+| `seller_id` | STRING | không | |
+| `as_of_month` | STRING | không | `year_month` của tháng chấm |
+| `p_bad` | DOUBLE | có | Xác suất một đơn tháng sau là trải nghiệm xấu. Null khi baseline không có mẫu |
+| `q_bar` | DOUBLE | không | `n_orders_valid` của tháng chấm. `Q_i = q_bar * s` |
+| `gmv` | DOUBLE | không | GMV tháng chấm |
+| `late_ship_rate` | DOUBLE | có | Tháng chấm |
+| `avg_review` | DOUBLE | có | Tháng chấm |
+| `n_orders_valid` | INT | không | Tháng chấm |
+| `model_name` | STRING | không | `logistic` hoặc `baseline_rate` |
+| `trained_through_month` | STRING | có | `year_month` cuối của tập train. Null khi không train được |
+| `scored_at` | TIMESTAMP | không | Thời điểm job ghi |
+
+`dss.policy_scenario` — một dòng cho mỗi mã `P0`, `P1`, `P2` của tháng chấm.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `as_of_month` | STRING | không | Cùng tháng với bảng điểm |
+| `policy_code` | STRING | không | `P0`, `P1`, hoặc `P2` |
+| `theta_1`, `theta_2`, `theta_3` | DOUBLE | không | Ngưỡng hạng đã dùng |
+| `e1`, `e2`, `e3`, `e_p1` | DOUBLE | không | Hiệu quả giả định theo hạng và của P1 |
+| `late_ship_threshold`, `avg_review_threshold` | DOUBLE | không | Ngưỡng KPI cứng của P1 |
+| `r`, `s` | DOUBLE | không | Tỷ lệ chuyển đơn và hệ số mùa vụ |
+| `min_orders` | INT | không | Ngưỡng `n_orders_valid` để được gắn cờ |
+| `x_limit`, `n_limit` | DOUBLE, INT | không | `X` và `N` |
+| `expected_bad_orders` | DOUBLE | không | Σ `p_bad * q_bar * s * (1 - e_k)` |
+| `gmv_affected_pct` | DOUBLE | có | `100 * Σ gmv * (1 - r)` của seller bị gắn cờ, chia tổng GMV tháng chấm. Null khi tổng GMV = 0 |
+| `n_sellers_flagged` | INT | không | Sau khi cắt còn tối đa `N` |
+| `meets_x`, `meets_n` | BOOLEAN | không | GMV bị ảnh hưởng ≤ `X` và số seller ≤ `N` |
+| `scored_at` | TIMESTAMP | không | Thời điểm job ghi |
+
+`dss.decision_log` — một dòng mỗi quyết định đã chốt. Job tạo bảng rỗng. Streamlit append.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `decision_id` | BIGINT | không | `max + 1` lúc insert |
+| `decided_at` | TIMESTAMP | không | Thời điểm chốt |
+| `as_of_month` | STRING | không | Tháng chấm đang xem |
+| `policy_code` | STRING | không | `P0`, `P1`, hoặc `P2` |
+| `theta_1`, `theta_2`, `theta_3` | DOUBLE | không | Tham số lúc chốt |
+| `e1`, `e2`, `e3`, `e_p1` | DOUBLE | không | |
+| `late_ship_threshold`, `avg_review_threshold` | DOUBLE | không | |
+| `r`, `s` | DOUBLE | không | |
+| `min_orders` | INT | không | |
+| `x_limit` | DOUBLE | không | |
+| `n_limit` | INT | không | |
+| `expected_bad_orders` | DOUBLE | không | Kết quả của phương án vừa chốt |
+| `gmv_affected_pct` | DOUBLE | có | |
+| `n_sellers_flagged` | INT | không | |
+| `note` | STRING | có | Ghi chú người dùng. Có thể null |
+
 ---
 
 ## 7. Quy tắc làm sạch đã đo (R27)
@@ -779,9 +863,9 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4.1 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
 
-### 8.1 Influence diagram (bản nháp, R36)
+### 8.1 Influence diagram (bản cuối, R36, 10/11/2026)
 
-Chưa thiết kế feature view. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
+Feature view và ba bảng `dss` nằm ở §6.6. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
 
 ```mermaid
 flowchart LR
@@ -812,7 +896,7 @@ flowchart LR
 | Vùng | `dim_seller.region_name` |
 | Danh mục | `dim_product.category_en` và `category_group` |
 | Khoảng cách trung bình | `fact_order_item.distance_km` theo haversine sau fallback. Phase 5 / `dss.v_seller_features` lấy trung bình seller-tháng và bỏ qua null. Không để sẵn trên snapshot tháng |
-| Tuổi seller | `dim_seller.won_date` khi có deal. Phase 5 dùng `COALESCE(won_date, ngày mua sớm nhất trên fact_order_item)`. 380 / 3.095 seller khớp deal. 2.715 là hiệu 3.095 − 380, không phải một lần đếm riêng. Độ phủ `won_date` 12,3% là hạn chế của Marketing Funnel |
+| Tuổi seller | `dim_seller.won_date` khi có deal. `seller_age_days` = ngày đầu tháng mua trừ `won_date`, null khi không có deal. 380 / 3.095 seller khớp deal. 2.715 là hiệu 3.095 − 380, không phải một lần đếm riêng. Độ phủ `won_date` 12,3% là hạn chế của Marketing Funnel |
 
 X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải cột Gold.
 
