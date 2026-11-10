@@ -1,6 +1,6 @@
 # Sơ đồ kiến trúc
 
-Quyết định 26/10/2026, sửa MERGE và `decision_log` ngày 05/11/2026. Cùng ngày: Job ETL Phase 3 dừng ở `fact_seller_monthly`. Task `dss` trên sơ đồ là chỗ Phase 5, không phải task của Job Phase 3. Lý do: `docs/DESIGN.md`, mục Decision update và mục Sửa hợp đồng, và SPEC §10. Grain, star schema, SCD và surrogate key không nằm trong sơ đồ này vì không đổi.
+Quyết định 26/10/2026, sửa MERGE và `decision_log` ngày 05/11/2026. Quyết định trình bày 10/11/2026: Consumption chỉ còn Streamlit. Power BI là future work. Cùng ngày: Job ETL Phase 3 dừng ở `fact_seller_monthly`. Task `dss` trên sơ đồ là chỗ Phase 5, không phải task của Job Phase 3. Lý do: `docs/DESIGN.md`, mục Decision update và mục Sửa hợp đồng, và SPEC §10. Grain, star schema, SCD và surrogate key không nằm trong sơ đồ này vì không đổi.
 
 ## Luồng
 
@@ -9,8 +9,7 @@ flowchart TB
   gh["GitHub<br/>toann1405/olist-dw-dss"]
   vol["Volume CSV<br/>olist / funnel / ref"]
   wh["Databricks SQL Warehouse<br/>ROLAP"]
-  pbi["Power BI<br/>dashboard"]
-  st["Streamlit<br/>truy van va DSS"]
+  st["Streamlit<br/>dashboard va DSS"]
   audit[(gold.etl_audit)]
   dss[(schema dss)]
 
@@ -39,7 +38,6 @@ flowchart TB
   monthly --> wh
   dims --> wh
   dss --> wh
-  wh --> pbi
   wh --> st
   st -->|append decision_log| dss
 ```
@@ -57,8 +55,7 @@ flowchart TB
 | `dss` | View `v_seller_features` và ba bảng Delta. Cột ở DESIGN §6.6 | Job DSS ghi đè `seller_risk_score` và `policy_scenario`. Streamlit append `decision_log`. Job ETL Gold không ghi `dss` | M1, M2, what-if. Huấn luyện trên Gold | View chỉ đọc `gold.*` |
 | `gold.etl_audit` | Bảng Delta | Mỗi bước ghi thêm một dòng log cho mỗi bảng đích. Không MERGE đè lịch sử | Chỉ đếm dòng. `rows_rejected` là dòng bỏ hẳn. Cảnh báo và `rows_dropped_by_dedup` in ở notebook | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at` |
 | SQL Warehouse | Endpoint truy vấn | Không lưu mart | SQL trên bảng Gold và `dss` | ROLAP |
-| Power BI | Dashboard | Đọc. Không ghi kho | Lọc, drill, 5 phép OLAP | Đọc Gold qua SQL Warehouse |
-| Streamlit | App local | Đọc Gold và `dss`. Chỉ ghi thêm `dss.decision_log` (append) | Truy vấn, what-if, goal seek, xuất quyết định | Qua SQL Warehouse. Không sở hữu schema `dss` ngoài `decision_log`. Không ghi hai bảng điểm và kịch bản. Job ETL Gold không ghi `decision_log` |
+| Streamlit | App local | Đọc Gold và `dss`. Chỉ ghi thêm `dss.decision_log` (append) | KPI, 5 phép OLAP, điểm rủi ro, what-if, goal seek, sensitivity, xuất quyết định | Qua SQL Warehouse. Không sở hữu schema `dss` ngoài `decision_log`. Không ghi hai bảng điểm và kịch bản. Job ETL Gold không ghi `decision_log` |
 | GitHub | Repo mã nguồn | Không phải lớp dữ liệu | — | Notebook `.py` trong `src/etl/` (DDL nằm trong notebook đó). `olist_etl.job.yml` là skeleton, chưa deploy. Git folder Databricks đã nối (S5, nhánh `main`) |
 
 ## Legend
@@ -66,7 +63,9 @@ flowchart TB
 | Nét | Nghĩa |
 |---|---|
 | `==>` | Thứ tự đầy đủ: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss job. Job ETL Phase 3 dừng ở `fact_seller_monthly`. Task `dss` thuộc Phase 5 |
-| `-->` | Luồng dữ liệu: Volume → bronze, gold dims → job DSS, Gold và `dss` → SQL Warehouse → Power BI và Streamlit, Streamlit → `dss.decision_log` |
+| `-->` | Luồng dữ liệu: Volume → bronze, gold dims → job DSS, Gold và `dss` → SQL Warehouse → Streamlit, Streamlit → `dss.decision_log` |
 | `-.->` | Ghi `gold.etl_audit`. Một dòng mỗi bảng đích mỗi `run_id` |
 
-Kết nối Power BI (S3) và Streamlit (S2) từ máy local tới SQL Warehouse chưa chạy. Công cụ đã chốt; hai spike chỉ kiểm kết nối.
+Kết nối Streamlit từ máy local tới SQL Warehouse chưa chạy (S2). Power BI (S3) là future work, không chặn app.
+
+Power BI là future work (10/11/2026), không có object trong luồng hiện tại.
