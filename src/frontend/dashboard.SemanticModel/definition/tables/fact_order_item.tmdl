@@ -1,0 +1,186 @@
+table fact_order_item
+	lineageTag: a488a1f3-ef23-4319-b344-fa6821a84505
+
+	column order_id
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: e39681de-d1d6-4185-9a71-7935545ebd5c
+		summarizeBy: none
+		sourceColumn: order_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column order_item_id
+		dataType: string
+		isNullable: false
+		sourceProviderType: nvarchar(max)
+		lineageTag: 3e749775-f9f0-4d05-82f8-3a06981b2f7e
+		summarizeBy: none
+		sourceColumn: order_item_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column purchase_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 06f54e71-3cc2-4a6f-bb81-4dfa2a56668b
+		summarizeBy: sum
+		sourceColumn: purchase_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column shipping_limit_date_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 2d152fea-333f-484f-9fa7-c5a8b224e6c7
+		summarizeBy: sum
+		sourceColumn: shipping_limit_date_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column customer_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 43edc46f-5a8f-46fb-824f-560620a44da7
+		summarizeBy: sum
+		sourceColumn: customer_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column seller_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: e81005fa-390a-41e8-9e0f-94fe8aaa3503
+		summarizeBy: none
+		sourceColumn: seller_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column product_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 01371f43-3a34-4475-8b22-49ffa3a40eef
+		summarizeBy: none
+		sourceColumn: product_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column order_status_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 22dc5536-c218-4f96-a5d4-86fc77520eb8
+		summarizeBy: sum
+		sourceColumn: order_status_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column price
+		dataType: double
+		sourceProviderType: decimal(18, 2)
+		lineageTag: 4ed684f5-871b-4973-b792-c0471b38dc94
+		summarizeBy: sum
+		sourceColumn: price
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column freight_value
+		dataType: double
+		sourceProviderType: decimal(18, 2)
+		lineageTag: b2454bdb-0055-4c5f-979e-36121f8e9ad5
+		summarizeBy: sum
+		sourceColumn: freight_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column seller_ship_late_flag
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: bfeb7038-8206-45df-a5f4-86585d5e322f
+		summarizeBy: sum
+		sourceColumn: seller_ship_late_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column seller_handling_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: 1ff49e1c-3c9b-4252-afe6-9876c2493994
+		summarizeBy: sum
+		sourceColumn: seller_handling_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column delivery_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: 4ccf8ce4-531a-418a-b57c-0cb47990674f
+		summarizeBy: sum
+		sourceColumn: delivery_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column delay_days
+		dataType: double
+		sourceProviderType: double
+		lineageTag: aa42fa83-4550-46ba-af18-ce1933b57b81
+		summarizeBy: sum
+		sourceColumn: delay_days
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column late_delivery_flag
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: b0e03719-f922-40cf-a5f9-1a367e10034b
+		summarizeBy: sum
+		sourceColumn: late_delivery_flag
+
+		annotation SummarizationSetBy = Automatic
+
+	column distance_km
+		dataType: double
+		sourceProviderType: double
+		lineageTag: bc6bfee3-6b40-498d-b89c-eefd1d7ed297
+		summarizeBy: sum
+		sourceColumn: distance_km
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_order_item = m
+		mode: directQuery
+		source =
+				let
+				    Source = DatabricksMultiCloud.Catalogs("dbc-6a3fb372-922e.cloud.databricks.com", "/sql/1.0/warehouses/cfb33f9733d84eff", [Catalog="olist_catalog", Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    olist_catalog_Database = Source{[Name="olist_catalog",Kind="Database"]}[Data],
+				    gold_Schema = olist_catalog_Database{[Name="gold",Kind="Schema"]}[Data],
+				    fact_order_item_Table = gold_Schema{[Name="fact_order_item",Kind="Table"]}[Data]
+				in
+				    fact_order_item_Table
+

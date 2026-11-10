@@ -1,0 +1,151 @@
+table _Measures
+	lineageTag: 357ff5c4-7e57-44b1-87f9-3371d47c48b8
+
+	measure 'Late Items' =
+			
+			CALCULATE(
+			    COUNTROWS(fact_order_item),
+			    fact_order_item[seller_ship_late_flag] = 1,
+			    fact_order_item[seller_key] <> -1
+			)
+		formatString: 0
+		lineageTag: 73bdc610-3c79-4da5-9244-e9f5213d3272
+
+	measure 'Eligible Items' =
+			
+			CALCULATE(
+			    COUNTROWS(fact_order_item),
+			    NOT ISBLANK(fact_order_item[seller_ship_late_flag]),
+			    fact_order_item[seller_key] <> -1
+			)
+		formatString: 0
+		lineageTag: 6b683211-15d3-4494-94d7-4dd32d4ed913
+
+	measure 'Late Ship Rate' = ```
+			DIVIDE([Late Items], [Eligible Items])
+			
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: da809af5-711b-4b5e-9482-9f024d6ee271
+
+	measure 'Late Orders' =
+			
+			CALCULATE(
+			    DISTINCTCOUNT(fact_order_item[order_id]),
+			    fact_order_item[late_delivery_flag] = 1,
+			    fact_order_item[seller_key] <> -1
+			)
+		formatString: 0
+		lineageTag: 5c2e9a14-7d81-4b3f-9c06-1e8a4f2b73d0
+
+	measure GMV =
+			
+			SUM(fact_seller_monthly[gmv])
+		formatString: #,0
+		lineageTag: 8f512d47-a0b1-4c62-9e83-41bd6c7a80f3
+
+	measure 'Late Delivery Rate' =
+			
+			DIVIDE(
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        fact_order[late_flag] = 1
+			    ),
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        NOT ISBLANK(fact_order[late_flag])
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 9a623e58-b1c2-4d73-af94-52ce7d8b9104
+
+	measure 'Negative Review Rate' =
+			
+			DIVIDE(
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        fact_order[negative_review_flag] = 1
+			    ),
+			    CALCULATE(
+			        DISTINCTCOUNT(fact_order[order_id]),
+			        NOT ISBLANK(fact_order[negative_review_flag])
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: a0734f69-c2d3-4e84-b0a5-63df8e9c0215
+
+	measure 'Late Rate (dice)' =
+			
+			CALCULATE(
+			    [Late Delivery Rate],
+			    CROSSFILTER(fact_order_item[order_id], fact_order[order_id], Both)
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: b184506a-d3e4-4f95-c1b6-74e09fad1326
+
+	measure 'Seller Negative Review Rate (dice)' =
+			
+			CALCULATE(
+			    DIVIDE(
+			        CALCULATE(
+			            DISTINCTCOUNT(fact_order[order_id]),
+			            fact_order[n_sellers] = 1,
+			            fact_order[shared_review_type] IN { "none", "same_seller" },
+			            fact_order[negative_review_flag] = 1
+			        ),
+			        CALCULATE(
+			            DISTINCTCOUNT(fact_order[order_id]),
+			            fact_order[n_sellers] = 1,
+			            fact_order[shared_review_type] IN { "none", "same_seller" },
+			            NOT ISBLANK(fact_order[negative_review_flag])
+			        )
+			    ),
+			    CROSSFILTER(fact_order_item[order_id], fact_order[order_id], Both)
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: c295617b-e4f5-40a6-d2c7-85f10abe2437
+
+	measure 'Check Slice Sellers' =
+			
+			COUNTROWS(
+			    FILTER(
+			        VALUES(dim_seller[seller_id]),
+			        NOT ISBLANK([Late Orders])
+			    )
+			)
+		formatString: 0
+		lineageTag: 6d3f0b25-8e92-4c40-ad17-2f9b5e3c84e1
+
+	measure 'Check Pivot Groups' =
+			
+			COUNTROWS(
+			    FILTER(
+			        VALUES(dim_product[category_group]),
+			        NOT ISBLANK([Late Ship Rate])
+			    )
+			)
+		formatString: 0
+		lineageTag: 7e401c36-9fa3-4d51-be28-30ac6f4d95f2
+
+	measure 'Check Drill Days' =
+			
+			COUNTROWS(
+			    FILTER(
+			        VALUES(dim_date[full_date]),
+			        NOT ISBLANK([Negative Review Rate])
+			    )
+			)
+		formatString: 0
+		lineageTag: d3a6728c-f506-41b7-e3d8-96021bcf3548
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Source = Table.FromRows(Json.Document(Binary.Decompress(Binary.FromText("i44FAA==", BinaryEncoding.Base64), Compression.Deflate)), let _t = ((type nullable text) meta [Serialized.Text = true]) in type table [Column1 = _t]),
+				    #"Changed Type" = Table.TransformColumnTypes(Source,{{"Column1", type text}}),
+				    #"Removed Columns" = Table.RemoveColumns(#"Changed Type",{"Column1"})
+				in
+				    #"Removed Columns"
+
+	annotation PBI_ResultType = Table

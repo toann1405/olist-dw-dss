@@ -1,0 +1,271 @@
+table dim_seller
+	lineageTag: cedea2f7-39f8-4e8e-a857-276cbccc7b4e
+
+	column seller_key
+		dataType: int64
+		isNullable: false
+		formatString: 0
+		sourceProviderType: bigint
+		lineageTag: 717aa4fc-3990-4f51-8309-6d3b5ed1a474
+		summarizeBy: none
+		sourceColumn: seller_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column seller_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: b3faa58a-99da-4109-ac91-b2935e6c70ae
+		summarizeBy: none
+		sourceColumn: seller_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column effective_from
+		dataType: dateTime
+		formatString: Long Date
+		sourceProviderType: date
+		lineageTag: 81a946e6-49c6-4060-9518-4a4d0c7308ba
+		summarizeBy: none
+		sourceColumn: effective_from
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column effective_to
+		dataType: dateTime
+		formatString: Long Date
+		sourceProviderType: date
+		lineageTag: 7ebc5e68-813e-4b31-bc8b-abdfcff9964e
+		summarizeBy: none
+		sourceColumn: effective_to
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column is_current
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: 37b360e8-6143-482b-929b-f59b3e4e66fb
+		summarizeBy: sum
+		sourceColumn: is_current
+
+		annotation SummarizationSetBy = Automatic
+
+	column zip_prefix
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 447c19a5-34df-4b78-bbd0-955a72bf366a
+		summarizeBy: none
+		sourceColumn: zip_prefix
+
+		annotation SummarizationSetBy = Automatic
+
+	column city_name
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: aa336be7-b61d-441e-a447-257baef26767
+		summarizeBy: none
+		sourceColumn: city_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column state_code
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 3ed2efab-1030-4222-a0e7-bc3b70cf04b9
+		summarizeBy: none
+		sourceColumn: state_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column region_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 08957db0-5691-48eb-88ab-c50daa8ed36f
+		summarizeBy: none
+		sourceColumn: region_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column region_code
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: dc1b027a-19f3-4caa-aab8-dc66c4a3ed96
+		summarizeBy: none
+		sourceColumn: region_code
+
+		annotation SummarizationSetBy = Automatic
+
+	column region_name
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 9c1ebfb5-caff-4b09-8f5e-cdc76d84b62b
+		summarizeBy: none
+		sourceColumn: region_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_closed_deal
+		dataType: int64
+		formatString: 0
+		sourceProviderType: int
+		lineageTag: aae710b6-1128-413a-ae22-3c7169ad6c9d
+		summarizeBy: sum
+		sourceColumn: has_closed_deal
+
+		annotation SummarizationSetBy = Automatic
+
+	column mql_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 7cf59a37-bcef-4ddb-9a14-a0f235ee3543
+		summarizeBy: none
+		sourceColumn: mql_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column sdr_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 1280db65-186f-44ac-a48b-476b8a287eb0
+		summarizeBy: none
+		sourceColumn: sdr_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column sr_id
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: ddb980dd-ed3b-43c1-806b-0e22eb191070
+		summarizeBy: none
+		sourceColumn: sr_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column won_date
+		dataType: dateTime
+		formatString: Long Date
+		sourceProviderType: date
+		lineageTag: d4dedd1b-2ba8-4875-8a42-77a350603e5b
+		summarizeBy: none
+		sourceColumn: won_date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column business_segment
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: cb3f445c-223c-4cd5-a0df-f279e2fb474f
+		summarizeBy: none
+		sourceColumn: business_segment
+
+		annotation SummarizationSetBy = Automatic
+
+	column lead_type
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 7670f62f-9ec0-4294-924b-81a548a8cb07
+		summarizeBy: none
+		sourceColumn: lead_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column business_type
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 2df21cba-860d-49da-82c4-2e0b7c18d54f
+		summarizeBy: none
+		sourceColumn: business_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column lead_behaviour_profile
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: bdbde6b3-d47b-4f70-888a-68393ce4fdd5
+		summarizeBy: none
+		sourceColumn: lead_behaviour_profile
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_company
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 9a1c2761-05ba-4c40-a164-aee815f656fc
+		summarizeBy: none
+		sourceColumn: has_company
+
+		annotation SummarizationSetBy = Automatic
+
+	column has_gtin
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: c298f472-1636-40d0-ab7f-c5a3d21a9ff3
+		summarizeBy: none
+		sourceColumn: has_gtin
+
+		annotation SummarizationSetBy = Automatic
+
+	column average_stock
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: 115ad1cb-f3df-42a5-8b19-fc8a3bc67bb9
+		summarizeBy: none
+		sourceColumn: average_stock
+
+		annotation SummarizationSetBy = Automatic
+
+	column declared_product_catalog_size
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: a2ffef96-dc55-4a29-96c2-97c8221b1618
+		summarizeBy: none
+		sourceColumn: declared_product_catalog_size
+
+		annotation SummarizationSetBy = Automatic
+
+	column declared_monthly_revenue
+		dataType: string
+		sourceProviderType: nvarchar(max)
+		lineageTag: b4e59ae9-34eb-405a-b422-dcb143a89401
+		summarizeBy: none
+		sourceColumn: declared_monthly_revenue
+
+		annotation SummarizationSetBy = Automatic
+
+	hierarchy 'Seller Geo'
+		lineageTag: 4e1f1a39-a933-4d39-93c4-2f89ec207c32
+
+		level region_name
+			lineageTag: 5b9bb1ee-20ec-4c0d-be7e-dcd98971a409
+			column: region_name
+
+		level state_code
+			lineageTag: c745dc69-aa57-491b-a473-82e16711ad54
+			column: state_code
+
+		level city_name
+			lineageTag: 765e314d-0887-42e4-b1c8-6368c4c9a2da
+			column: city_name
+
+		level seller_id
+			lineageTag: e9ac5011-2259-40b2-9a29-6cb01807bc58
+			column: seller_id
+
+	partition dim_seller = m
+		mode: directQuery
+		source =
+				let
+				    Source = DatabricksMultiCloud.Catalogs("dbc-6a3fb372-922e.cloud.databricks.com", "/sql/1.0/warehouses/cfb33f9733d84eff", [Catalog="olist_catalog", Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    olist_catalog_Database = Source{[Name="olist_catalog",Kind="Database"]}[Data],
+				    gold_Schema = olist_catalog_Database{[Name="gold",Kind="Schema"]}[Data],
+				    dim_seller_Table = gold_Schema{[Name="dim_seller",Kind="Table"]}[Data]
+				in
+				    dim_seller_Table
+
