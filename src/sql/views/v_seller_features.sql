@@ -1,6 +1,6 @@
 -- Feature view for the DSS. Gold tables only.
 -- The DSS notebook wraps this SELECT in
--- CREATE OR REPLACE VIEW {catalog}.{dss}.v_seller_features.
+-- CREATE OR REPLACE VIEW catalog.dss.v_seller_features.
 -- Placeholders {catalog} and {gold} are filled from job widgets.
 
 WITH item_month AS (
