@@ -10,15 +10,24 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 4 dashboard và Phase 5 mã DSS. Power BI chưa nối. Job DSS chưa chạy. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Người dùng nối Power BI. DSS đã có mã local, chờ chạy notebook trên workspace |
-| Blocker | S2 chưa đạt: `.env` chưa có host, HTTP path, token. Máy chưa có package `databricks`. S3 chưa kiểm |
-| Việc tiếp theo | Điền `.env`, cài connector sau khi đồng ý, rồi `SELECT 1`. Song song: tạo job `olist_dss` và chạy `src/dss/dss_job.py` |
-| Cập nhật | 10/11/2026 (mã Phase 5; chưa có số Gold của DSS) |
+| Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
+| Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
+| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
+| Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
+| Cập nhật | 10/11/2026 (app Streamlit đã chạy local; KPI đối soát trên warehouse) |
 
 ---
 
 ## Nhật ký
+
+### 10/11/2026 — Phase 4–5 — Một app Streamlit, đã chạy KPI trên warehouse
+
+- **Đã làm:** gộp dashboard và DSS vào `src/frontend/app.py`. Power BI chuyển thành future work trong SPEC §7, §10, architecture, PLAN, DESIGN, README và rule `00`, `02`, `08`, `09`. App đọc `gold.*` và `dss.*` qua SQL Warehouse. Không đọc Volume hay Silver. Không sửa `src/etl/`. Không tick checkbox PLAN hay cột TT của RTM.
+- **Đã chạy, phiên này:** `SELECT 1` trên SQL Warehouse thành công. Câu KPI không lọc năm/vùng: `gmv` = `gmv_from_items` = 13494400.74; bàn giao trễ 11132 / 110550 = 0.10069651741293532; review seller 13141 / 95974 = 0.13692249984370766; AOV 13494400.74 / 98199 = 137.418922188617; cancel 467 / 98666 = 0.004733140088784384. Cùng bộ lọc năm 2018 và vùng seller Sudeste: `gmv` = `gmv_from_items` = 5771299.43; bàn giao trễ 4481 / 49754; review seller 6164 / 43641; AOV 5771299.43 / 44641; cancel 223 / 44864.
+- **UI:** mở Streamlit local, trang Tổng quan KPI hiện đúng các số không lọc ở trên. Trang OLAP Explorer vẽ roll-up theo vùng. Trang Seller risk với `min_orders` = 5 báo chưa có dòng. Trang Policy mở được. Không bấm nút ghi quyết định.
+- **DSS trên warehouse, đếm trong phiên này:** `dss.seller_risk_score` 1 dòng, `n_orders_valid` = 1; `dss.policy_scenario` 3 dòng; `dss.decision_log` 0 dòng. Một dòng điểm không phải kết quả chấm toàn bộ seller. Không ghi AUC hay Brier.
+- **Không làm:** không chạy lại notebook DSS, không INSERT `decision_log`, không tick R09. Connector trên máy này nhận tham số bằng `?`.
+- **Việc tiếp theo:** chạy `src/dss/dss_job.py` trên workspace, rồi đối soát trang Seller risk và Policy với SQL Editor.
 
 ### 10/11/2026 — Phase 5 — Mã DSS tối giản, chưa chạy trên warehouse
 

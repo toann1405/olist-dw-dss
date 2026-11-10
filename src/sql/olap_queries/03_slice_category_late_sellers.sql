@@ -4,7 +4,7 @@
 -- tables: gold.fact_order_item, gold.dim_product, gold.dim_seller
 
 -- Run after USE CATALOG olist_catalog.
--- category_group below is an example filter, not a measured result.
+-- category_group is a bound parameter. The 07/11/2026 run used electronics_it_telephony.
 -- late_delivery_flag is an order flag copied onto items. Count distinct orders.
 
 WITH orders_in_group AS (
@@ -15,7 +15,7 @@ WITH orders_in_group AS (
   FROM gold.fact_order_item AS i
   INNER JOIN gold.dim_product AS p
     ON i.product_key = p.product_key
-  WHERE p.category_group = 'electronics_it_telephony'
+  WHERE p.category_group = {p}
     AND i.seller_key <> -1
 )
 SELECT
