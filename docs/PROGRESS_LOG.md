@@ -14,11 +14,17 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (trang Policy theo logic quyết định) |
+| Cập nhật | 11/11/2026 (KPI và OLAP analytic) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — KPI và OLAP analytic
+
+- **Đã làm:** thêm Wilson interval, Pareto, từ điển tách review seller / review sàn và bàn giao trễ / giao trễ tới khách. Trang KPI giữ sáu công thức cũ khi không bật giai đoạn đủ dữ liệu, funnel hay khoảng tháng. Thêm dải ràng buộc, hero trải nghiệm xấu, tab xu hướng / nơi phát sinh / seller / độ tin cậy. OLAP đổi tên tab theo câu hỏi SPEC, kết luận từng tab, CSV, pivot loại Unknown và làm mờ n < 30.
+- **Đã chạy:** `python -m pytest src/tests/test_stats.py src/tests/test_insights.py` — 15 passed. Tổng GMV theo tháng, bộ lọc trống: 13494400.74. `market_quality` bộ lọc trống: đơn 98666, đơn nhiều seller 1278, review loại khỏi measure seller 1943, bad_orders 16444, bad_eligible 98079, late_orders 6534, late_eligible 96447. App trang KPI hiện GMV R$ 13,49 tr, đơn 98.199, AOV R$ 137,42, bàn giao trễ 10,1%, review seller 13,7%, cancel 0,5%.
+- **Chưa làm:** bản đồ Brazil, histogram nguyên nhân, treemap. Không đổi SQL của năm phép OLAP đã khóa. Không commit `.env`.
 
 ### 11/11/2026 — Policy scenario theo logic quyết định
 

@@ -8,9 +8,7 @@ import streamlit as st
 
 from lib import db, queries
 from lib.glossary import explain
-from lib.insights import build_insight_olap
-from lib.ui import LATE, REVIEW, apply_theme, filters, fmt_int, fmt_pct, insight_box, kpi_card, next_step, page_header
-from src.dss.params import MIN_ORDERS
+from lib.ui import LATE, MIN_N_DISPLAY, REVIEW, apply_theme, filter_badge, filters, fmt_int, fmt_pct, kpi_card, next_step, page_header
 
 DICE_MIN_N = 30
 
@@ -44,10 +42,22 @@ def _view(key: str) -> str:
     return st.segmented_control("Xem", ["Biểu đồ", "Bảng"], default="Biểu đồ", key=key)
 
 
-def _panel(question: str, lines: list[str]) -> None:
+def _panel(question: str, lines: list[str], frame: pd.DataFrame | None = None, source: str = "", key: str = "") -> None:
     st.markdown(f"**Câu hỏi.** {question}")
-    for line in lines:
+    text = " ".join(lines[:2]) if lines else "Chưa đủ dữ liệu để kết luận."
+    st.info(text)
+    for line in lines[2:]:
         st.write(line)
+    if frame is not None and key and st.toggle("Xem bảng", key=key):
+        st.dataframe(frame, width="stretch", hide_index=True)
+        st.download_button(
+            "Tải CSV",
+            frame.to_csv(index=False).encode("utf-8"),
+            file_name=f"{key}.csv",
+            mime="text/csv",
+        )
+    if source:
+        st.caption(source)
 
 
 def _review_by_level(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -110,13 +120,20 @@ def _kpi_strip() -> None:
     late = _ratio(monthly["late_ship_count"], monthly["late_ship_eligible"])
     review = _ratio(monthly["negative_review_count"], monthly["negative_review_eligible"])
     aov = _ratio(orders["gmv_from_items"], orders["valid_orders"])
-    columns = st.columns(4)
+    columns = st.columns(len(values))
     values = [
         ("GMV", fmt_brl_local(gmv), explain("gmv")),
         ("AOV", fmt_brl_local(aov), explain("aov")),
         ("Bàn giao trễ", fmt_pct(late), explain("late_ship")),
-        ("Review xấu", fmt_pct(review), explain("negative_review")),
+        ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
+    try:
+        quality = db.query(*queries.market_quality(year, region, state))
+        if not quality.empty and quality.iloc[0]["bad_eligible"]:
+            bad = float(quality.iloc[0]["bad_orders"]) / float(quality.iloc[0]["bad_eligible"])
+            values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
+    except Exception as exc:
+        st.error(db.redact(exc))
     for column, (label, value, help_text) in zip(columns, values):
         with column:
             kpi_card(label, value, help_text=help_text)
@@ -146,8 +163,16 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
     if level == "city":
         lines.append("Biểu đồ lấy 20 thành phố có nhiều item đủ mẫu nhất.")
     else:
-        lines.append("Mọi nhãn của mức này đều được vẽ, chiều cao theo số dòng.")
+        lines.append("Mọi nhãn của mức này đều được vẽ.")
+    states = frame[frame["rollup_level"] == "state"].copy()
+    states["late_items"] = pd.to_numeric(states["late_items"], errors="coerce").fillna(0)
+    total_late = float(states["late_items"].sum())
+    if total_late > 0:
+        top3 = states.sort_values("late_items", ascending=False).head(3)
+        share = float(top3["late_items"].sum()) / total_late
+        lines.append(f"Top 3 bang chiếm {fmt_pct(share)} số item bàn giao trễ.")
     lines.append("Seller −1 không vào mẫu. Tỷ lệ = item trễ / item có cờ khác null.")
+    filter_badge("fixed_spec", "Q1")
     with chart_col:
         mode = _view("rollup_view")
         if mode == "Bảng":
@@ -161,7 +186,13 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
                 width="stretch",
             )
     with side:
-        _panel("Bàn giao trễ là chuyện cả vùng hay một nơi?", lines)
+        _panel(
+            "Bàn giao trễ là chuyện cả vùng hay một nơi?",
+            lines,
+            part,
+            "Nguồn: gold.fact_order_item, gold.dim_seller.",
+            "rollup_table",
+        )
 
 
 def _tab_drill(frame: pd.DataFrame) -> None:
@@ -186,6 +217,9 @@ def _tab_drill(frame: pd.DataFrame) -> None:
     peak = grouped.sort_values("negative_review_rate", ascending=False).head(1)
     small = grouped[grouped["reviewed_orders"] < 500]
     lines = ["KPI sàn: giữ cross_seller. Tỷ lệ = đơn review xấu / đơn có điểm."]
+    lines.append(
+        "Đỉnh tháng 3/2018 khoảng 1,6% là giả định trong SPEC, chưa đo lại trên biểu đồ này. Hãy tự đối chiếu."
+    )
     if not peak.empty:
         row = peak.iloc[0]
         label = row["axis"] if level != "Ngày" else str(row["full_date"])[:10]
@@ -212,7 +246,13 @@ def _tab_drill(frame: pd.DataFrame) -> None:
             fig.update_yaxes(tickformat=".0%", title="Review xấu")
             st.plotly_chart(fig, width="stretch")
     with side:
-        _panel("Kỳ nào review xấu nổi hơn các kỳ quanh nó?", lines)
+        _panel(
+            "Kỳ nào review xấu nổi hơn các kỳ quanh nó?",
+            lines,
+            grouped,
+            "Nguồn: gold.fact_order, gold.dim_date.",
+            "drill_table",
+        )
 
 
 def _tab_slice(groups: pd.DataFrame) -> None:
@@ -227,7 +267,7 @@ def _tab_slice(groups: pd.DataFrame) -> None:
         if preferred not in names:
             preferred = names[0]
         chosen = st.selectbox("Nhóm danh mục", names, index=names.index(preferred), key="slice_group")
-        minimum = st.slider("min_orders", min_value=1, max_value=50, value=5, key="slice_min")
+        minimum = st.slider("Số đơn tối thiểu để vẽ", min_value=1, max_value=50, value=5, key="slice_min")
     try:
         frame = db.query(*queries.slice_category(chosen))
     except Exception as exc:
@@ -272,7 +312,13 @@ def _tab_slice(groups: pd.DataFrame) -> None:
             fig.update_layout(margin=dict(l=90, r=12, t=24, b=12))
             st.plotly_chart(fig, width="stretch")
     with side:
-        _panel("Trong một nhóm danh mục, seller nào giao trễ tới khách nhiều nhất?", lines)
+        _panel(
+            "Trong một nhóm danh mục, seller nào giao trễ tới khách nhiều nhất?",
+            lines,
+            data,
+            "Nguồn: gold.fact_order_item, gold.dim_product, gold.dim_seller.",
+            "slice_table",
+        )
 
 
 def _tab_dice(frame: pd.DataFrame) -> None:
@@ -326,22 +372,24 @@ def _tab_dice(frame: pd.DataFrame) -> None:
             fig.update_layout(barmode="group", margin=dict(l=120, r=12, t=24, b=12))
             st.plotly_chart(fig, width="stretch")
     with side:
-        _panel("Ở lát cắt này, bang seller nào trễ và bị review xấu?", lines)
+        _panel(
+            "Ở lát cắt này, bang seller nào trễ và bị review xấu?",
+            lines,
+            data,
+            "Nguồn: gold.fact_order, gold.fact_order_item. Cố định theo SPEC Q4 vì lát cắt là một câu hỏi, không phải bộ lọc sidebar.",
+            "dice_table",
+        )
 
 
 def _tab_pivot(frame: pd.DataFrame) -> None:
     data = frame.copy()
     data["late_items"] = pd.to_numeric(data["late_items"], errors="coerce")
     data["eligible_items"] = pd.to_numeric(data["eligible_items"], errors="coerce")
+    data = data[data["category_group"].astype(str) != "Unknown"]
     data["late_rate"] = data["late_items"] / data["eligible_items"].where(data["eligible_items"] > 0)
     data["quarter_label"] = "Q" + data["quarter"].astype(int).astype(str)
-    data["sort_key"] = data["category_group"].eq("Unknown").astype(int)
-    categories = (
-        data[["category_group", "sort_key"]]
-        .drop_duplicates()
-        .sort_values(["sort_key", "category_group"])["category_group"]
-        .tolist()
-    )
+    totals = data.groupby("category_group", as_index=False)["late_items"].sum().sort_values("late_items", ascending=False)
+    categories = totals["category_group"].tolist()
     quarters = ["Q1", "Q2", "Q3", "Q4"]
     matrix = (
         data.pivot(index="category_group", columns="quarter_label", values="late_rate")
@@ -351,9 +399,19 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
         data.pivot(index="category_group", columns="quarter_label", values="eligible_items")
         .reindex(index=categories, columns=quarters)
     )
+    matrix = matrix.where(counts >= MIN_N_DISPLAY)
     text = matrix.map(lambda value: "—" if pd.isna(value) else fmt_pct(value))
-    peak = data.dropna(subset=["late_rate"]).sort_values("late_rate", ascending=False).head(1)
-    lines = ["Mọi năm gộp vào cùng một quý. Unknown nằm cuối. Ô đậm hơn là quý trễ hơn."]
+    peak = data[data["eligible_items"] >= MIN_N_DISPLAY].dropna(subset=["late_rate"]).sort_values("late_rate", ascending=False).head(1)
+    delta = matrix.diff(axis=1)
+    lines = ["Mọi năm gộp vào cùng một quý. Unknown đã loại. Ô có n dưới ngưỡng hiển thị bị làm mờ."]
+    if delta.notna().any().any():
+        stacked = delta.stack()
+        cell = stacked.abs().sort_values(ascending=False).head(1)
+        if not cell.empty:
+            category, quarter = cell.index[0]
+            lines.append(
+                f"Độ lệch lớn nhất so với quý trước là {category} {quarter}: {fmt_pct(stacked.loc[(category, quarter)])}."
+            )
     if not peak.empty:
         row = peak.iloc[0]
         lines.append(
@@ -385,22 +443,23 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
             fig.update_yaxes(automargin=True)
             st.plotly_chart(fig, width="stretch")
     with side:
-        _panel("Nhóm danh mục nào kéo bàn giao trễ theo quý?", lines)
+        _panel(
+            "Nhóm danh mục nào kéo bàn giao trễ theo quý?",
+            lines,
+            data,
+            "Nguồn: gold.fact_order_item, gold.dim_product, gold.dim_date.",
+            "pivot_table",
+        )
 
 
 def render(settings=None) -> None:
     del settings
     page_header(
         "GMV và trải nghiệm xấu đến từ đâu?",
-        "Năm phép giữ nguyên tên và câu SQL. Câu phía trên theo bộ lọc đang chọn.",
+        "Mỗi tab trả lời một câu trong SPEC. Đọc biểu đồ trước, rồi câu kết luận ngay bên dưới.",
         "OLAP Explorer",
     )
     year, region, state, category = filters()
-    try:
-        story = db.query(*queries.story_by_region(year, region, state, category))
-        insight_box(build_insight_olap(story, MIN_ORDERS))
-    except Exception as exc:
-        st.error(db.redact(exc))
     _kpi_strip()
     with st.spinner("Đang tải dữ liệu…"):
         rollup, rollup_error = _load(lambda: db.query(*queries.rollup()))
@@ -408,7 +467,13 @@ def render(settings=None) -> None:
         groups, groups_error = _load(queries.category_groups)
         dice, dice_error = _load(lambda: db.query(*queries.dice()))
         pivot, pivot_error = _load(lambda: db.query(*queries.pivot_counts()))
-    tabs = st.tabs(["Roll-up", "Drill-down", "Slice", "Dice", "Pivot"])
+    tabs = st.tabs([
+        "Vùng hay cục bộ? (Roll-up)",
+        "Tháng nào nổi? (Drill-down)",
+        "Seller nào trễ nhất? (Slice)",
+        "Lát cắt Norte+Nordeste, Q1–Q2/2018, bulky (Dice)",
+        "Nguồn gây trễ? (Pivot)",
+    ])
     with tabs[0]:
         if rollup_error:
             st.error(db.redact(rollup_error))
