@@ -73,13 +73,14 @@ GLOSSARY: dict[str, dict[str, str]] = {
         "denominator": "Số đơn phân biệt mọi trạng thái.",
     },
     "risk_score": {
-        "label": "Điểm rủi ro",
+        "label": "Xác suất đơn xấu",
         "definition": (
-            "M1, logistic regression. Xác suất một đơn của seller ở tháng sau là trải nghiệm xấu, "
-            "học từ các tháng đã qua trên fact_seller_monthly."
+            "Xác suất một đơn tháng tới của seller là đơn trải nghiệm xấu "
+            "(review ≤ 2 hoặc giao trễ), từ mô hình logistic regression. "
+            "18% nghĩa là khoảng 18/100 đơn nếu mô hình hiệu chỉnh tốt. Xem mục Độ tin cậy."
         ),
         "numerator": "p_bad trên dss.seller_risk_score.",
-        "denominator": "Không phải tỷ lệ cộng dồn. Seller dưới min_orders không được xếp hạng.",
+        "denominator": "Không phải tỷ lệ cộng dồn. Seller dưới số đơn tối thiểu không được xếp hạng.",
     },
     "active_sellers": {
         "label": "Seller đang hoạt động",

@@ -14,11 +14,17 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (KPI và OLAP analytic) |
+| Cập nhật | 11/11/2026 (trang Seller risk) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Seller risk theo hướng intelligence
+
+- **Đã làm:** trang Seller risk đọc `dss.seller_risk_score` và join `dim_seller` (vùng, bang, thành phố, business_segment, lead_type, won_date). Hạng và đơn xấu dự kiến lấy từ `simulate(..., "P2", PolicyParams())`, không viết lại ngưỡng. `min_orders` vẫn là `MIN_ORDERS` = 5. Tab đánh giá hiện câu chờ khi chưa có `dss.model_eval`. DDL ba bảng contrib/eval/calibration được thêm vào job DSS, job chưa chạy lại.
+- **Đã chạy:** `python -m pytest src/tests/test_recommend.py src/tests/test_stats.py` — 6 passed. Bảng điểm: 1 seller `25be943a321c8938947bdaabca979a90`, `p_bad` 0.345639, `n_orders_valid` 1, `q_bar` 1.0, `gmv` 145.0. P0/P1/P2 `expected_bad_orders` đều 0.3456389245948667, 0 seller bị gắn cờ. Trang hiện 0 seller đủ điều kiện / 1 seller tổng với ngưỡng 5 đơn. `p_bad` không đổi so với bảng đã ghi.
+- **Chưa làm:** không ghi `seller_risk_contrib` hay `model_eval` vì không chạy lại job (chạy lại sẽ ghi đè điểm). Không có 3 seller để đối soát contribution. Không commit `.env`.
 
 ### 11/11/2026 — KPI và OLAP analytic
 

@@ -420,3 +420,133 @@ def story_by_region(
 ) -> tuple[str, tuple]:
     params = (year, year, region, region, state, state, category, category)
     return _bind(_STORY_BY_REGION), params
+
+
+def risk_board() -> tuple[str, tuple]:
+    sql = """
+    SELECT
+      r.seller_key,
+      r.seller_id,
+      r.as_of_month,
+      r.p_bad,
+      r.q_bar,
+      r.gmv,
+      r.late_ship_rate,
+      r.avg_review,
+      r.n_orders_valid,
+      r.model_name,
+      r.trained_through_month,
+      r.scored_at,
+      s.city_name,
+      s.state_code,
+      s.region_name,
+      s.business_segment,
+      s.lead_type,
+      s.won_date,
+      DATEDIFF(TO_DATE(CONCAT(r.as_of_month, '-01')), s.won_date) AS seller_age_days
+    FROM {catalog}.{dss}.seller_risk_score AS r
+    LEFT JOIN {catalog}.{gold}.dim_seller AS s
+      ON r.seller_key = s.seller_key
+    """
+    return _bind(sql), ()
+
+
+def seller_history(seller_id: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT
+      m.year_month,
+      SUM(f.late_ship_count) AS late_ship_count,
+      SUM(f.late_ship_eligible) AS late_ship_eligible,
+      SUM(f.negative_review_count) AS negative_review_count,
+      SUM(f.negative_review_eligible) AS negative_review_eligible,
+      SUM(f.n_orders_valid) AS n_orders_valid,
+      SUM(f.cancel_count) AS cancel_count,
+      SUM(f.n_orders_placed) AS n_orders_placed,
+      SUM(f.handling_days_sum) AS handling_days_sum,
+      SUM(f.handling_days_count) AS handling_days_count,
+      SUM(f.gmv) AS gmv
+    FROM {catalog}.{gold}.fact_seller_monthly AS f
+    INNER JOIN {catalog}.{gold}.dim_month AS m
+      ON f.month_key = m.month_key
+    INNER JOIN {catalog}.{gold}.dim_seller AS s
+      ON f.seller_key = s.seller_key
+    WHERE s.seller_id = {p}
+      AND f.seller_key <> -1
+      AND m.month_key <> -1
+    GROUP BY m.year_month
+    ORDER BY m.year_month
+    """
+    return _bind(sql), (str(seller_id),)
+
+
+def platform_month(year_month: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT
+      SUM(f.gmv) AS gmv,
+      SUM(f.late_ship_count) AS late_ship_count,
+      SUM(f.late_ship_eligible) AS late_ship_eligible,
+      SUM(f.negative_review_count) AS negative_review_count,
+      SUM(f.negative_review_eligible) AS negative_review_eligible,
+      SUM(f.cancel_count) AS cancel_count,
+      SUM(f.n_orders_placed) AS n_orders_placed,
+      SUM(f.handling_days_sum) AS handling_days_sum,
+      SUM(f.handling_days_count) AS handling_days_count,
+      SUM(f.n_orders_valid) AS n_orders_valid
+    FROM {catalog}.{gold}.fact_seller_monthly AS f
+    INNER JOIN {catalog}.{gold}.dim_month AS m
+      ON f.month_key = m.month_key
+    WHERE m.year_month = {p}
+      AND f.seller_key <> -1
+      AND m.month_key <> -1
+    """
+    return _bind(sql), (str(year_month),)
+
+
+def seller_categories(seller_id: str, year_month: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT
+      COALESCE(p.category_group, 'Unknown') AS category_group,
+      COUNT(*) AS items
+    FROM {catalog}.{gold}.fact_order_item AS i
+    INNER JOIN {catalog}.{gold}.dim_seller AS s
+      ON i.seller_key = s.seller_key
+    INNER JOIN {catalog}.{gold}.dim_product AS p
+      ON i.product_key = p.product_key
+    INNER JOIN {catalog}.{gold}.dim_date AS d
+      ON i.purchase_date_key = d.date_key
+    WHERE s.seller_id = {p}
+      AND format_string('%04d-%02d', d.year, d.month) = {p}
+      AND i.seller_key <> -1
+    GROUP BY p.category_group
+    ORDER BY items DESC
+    """
+    return _bind(sql), (str(seller_id), str(year_month))
+
+
+def model_eval(as_of_month: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT metric, value
+    FROM {catalog}.{dss}.model_eval
+    WHERE as_of_month = {p}
+    """
+    return _bind(sql), (str(as_of_month),)
+
+
+def model_calibration(as_of_month: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT bin, mean_pred, observed_rate, n
+    FROM {catalog}.{dss}.model_calibration
+    WHERE as_of_month = {p}
+    ORDER BY bin
+    """
+    return _bind(sql), (str(as_of_month),)
+
+
+def risk_contrib(seller_id: str, as_of_month: str) -> tuple[str, tuple]:
+    sql = """
+    SELECT feature, value, contribution
+    FROM {catalog}.{dss}.seller_risk_contrib
+    WHERE seller_id = {p}
+      AND as_of_month = {p}
+    """
+    return _bind(sql), (str(seller_id), str(as_of_month))
