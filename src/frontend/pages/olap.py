@@ -402,7 +402,7 @@ def render(settings=None) -> None:
     except Exception as exc:
         st.error(db.redact(exc))
     _kpi_strip()
-    with st.spinner("Đang hỏi SQL Warehouse..."):
+    with st.spinner("Đang tải dữ liệu…"):
         rollup, rollup_error = _load(lambda: db.query(*queries.rollup()))
         drill, drill_error = _load(lambda: db.query(*queries.drilldown()))
         groups, groups_error = _load(queries.category_groups)

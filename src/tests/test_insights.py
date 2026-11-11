@@ -12,12 +12,14 @@ FRONT = ROOT / "src" / "frontend"
 sys.path.insert(0, str(FRONT))
 
 from lib.glossary import GLOSSARY, HOME_TERMS, explain  # noqa: E402
+from lib.decisions import claim_decision  # noqa: E402
 from lib.insights import (  # noqa: E402
     NOT_ENOUGH,
     build_insight_kpi,
     build_insight_olap,
     build_insight_policy,
     build_insight_risk,
+    recommend_policy,
 )
 
 
@@ -90,6 +92,66 @@ def test_policy_insight_picks_feasible_non_baseline():
     assert "6,5" in text
     assert "4,0%" in text
     assert "12" in text
+
+
+def _policy_row(code, bad, meets_x, meets_n, gmv, sellers):
+    return {
+        "policy_code": code,
+        "expected_bad_orders": bad,
+        "meets_x": meets_x,
+        "meets_n": meets_n,
+        "gmv_affected_pct": gmv,
+        "n_sellers_flagged": sellers,
+    }
+
+
+def test_recommend_policy_picks_the_feasible_minimum():
+    frame = pd.DataFrame(
+        [
+            _policy_row("P0", 10, True, True, 0, 0),
+            _policy_row("P1", 8, True, True, 6, 20),
+            _policy_row("P2", 6, True, True, 4, 12),
+        ]
+    )
+    result = recommend_policy(frame, x_limit=10, n_limit=40)
+    assert result["code"] == "P2"
+    assert result["tied"] == ("P2",)
+    assert "Điểm rủi ro dự báo (P2)" in result["sentence"]
+    assert "4,0" in result["sentence"]
+    assert "≤10%" in result["sentence"]
+    assert "≤40" in result["sentence"]
+
+
+def test_recommend_policy_when_none_fit():
+    frame = pd.DataFrame([_policy_row("P1", 8, False, True, 20, 3)])
+    result = recommend_policy(frame, x_limit=10, n_limit=40)
+    assert result["code"] is None
+    assert "Không có phương án nào" in result["sentence"]
+
+
+def test_recommend_policy_tie_keeps_both_codes():
+    frame = pd.DataFrame(
+        [
+            _policy_row("P0", 10, True, True, 0, 0),
+            _policy_row("P2", 5, True, True, 3, 9),
+            _policy_row("P1", 5, True, True, 4, 11),
+        ]
+    )
+    result = recommend_policy(frame, x_limit=10, n_limit=40)
+    assert result["code"] == "P1"
+    assert result["tied"] == ("P1", "P2")
+    assert "Ngưỡng KPI cố định (P1)" in result["sentence"]
+    assert "Điểm rủi ro dự báo (P2)" in result["sentence"]
+    assert "cùng giảm" in result["sentence"]
+
+
+def test_claim_decision_blocks_a_second_click():
+    state = {}
+    assert claim_decision(state, "same") is True
+    assert claim_decision(state, "same") is False
+    state["decision_inflight"] = False
+    assert claim_decision(state, "same") is False
+    assert claim_decision(state, "other") is True
 
 
 def test_policy_insight_when_nothing_fits():

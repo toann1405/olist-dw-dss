@@ -137,6 +137,64 @@ def build_insight_risk(frame: pd.DataFrame, min_orders: int) -> str:
     )
 
 
+def recommend_policy(frame: pd.DataFrame, x_limit: float, n_limit: float) -> dict:
+    """Pick the feasible non-baseline policy with the fewest expected bad orders.
+
+    A tie keeps every code that shares that count. The radio default is the
+    first of those codes in alphabetical order. The sentence is built only
+    from the frame. X and N are the locked ceilings, not a second formula.
+    """
+    from lib.labels import fmt_count, fmt_limit, fmt_number, fmt_percent_points, policy_name
+
+    empty = {"code": None, "tied": (), "sentence": NOT_ENOUGH}
+    if frame is None or frame.empty:
+        return empty
+    work = frame.copy()
+    work["expected_bad_orders"] = pd.to_numeric(work["expected_bad_orders"], errors="coerce")
+    work["gmv_affected_pct"] = pd.to_numeric(work["gmv_affected_pct"], errors="coerce")
+    work["n_sellers_flagged"] = pd.to_numeric(work["n_sellers_flagged"], errors="coerce")
+    work["meets_x"] = work["meets_x"].map(lambda value: bool(value) if not _missing(value) else False)
+    work["meets_n"] = work["meets_n"].map(lambda value: bool(value) if not _missing(value) else False)
+    work["policy_code"] = work["policy_code"].astype(str)
+    feasible = work[
+        (work["policy_code"] != "P0") & work["meets_x"] & work["meets_n"]
+    ].dropna(subset=["expected_bad_orders"])
+    if feasible.empty:
+        return {
+            "code": None,
+            "tied": (),
+            "sentence": (
+                f"Không có phương án nào đạt cả hai ràng buộc: "
+                f"GMV bị ảnh hưởng ≤ {fmt_limit(x_limit)}% và số seller ≤ {fmt_limit(n_limit)}."
+            ),
+        }
+    best_value = float(feasible["expected_bad_orders"].min())
+    tied = feasible[feasible["expected_bad_orders"] == best_value].sort_values("policy_code")
+    chosen = tied.iloc[0]
+    codes = tuple(tied["policy_code"].tolist())
+    names = " và ".join(policy_name(code) for code in codes)
+    base_rows = work[work["policy_code"] == "P0"].dropna(subset=["expected_bad_orders"])
+    base = None if base_rows.empty else float(base_rows.iloc[0]["expected_bad_orders"])
+    saved = None if base is None else base - float(chosen["expected_bad_orders"])
+    if saved is None:
+        change = f"còn {fmt_number(chosen['expected_bad_orders'])} đơn xấu dự kiến"
+    elif saved >= 0:
+        change = f"giảm ~{fmt_number(saved)} đơn xấu"
+    else:
+        change = f"tăng ~{fmt_number(abs(saved))} đơn xấu"
+    if base not in (None, 0) and saved is not None:
+        change += f" ({fmt_percent_points(saved / base * 100)} so với {policy_name('P0')})"
+    same = "cùng " if len(codes) > 1 else ""
+    sentence = (
+        f"{names} {same}{change}, "
+        f"GMV ảnh hưởng {fmt_percent_points(chosen['gmv_affected_pct'])} "
+        f"(≤{fmt_limit(x_limit)}%), "
+        f"{fmt_count(chosen['n_sellers_flagged'])} seller (≤{fmt_limit(n_limit)}) "
+        f"→ đạt cả hai ràng buộc."
+    )
+    return {"code": str(chosen["policy_code"]), "tied": codes, "sentence": sentence}
+
+
 def build_insight_policy(frame: pd.DataFrame) -> str:
     """Feasible non-P0 policy with the lowest expected bad-order count."""
     if frame is None or frame.empty:

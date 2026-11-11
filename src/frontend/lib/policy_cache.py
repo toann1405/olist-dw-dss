@@ -1,0 +1,91 @@
+"""Cache M2 results for one score table and one parameter tuple.
+
+The cached functions call the unchanged policy module. They do not recompute
+a formula of their own.
+"""
+
+from __future__ import annotations
+
+import pandas as pd
+import streamlit as st
+
+from src.dss.policy import PolicyParams, compare_policies, goal_seek, tornado
+
+_SCORE_COLUMNS = (
+    "seller_id",
+    "seller_key",
+    "p_bad",
+    "n_orders_valid",
+    "gmv",
+    "late_ship_rate",
+    "avg_review",
+    "q_bar",
+    "as_of_month",
+)
+
+
+def _plain(value):
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            return value
+    return value
+
+
+def score_token(frame: pd.DataFrame) -> tuple:
+    columns = [name for name in _SCORE_COLUMNS if name in frame.columns]
+    slim = frame.loc[:, columns]
+    rows = tuple(tuple(_plain(value) for value in row) for row in slim.itertuples(index=False, name=None))
+    return rows, tuple(columns)
+
+
+def param_token(params: PolicyParams) -> tuple:
+    return (
+        round(float(params.theta_1), 6),
+        round(float(params.theta_2), 6),
+        round(float(params.theta_3), 6),
+        round(float(params.e1), 6),
+        round(float(params.e2), 6),
+        round(float(params.e3), 6),
+        round(float(params.e_p1), 6),
+        round(float(params.late_ship_threshold), 6),
+        round(float(params.avg_review_threshold), 6),
+        round(float(params.r), 6),
+        round(float(params.s), 6),
+        int(params.min_orders),
+        float(params.x_limit),
+        int(params.n_limit),
+    )
+
+
+def _frame(token: tuple) -> pd.DataFrame:
+    rows, columns = token
+    return pd.DataFrame(list(rows), columns=list(columns))
+
+
+def _params(token: tuple) -> PolicyParams:
+    return PolicyParams(*token)
+
+
+@st.cache_data(show_spinner=False)
+def cached_compare(score_rows: tuple, param_values: tuple):
+    return compare_policies(_frame(score_rows), _params(param_values))
+
+
+@st.cache_data(show_spinner=False)
+def cached_goal(score_rows: tuple, param_values: tuple):
+    return goal_seek(_frame(score_rows), _params(param_values))
+
+
+@st.cache_data(show_spinner=False)
+def cached_tornado(score_rows: tuple, param_values: tuple):
+    params = _params(param_values)
+    return tornado(_frame(score_rows), params)

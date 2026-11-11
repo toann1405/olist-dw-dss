@@ -93,6 +93,12 @@ def query_uncached(sql_text: str, params: tuple = ()) -> pd.DataFrame:
             return _frame(cursor)
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def query_recent(sql_text: str, params: tuple = ()) -> pd.DataFrame:
+    """Short cache for the decision list. Clear this after a successful insert."""
+    return query_uncached(sql_text, params)
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def query(sql_text: str, params: tuple = ()) -> pd.DataFrame:
     """Run one read statement. Results stay cached for 600 seconds."""

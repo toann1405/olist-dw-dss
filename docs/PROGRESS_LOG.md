@@ -14,11 +14,18 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (Streamlit kể chuyện: glossary, insight, điều hướng) |
+| Cập nhật | 11/11/2026 (trang Policy theo logic quyết định) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Policy scenario theo logic quyết định
+
+- **Đã làm:** trang Policy xếp ① what-if, ② goal seeking, ③ sensitivity (biểu đồ tornado), ④ chốt. Tên hiển thị ở `lib/labels.py`. `recommend_policy` sinh câu từ kết quả. Giả định nằm trong form "Áp dụng". `decision_id` là UUID. X=10 và N=40 vẫn khóa, không đưa vào slider. Không sửa `compare_policies`, `goal_seek`, `tornado` hay giá trị mặc định trong `src/dss/params.py`.
+- **Đã chạy:** `python -m pytest src/tests/test_insights.py` — 12 passed. Tham số mặc định trên bảng điểm hiện có (1 seller): P0, P1 và P2 đều `expected_bad_orders` 0.3456389245948667, GMV bị ảnh hưởng 0.0, 0 seller, đạt cả hai trần. Hàm M2 không đổi nên trước và sau refactor là cùng ba số này. App mở được. Bấm "Dùng ngưỡng gợi ý này" đổi dòng chốt thành "ngưỡng gợi ý".
+- **Kho:** `dss.decision_log` có 0 dòng, `decision_id` đang BIGINT. Đã DROP và CREATE lại với `decision_id` STRING. Smoke insert UUID `c35eb05c-026b-4065-b475-c275ccfc7675` rồi DELETE, đếm lại còn 0. Không bấm ghi từ UI hai lần.
+- **Không làm:** không đổi công thức M2. Không commit `.env`.
 
 ### 11/11/2026 — Streamlit: kể chuyện cho business
 

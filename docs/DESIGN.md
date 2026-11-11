@@ -812,7 +812,7 @@ Tham số P0/P1/P2 không nằm trên Gold. Quy ước số (ngưỡng θ, `e_k`
 
 | Cột | Kiểu | Null | Quy tắc |
 |---|---|---|---|
-| `decision_id` | BIGINT | không | `max + 1` lúc insert |
+| `decision_id` | STRING | không | UUID lúc insert. Migration từ BIGINT: `src/sql/migrations/20261111_decision_id_string.sql` |
 | `decided_at` | TIMESTAMP | không | Thời điểm chốt |
 | `as_of_month` | STRING | không | Tháng chấm đang xem |
 | `policy_code` | STRING | không | `P0`, `P1`, hoặc `P2` |

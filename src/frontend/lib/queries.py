@@ -120,6 +120,32 @@ def policy_snapshot() -> tuple[str, tuple]:
     return load("policy_scenario.sql"), ()
 
 
+_RECENT_DECISIONS = """
+SELECT
+  decided_at,
+  policy_code,
+  gmv_affected_pct,
+  n_sellers_flagged,
+  note
+FROM (
+  SELECT
+    decided_at,
+    policy_code,
+    gmv_affected_pct,
+    n_sellers_flagged,
+    note,
+    ROW_NUMBER() OVER (ORDER BY decided_at DESC) AS rn
+  FROM {catalog}.{dss}.decision_log
+) AS ranked
+WHERE rn <= {p}
+ORDER BY decided_at DESC
+"""
+
+
+def recent_decisions(limit: int) -> tuple[str, tuple]:
+    return _bind(_RECENT_DECISIONS), (int(limit),)
+
+
 def next_decision_id() -> tuple[str, tuple]:
     return load("decision_next_id.sql"), ()
 

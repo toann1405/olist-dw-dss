@@ -196,7 +196,7 @@ def render(settings=None) -> None:
     )
     year, region, state, category = filters()
     try:
-        with st.spinner("Đang hỏi SQL Warehouse..."):
+        with st.spinner("Đang tải dữ liệu…"):
             current = _load_base(year, region, state)
             previous = None
             if year is not None:

@@ -50,7 +50,7 @@ def render(settings=None) -> None:
         "Can thiệp thế nào mà không mất doanh thu?"
     )
     try:
-        with st.spinner("Đang hỏi SQL Warehouse..."):
+        with st.spinner("Đang tải dữ liệu…"):
             gmv, bad_rate, active = _marketplace()
     except Exception as exc:
         db.show_warehouse_error(exc)

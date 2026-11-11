@@ -14,6 +14,7 @@ SELECT
   theta_3,
   min_orders,
   x_limit,
-  n_limit
+  n_limit,
+  scored_at
 FROM {catalog}.{dss}.policy_scenario
 ORDER BY policy_code

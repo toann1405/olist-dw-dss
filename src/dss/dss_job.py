@@ -119,7 +119,7 @@ spark.sql(
 spark.sql(
     f"""
     CREATE TABLE IF NOT EXISTS {catalog}.{dss}.decision_log (
-      decision_id BIGINT NOT NULL,
+      decision_id STRING NOT NULL,
       decided_at TIMESTAMP NOT NULL,
       as_of_month STRING NOT NULL,
       policy_code STRING NOT NULL,
