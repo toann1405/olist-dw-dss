@@ -43,4 +43,4 @@ Scenarios are P0 (no intervention), P1 (fixed KPI thresholds), P2 (predicted ris
 
 ## UI
 
-DSS screens are SPEC §7 items 4–7. Streamlit is the locked query and DSS UI. It reads Gold and `dss` through a SQL Warehouse. Screen 7 appends `dss.decision_log` through that warehouse. The connection is `[GIẢ ĐỊNH]` until S2. The OLAP dashboard is Power BI, not Streamlit.
+The Streamlit app has the four pages in SPEC §7. It reads Gold and `dss` through a SQL Warehouse. The policy page appends `dss.decision_log`. The connection is `[GIẢ ĐỊNH]` until S2. Power BI is future work.

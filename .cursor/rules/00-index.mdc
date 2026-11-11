@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Project index
 
-CO4031 (HK261) builds a seller-performance data warehouse and DSS on the Olist Brazilian E-Commerce dataset. Architecture is a Databricks Free Edition medallion lakehouse: Bronze (full-load overwrite staging) → Silver (full-load overwrite, clean/conform) → Gold (Kimball bottom-up data mart, fact constellation, star schema, Delta MERGE), plus schema `dss` for model outputs. Batch only. OLAP is ROLAP in Power BI through a SQL Warehouse. Streamlit is the query and DSS UI. Incremental load, append, CDF, and Auto Loader are future work. Topic T1 was locked on 15/10/2026 after gates G1–G6; fallback T2 would have used the same Gold mart.
+CO4031 (HK261) builds a seller-performance data warehouse and DSS on the Olist Brazilian E-Commerce dataset. Architecture is a Databricks Free Edition medallion lakehouse: Bronze (full-load overwrite staging) → Silver (full-load overwrite, clean/conform) → Gold (Kimball bottom-up data mart, fact constellation, star schema, Delta MERGE), plus schema `dss` for model outputs. Batch only. OLAP is ROLAP through a Databricks SQL Warehouse. One local Streamlit app is the dashboard and the DSS UI. Power BI is future work. Incremental load, append, CDF, and Auto Loader are future work. Topic T1 was locked on 15/10/2026 after gates G1–G6; fallback T2 would have used the same Gold mart.
 
 ## Source-of-truth order
 

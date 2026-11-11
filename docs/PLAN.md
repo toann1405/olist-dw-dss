@@ -16,7 +16,7 @@ Mỗi task ghi mã yêu cầu trong SPEC §2 (R-xx).
 |---|---|
 | **Cloud** | Workspace Databricks: notebook, Unity Catalog, Volume, Jobs, SQL Warehouse |
 | **Local → Cloud** | Chạy trên laptop nhưng đọc/ghi Databricks (SQL warehouse, token). Không dựng DW trên máy |
-| **Local** | Chỉ trên laptop: repo, tài liệu, pytest, Power BI Desktop, Streamlit, pyspark + delta-spark trên `data/sample/` |
+| **Local** | Chỉ trên laptop: repo, tài liệu, pytest, Streamlit, pyspark + delta-spark trên `data/sample/`. Power BI Desktop là future work |
 
 Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud**, rồi **Local**. Ngoại lệ: Phase 3 (ETL warehouse) chỉ Cloud. Đường local của R46 nằm ở S6, Phase 6 và Phase 7.
 
@@ -49,7 +49,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 **Local → Cloud** (sau S1)
 
 - [ ] **S2** Truy vấn SQL warehouse từ Python local (`databricks-sql-connector` + token) (R31, R32). Khả năng kết nối là **[GIẢ ĐỊNH]**
-- [ ] **S3** Thử kết nối Power BI Desktop tới SQL warehouse. Chỉ kiểm tra kết nối, chưa làm dashboard (R09)
+- [ ] **S3** Power BI — future work từ 10/11/2026. Không chặn Streamlit. Không làm trong phase này (R09)
 
 **Local** (sau khi S1 đạt; không chặn ETL trên Cloud)
 
@@ -57,7 +57,7 @@ Trong mỗi phase, làm hết mục **Cloud** trước, rồi **Local → Cloud*
 
 **Sản phẩm:** repo, `data/raw/`, `data/sample/`, `data/README.md`, SPEC/PLAN. Kết quả spike ghi khi chạy.
 **DoD (tài liệu):** các file CSV Olist có mặt; sample tạo xong; đề tài và kiến trúc medallion ghi trong SPEC/README.
-**DoD (spike):** S1, S4, S5 có trạng thái trước; S2–S3 sau khi có SQL warehouse; S6 sau S1. Frontend và ROLAP đã chốt 26/10/2026 (Power BI dashboard, Streamlit truy vấn/DSS). S2–S3 chỉ kiểm kết nối. Nếu spike không đạt: ghi 2 phương án và chờ nhóm.
+**DoD (spike):** S1, S4, S5 có trạng thái trước; S2–S3 sau khi có SQL warehouse; S6 sau S1. ROLAP đã chốt 26/10/2026. Trình bày đã chốt 10/11/2026: một app Streamlit. S2 vẫn là kiểm kết nối Streamlit. S3 là future work. Nếu spike không đạt: ghi 2 phương án và chờ nhóm.
 **Phụ thuộc:** tài khoản Databricks Free Edition (email cá nhân). **Rủi ro:** Free Edition thiếu tính năng → ghi 2 phương án; đường local (R46) là phương án dự phòng, không phải nơi hiện thực trước.
 
 ## Phase 1 — Profiling, chốt câu hỏi quyết định và KPI · 13/10 → 18/10 (tuần nghỉ)
@@ -244,11 +244,11 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 **Local → Cloud**
 
-- [ ] Power BI Desktop: dashboard ROLAP, đọc Gold qua SQL Warehouse. Kết nối kiểm ở S3 (R09, R26)
-- [ ] Bộ lọc tương tác + drill theo hierarchy trên Power BI (R09, R24)
+- [ ] Streamlit, trang Tổng quan KPI: năm chỉ số ở plan app, lọc năm mua và vùng seller, đọc Gold qua SQL Warehouse (R09)
+- [ ] Streamlit, trang OLAP Explorer: đủ 5 phép, mỗi phép một visual, SQL lấy từ `src/sql/olap_queries/` (R09, R24, R25)
 
-**Sản phẩm:** `src/sql/olap_queries/`, `src/sql/views/`, dashboard Power BI.
-**DoD:** demo đủ 5 phép trên Gold Cloud; kết quả khớp Spark SQL. Công cụ đã chốt 26/10/2026: Power BI cho dashboard, ROLAP qua SQL Warehouse. Streamlit thuộc Phase 5 (truy vấn và DSS).
+**Sản phẩm:** `src/sql/olap_queries/`, `src/frontend/` (app KPI và OLAP). View DSS nằm ở Phase 5. Power BI là future work.
+**DoD:** demo đủ 5 phép trên Gold Cloud; kết quả khớp Spark SQL. Năm câu SQL trên Gold đã chạy 07/11/2026. App Streamlit gọi lại đúng các file đó. Một KPI trên app khớp một câu SQL Editor cùng bộ lọc, khi S2 chạy được. Chưa có số đối soát thì không ghi là đã khớp. Power BI không thuộc DoD.
 **Phụ thuộc:** Phase 3 Cloud (Gold đã có dữ liệu). **Rủi ro:** UI tốn thời gian → ưu tiên 5 câu SQL trên Cloud. Nếu S3 không đạt, dừng ở 2 phương án và chờ nhóm.
 
 ## Phase 5 — DSS · 26/10 → 08/11
@@ -265,15 +265,15 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 **Local → Cloud** (sau khi bảng `dss.`* đã có trên Cloud và S2 đạt)
 
-- [ ] UI DSS và truy vấn: trang Điểm rủi ro, What-if, Goal seek, Quyết định & export. Streamlit local đọc Gold và `dss.*` qua SQL Warehouse (R32, R34). Nếu S2 không đạt: ghi 2 phương án, chờ nhóm, không tự chuyển UI sang đọc CSV
+- [ ] Hai trang còn lại của cùng app: Seller risk đọc `dss.seller_risk_score`; Policy scenario gọi `policy.py` trên điểm đã ghi, rồi append `dss.decision_log` (R32, R34, R35). Nếu S2 không đạt: ghi 2 phương án, chờ, không đọc CSV
 
 **Local** (tài liệu, không cần cluster)
 
 - [ ] Influence diagram bản cuối, bảng biến, phân loại DSS, ánh xạ pha (R36, R37, R38)
 - [ ] (ĐC) luật khuyến nghị hành động theo hạng (R43)
 
-**Sản phẩm:** `src/dss/`, trang DSS trong `src/frontend/`.
-**DoD:** so sánh ≥ 3 phương án (P0/P1/P2), số liệu lấy từ Gold trên Cloud; không có `read_csv` / đường dẫn `data/raw` trong `src/dss/`.
+**Sản phẩm:** `src/dss/` (giữ notebook hiện có), hai trang DSS trong `src/frontend/app.py`.
+**DoD:** so sánh ≥ 3 phương án (P0/P1/P2), số liệu lấy từ Gold trên Cloud; không có `read_csv` / đường dẫn `data/raw` trong `src/dss/`. Trang Policy không ghi đè `dss.policy_scenario`.
 **Phụ thuộc:** Phase 3 Cloud (`gold.fact_seller_monthly`). UI cần S2. **Rủi ro:** M1 kém → giữ baseline, nêu ở hạn chế; M2 + what-if trên Cloud là tối thiểu bắt buộc.
 
 ## Phase 6 — Tích hợp, kiểm thử, đánh giá · 07/11 → 10/11

@@ -10,15 +10,67 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 4 dashboard và Phase 5 mã DSS. Power BI chưa nối. Job DSS chưa chạy. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Người dùng nối Power BI. DSS đã có mã local, chờ chạy notebook trên workspace |
-| Blocker | S2 chưa đạt: `.env` chưa có host, HTTP path, token. Máy chưa có package `databricks`. S3 chưa kiểm |
-| Việc tiếp theo | Điền `.env`, cài connector sau khi đồng ý, rồi `SELECT 1`. Song song: tạo job `olist_dss` và chạy `src/dss/dss_job.py` |
-| Cập nhật | 10/11/2026 (mã Phase 5; chưa có số Gold của DSS) |
+| Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
+| Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
+| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
+| Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
+| Cập nhật | 11/11/2026 (trang Seller risk) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Seller risk theo hướng intelligence
+
+- **Đã làm:** trang Seller risk đọc `dss.seller_risk_score` và join `dim_seller` (vùng, bang, thành phố, business_segment, lead_type, won_date). Hạng và đơn xấu dự kiến lấy từ `simulate(..., "P2", PolicyParams())`, không viết lại ngưỡng. `min_orders` vẫn là `MIN_ORDERS` = 5. Tab đánh giá hiện câu chờ khi chưa có `dss.model_eval`. DDL ba bảng contrib/eval/calibration được thêm vào job DSS, job chưa chạy lại.
+- **Đã chạy:** `python -m pytest src/tests/test_recommend.py src/tests/test_stats.py` — 6 passed. Bảng điểm: 1 seller `25be943a321c8938947bdaabca979a90`, `p_bad` 0.345639, `n_orders_valid` 1, `q_bar` 1.0, `gmv` 145.0. P0/P1/P2 `expected_bad_orders` đều 0.3456389245948667, 0 seller bị gắn cờ. Trang hiện 0 seller đủ điều kiện / 1 seller tổng với ngưỡng 5 đơn. `p_bad` không đổi so với bảng đã ghi.
+- **Chưa làm:** không ghi `seller_risk_contrib` hay `model_eval` vì không chạy lại job (chạy lại sẽ ghi đè điểm). Không có 3 seller để đối soát contribution. Không commit `.env`.
+
+### 11/11/2026 — KPI và OLAP analytic
+
+- **Đã làm:** thêm Wilson interval, Pareto, từ điển tách review seller / review sàn và bàn giao trễ / giao trễ tới khách. Trang KPI giữ sáu công thức cũ khi không bật giai đoạn đủ dữ liệu, funnel hay khoảng tháng. Thêm dải ràng buộc, hero trải nghiệm xấu, tab xu hướng / nơi phát sinh / seller / độ tin cậy. OLAP đổi tên tab theo câu hỏi SPEC, kết luận từng tab, CSV, pivot loại Unknown và làm mờ n < 30.
+- **Đã chạy:** `python -m pytest src/tests/test_stats.py src/tests/test_insights.py` — 15 passed. Tổng GMV theo tháng, bộ lọc trống: 13494400.74. `market_quality` bộ lọc trống: đơn 98666, đơn nhiều seller 1278, review loại khỏi measure seller 1943, bad_orders 16444, bad_eligible 98079, late_orders 6534, late_eligible 96447. App trang KPI hiện GMV R$ 13,49 tr, đơn 98.199, AOV R$ 137,42, bàn giao trễ 10,1%, review seller 13,7%, cancel 0,5%.
+- **Chưa làm:** bản đồ Brazil, histogram nguyên nhân, treemap. Không đổi SQL của năm phép OLAP đã khóa. Không commit `.env`.
+
+### 11/11/2026 — Policy scenario theo logic quyết định
+
+- **Đã làm:** trang Policy xếp ① what-if, ② goal seeking, ③ sensitivity (biểu đồ tornado), ④ chốt. Tên hiển thị ở `lib/labels.py`. `recommend_policy` sinh câu từ kết quả. Giả định nằm trong form "Áp dụng". `decision_id` là UUID. X=10 và N=40 vẫn khóa, không đưa vào slider. Không sửa `compare_policies`, `goal_seek`, `tornado` hay giá trị mặc định trong `src/dss/params.py`.
+- **Đã chạy:** `python -m pytest src/tests/test_insights.py` — 12 passed. Tham số mặc định trên bảng điểm hiện có (1 seller): P0, P1 và P2 đều `expected_bad_orders` 0.3456389245948667, GMV bị ảnh hưởng 0.0, 0 seller, đạt cả hai trần. Hàm M2 không đổi nên trước và sau refactor là cùng ba số này. App mở được. Bấm "Dùng ngưỡng gợi ý này" đổi dòng chốt thành "ngưỡng gợi ý".
+- **Kho:** `dss.decision_log` có 0 dòng, `decision_id` đang BIGINT. Đã DROP và CREATE lại với `decision_id` STRING. Smoke insert UUID `c35eb05c-026b-4065-b475-c275ccfc7675` rồi DELETE, đếm lại còn 0. Không bấm ghi từ UI hai lần.
+- **Không làm:** không đổi công thức M2. Không commit `.env`.
+
+### 11/11/2026 — Streamlit: kể chuyện cho business
+
+- **Đã làm:** điều hướng 0–4 theo câu hỏi. `lib/glossary.py` là một nguồn định nghĩa. Insight trang 1–4 sinh từ dữ liệu (`lib/insights.py`), chỉ so nhóm có n ≥ `min_orders` (5). Query mới `story_by_region` và `active_sellers` dùng tham số, không f-string. Sáu KPI giữ SQL và công thức cũ. Không tick PLAN hay RTM.
+- **Đã chạy:** `python -m pytest src/tests/test_insights.py` — 8 passed. Bộ lọc tất cả, sáu KPI: GMV 13494400.74, đơn hợp lệ 98199, AOV 137.418922188617, bàn giao trễ 0.10069651741293532, review xấu 0.13692249984370766, cancel 0.004733140088784384. Khớp số đã ghi 10/11. App hiện GMV R$ 13,49 tr, trải nghiệm xấu 16,8%, 3.053 seller. Insight tất cả: Norte 26,9% (n=26). Năm 2018: 17,4%, Norte 20,0% (n=5); tổng GMV 7341182.41, tử 9315, mẫu 53514. Trang Seller risk: "Chưa đủ dữ liệu để kết luận" vì bảng điểm không có seller với `min_orders` 5. Policy mở được, tháng chấm 2018-09, insight P1 trên snapshot hiện có (một seller).
+- **Không làm:** không đổi grain, không sửa ETL, không commit `.env`.
+
+### 11/11/2026 — Xóa file Power BI
+
+- **Đã làm:** xóa `src/frontend/dashboard.pbix`, `dashboard.pbip`, `dashboard.Report/`, `dashboard.SemanticModel/`, và hai thư mục backup `_backup_pbip_20261110_114343`, `_backup_pbip_20261110_120846`. App Streamlit giữ nguyên. Không tick checkbox PLAN hay cột TT của RTM. Quyết định SPEC §10 (Power BI là future work) không đổi.
+- **Không làm:** không xóa `src/frontend/olist_seller_performance.lvdash.json` (file Lakeview / AI/BI, không phải Power BI). Không sửa ETL. Không commit.
+
+### 10/11/2026 — UI Streamlit: theme, Home, KPI card, tab OLAP
+
+- **Đã làm:** theme sáng, `lib/ui.py`, sidebar lọc dùng chung, trang Home, KPI thành card và chart, OLAP thành 5 tab. Không đổi công thức tử/mẫu. Không tick PLAN hay RTM.
+- **Đối soát cùng filter “Tất cả” và “2018 / Sudeste”:** GMV, số đơn, bàn giao trễ, review, cancel khớp từng số đã đo trước refactor (GMV tất cả 13494400.74, đơn 98199, trễ 11132/110550, review 13141/95974, hủy 467/98666). Tổng GMV theo tháng và theo vùng cũng ra 13494400.74 và 11132/110550.
+- **Đã mở app:** Home, KPI, OLAP, Seller risk, Policy đều load. Seller risk với `min_orders` 5 vẫn trống vì bảng điểm chỉ có 1 seller với 1 đơn.
+- **Việc tiếp theo:** chạy `src/dss/dss_job.py` để có đủ điểm seller.
+
+### 10/11/2026 — OLAP Explorer hiện năm phép trên một trang
+
+- **Đã làm:** `src/frontend/pages/olap.py` bỏ ô chọn một phép. Cùng một trang có roll-up (cột ngang), drill-down (đường hoặc vùng), slice (cột ngang), dice (cột nhóm) và pivot (ô nhiệt). SQL và cách chia tử/mẫu không đổi. Không tick PLAN hay RTM.
+- **Đã chạy:** mở Streamlit, trang `/olap` vẽ đủ năm phần trên SQL Warehouse. Không đo lại số KPI.
+- **Việc tiếp theo:** vẫn là chạy `src/dss/dss_job.py` để bảng điểm đủ seller.
+
+### 10/11/2026 — Phase 4–5 — Một app Streamlit, đã chạy KPI trên warehouse
+
+- **Đã làm:** gộp dashboard và DSS vào `src/frontend/app.py`. Power BI chuyển thành future work trong SPEC §7, §10, architecture, PLAN, DESIGN, README và rule `00`, `02`, `08`, `09`. App đọc `gold.*` và `dss.*` qua SQL Warehouse. Không đọc Volume hay Silver. Không sửa `src/etl/`. Không tick checkbox PLAN hay cột TT của RTM.
+- **Đã chạy, phiên này:** `SELECT 1` trên SQL Warehouse thành công. Câu KPI không lọc năm/vùng: `gmv` = `gmv_from_items` = 13494400.74; bàn giao trễ 11132 / 110550 = 0.10069651741293532; review seller 13141 / 95974 = 0.13692249984370766; AOV 13494400.74 / 98199 = 137.418922188617; cancel 467 / 98666 = 0.004733140088784384. Cùng bộ lọc năm 2018 và vùng seller Sudeste: `gmv` = `gmv_from_items` = 5771299.43; bàn giao trễ 4481 / 49754; review seller 6164 / 43641; AOV 5771299.43 / 44641; cancel 223 / 44864.
+- **UI:** mở Streamlit local, trang Tổng quan KPI hiện đúng các số không lọc ở trên. Trang OLAP Explorer vẽ roll-up theo vùng. Trang Seller risk với `min_orders` = 5 báo chưa có dòng. Trang Policy mở được. Không bấm nút ghi quyết định.
+- **DSS trên warehouse, đếm trong phiên này:** `dss.seller_risk_score` 1 dòng, `n_orders_valid` = 1; `dss.policy_scenario` 3 dòng; `dss.decision_log` 0 dòng. Một dòng điểm không phải kết quả chấm toàn bộ seller. Không ghi AUC hay Brier.
+- **Không làm:** không chạy lại notebook DSS, không INSERT `decision_log`, không tick R09. Connector trên máy này nhận tham số bằng `?`.
+- **Việc tiếp theo:** chạy `src/dss/dss_job.py` trên workspace, rồi đối soát trang Seller risk và Policy với SQL Editor.
 
 ### 10/11/2026 — Phase 5 — Mã DSS tối giản, chưa chạy trên warehouse
 

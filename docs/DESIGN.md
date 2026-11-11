@@ -28,7 +28,7 @@ Không đổi: grain ba fact, star schema (7 dimension + 3 fact), measure, SCD, 
 | `snapshot_date` | Hằng số `DATE '2018-10-17'` trong config. Không suy từ watermark |
 | `gold.etl_audit` | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Cảnh báo geo, translation, conflict và các đếm cùng loại là DQ check trong notebook: in kết quả, không lưu cột riêng |
 | Orchestration | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss |
-| Frontend | Power BI: dashboard, đọc Gold qua Databricks SQL Warehouse. Streamlit: giao diện truy vấn và DSS, đọc Gold và `dss`. OLAP = ROLAP qua SQL Warehouse. `dss.decision_log` do Streamlit ghi. Job ETL Gold không ghi bảng này |
+| Frontend | Một app Streamlit: dashboard, OLAP và DSS, đọc Gold và `dss` qua SQL Warehouse. Power BI là future work. `dss.decision_log` do Streamlit append. OLAP = ROLAP qua SQL Warehouse. Job ETL Gold không ghi bảng này |
 | Future work | Incremental, append, CDF, Auto Loader (R28) |
 
 Sơ đồ cùng các mục Object Type / Load / Transformations / Data Model: `docs/architecture.md`.
@@ -74,8 +74,7 @@ flowchart LR
   dssjob --> dssSchema[(schema dss)]
   gold --> wh[Databricks SQL Warehouse]
   dssSchema --> wh
-  wh --> pbi[Power BI dashboard]
-  wh --> st[Streamlit]
+  wh --> st[Streamlit dashboard va DSS]
   st -->|append decision_log| dssSchema
 ```
 
@@ -89,10 +88,10 @@ File IBGE đã có ở `data/external/ibge_state_region.csv` (27 dòng, đếm f
 |---|---|---|
 | `bronze` | Staging. Bản sao CSV của lần nạp hiện tại. Bảng Delta | Vào: file trên Volume, mọi cột `string`, giữ nguyên chuỗi. Ra: cùng các cột đó cộng `_ingest_ts`, `_source_file`. Không join, không ép kiểu nghiệp vụ, không `trim`, không xóa dòng trong file. Load: FULL LOAD, OVERWRITE |
 | `silver` | Integration. Làm sạch, ép kiểu, chuẩn hóa, dedupe trong file. Bảng Delta | Vào: Bronze. Ra: bảng grain đã nêu ở §2. Không publish fact. Load: FULL LOAD, OVERWRITE |
-| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain: `WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT` (§2). Không xóa khóa vắng mặt trong ảnh hiện tại. Power BI và Streamlit đọc Gold qua SQL Warehouse |
+| `gold` | Data mart Kimball. Chỉ fact, dimension, và `etl_audit`. Bảng Delta, không phải view | Vào: Silver. Ra: 3 fact + 7 dimension. `MERGE` theo grain: `WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT` (§2). Không xóa khóa vắng mặt trong ảnh hiện tại. Streamlit đọc Gold qua SQL Warehouse |
 | `dss` | Đầu ra mô hình Phase 5 | View `dss.v_seller_features` chỉ đọc `gold.*`. Job DSS ghi đè `dss.seller_risk_score` và `dss.policy_scenario` cho tháng chấm. `dss.decision_log` do Streamlit append qua SQL Warehouse. Job ETL Gold không ghi `dss`. Cột ở §6.6 |
 
-Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation: Power BI (dashboard, ROLAP qua SQL Warehouse) và Streamlit (truy vấn / DSS).
+Ánh xạ slide: Bronze = staging, Silver = integration, Gold = data mart / DW, `gold.etl_audit` = metadata vận hành, comment Unity Catalog trên bảng Gold = metadata mô tả (R47, làm lúc DDL). Presentation: một app Streamlit (dashboard, OLAP và DSS, ROLAP qua SQL Warehouse). Power BI là future work.
 
 Mô hình DSS sau này huấn luyện trên Gold, không trên Silver (SPEC §4, lệch có chủ đích).
 
@@ -813,7 +812,7 @@ Tham số P0/P1/P2 không nằm trên Gold. Quy ước số (ngưỡng θ, `e_k`
 
 | Cột | Kiểu | Null | Quy tắc |
 |---|---|---|---|
-| `decision_id` | BIGINT | không | `max + 1` lúc insert |
+| `decision_id` | STRING | không | UUID lúc insert. Migration từ BIGINT: `src/sql/migrations/20261111_decision_id_string.sql` |
 | `decided_at` | TIMESTAMP | không | Thời điểm chốt |
 | `as_of_month` | STRING | không | Tháng chấm đang xem |
 | `policy_code` | STRING | không | `P0`, `P1`, hoặc `P2` |
@@ -859,7 +858,7 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 **Loại OLAP: ROLAP**, chốt 26/10/2026. Databricks SQL Warehouse đọc bảng Gold. Không chọn MOLAP. Không chọn HOLAP.
 
-**Power BI** dựng dashboard và đọc Gold qua SQL Warehouse. **Streamlit** là giao diện truy vấn và DSS, đọc Gold và schema `dss`. Kết nối từ máy local tới SQL Warehouse vẫn là **[GIẢ ĐỊNH]** cho đến S2 (Streamlit) và S3 (Power BI). Công cụ đã chốt trước khi hai spike đó chạy.
+**Streamlit** dựng dashboard, OLAP và DSS, đọc Gold và schema `dss` qua SQL Warehouse. Kết nối từ máy local vẫn là **[GIẢ ĐỊNH]** cho đến S2. Power BI là future work. S3 không còn là cổng của app.
 
 Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4.1 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
 

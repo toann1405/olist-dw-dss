@@ -12,7 +12,7 @@ If a request has two or more reasonable readings, stop and ask one concrete ques
 Examples that require a question:
 
 - "Add the seller table" — Bronze raw copy vs Silver conformed `dim_seller`.
-- "Wire the dashboard" — the dashboard is Power BI (ROLAP on Gold through SQL Warehouse). Streamlit is the query and DSS UI. Do not reopen AI/BI or HOLAP.
+- "Wire the dashboard" — one local Streamlit app (ROLAP on Gold through SQL Warehouse) is the dashboard and the DSS UI. Power BI is future work. Do not reopen AI/BI or HOLAP.
 
 ## Stay inside the request
 
