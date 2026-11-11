@@ -145,6 +145,40 @@ spark.sql(
     COMMENT 'One appended row per confirmed decision. Streamlit writes this table.'
     """
 )
+spark.sql(
+    f"""
+    CREATE TABLE IF NOT EXISTS {catalog}.{dss}.seller_risk_contrib (
+      as_of_month STRING NOT NULL,
+      seller_id STRING NOT NULL,
+      feature STRING NOT NULL,
+      value DOUBLE,
+      contribution DOUBLE
+    ) USING DELTA
+    COMMENT 'coef times centered feature. Written by the DSS job when logistic scores are fit.'
+    """
+)
+spark.sql(
+    f"""
+    CREATE TABLE IF NOT EXISTS {catalog}.{dss}.model_eval (
+      as_of_month STRING NOT NULL,
+      metric STRING NOT NULL,
+      value DOUBLE
+    ) USING DELTA
+    COMMENT 'Test-month metrics for the M1 fit. Not filled by a rerun in this change.'
+    """
+)
+spark.sql(
+    f"""
+    CREATE TABLE IF NOT EXISTS {catalog}.{dss}.model_calibration (
+      as_of_month STRING NOT NULL,
+      bin INT NOT NULL,
+      mean_pred DOUBLE,
+      observed_rate DOUBLE,
+      n INT
+    ) USING DELTA
+    COMMENT 'Predicted versus observed rate by decile on the test month.'
+    """
+)
 
 # COMMAND ----------
 
