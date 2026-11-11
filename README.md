@@ -1,62 +1,138 @@
 # olist-dw-dss
 
-Course project **CO4031 – Data Warehouse and Decision Support Systems (HK261)**: a data warehouse, an OLAP dashboard, and a decision support system on the **Olist Brazilian E-Commerce** dataset (Kaggle).
+A seller-performance data warehouse and decision support system for the Olist marketplace. It ranks sellers by predicted bad-experience risk and compares intervention policies so the Seller Quality manager can cut bad orders without giving up too much GMV.
 
-**Topic:** *Seller performance management* (T1 – Olist Seller Performance DW & DSS), locked on 15/10/2026 after gates G1–G6. It helps the Seller Quality manager choose a monthly ranking and intervention policy that minimizes expected bad-experience orders within a GMV impact limit.
+## Architecture
 
-**Stack:** Databricks Free Edition, Delta Lake, Unity Catalog, PySpark and Spark SQL. The DSS is Python (scikit-learn / statsmodels) with a Streamlit UI. One local Streamlit app is the OLAP dashboard and the DSS UI. It reads `gold` and `dss` through a Databricks SQL Warehouse. Power BI is future work. Phase 3 warehouse ETL runs on Databricks only. A local rerun on `data/sample/` remains R46 (S6, Phase 6, Phase 7), not part of the Phase 3 job.
+![High-level architecture](docs/images/high_level_architecture.drawio.png)
 
-**Architecture:** medallion lakehouse with schemas `bronze`, `silver`, `gold`, and `dss`. Bronze and Silver are full-load overwrites. Gold is a Kimball star schema of Delta tables loaded with `MERGE` (`WHEN MATCHED THEN UPDATE` and `WHEN NOT MATCHED THEN INSERT` only): `fact_order`, `fact_order_item`, and `fact_seller_monthly`, plus conformed dimensions. Streamlit appends `dss.decision_log` through the SQL Warehouse. The Gold ETL job does not write that table. The diagram is in [docs/architecture.md](docs/architecture.md). The ERD is in [docs/DESIGN.md](docs/DESIGN.md) §4.
+CSV files from Kaggle are uploaded by hand into a Unity Catalog Volume. Databricks serverless jobs load them as Bronze (raw overwrite) → Silver (clean overwrite) → Gold (Kimball star, `MERGE`). A **separate** DSS job scores sellers (M1) and simulates policies (M2) into schema `dss`. One local Streamlit app reads `gold` and `dss` through a Databricks SQL Warehouse and appends `dss.decision_log`. Power BI is future work.
 
-## Read this first
-1. [README.md](README.md) (this file)
-2. [docs/SPEC.md](docs/SPEC.md) — what the system is, requirement codes R-xx, architecture, DSS
-3. [docs/PLAN.md](docs/PLAN.md) — phases, tasks, definition of done
-4. [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md) — the first entry is the latest status
-5. [docs/architecture.md](docs/architecture.md) — layer objects, load, and the job order
+The layer contract is in [docs/architecture.md](docs/architecture.md). The ERD and mappings are in [docs/DESIGN.md](docs/DESIGN.md).
 
-Also: [docs/TOPIC_EVALUATION.md](docs/TOPIC_EVALUATION.md) (why this topic) · [docs/DESIGN.md](docs/DESIGN.md) (schema, ETL mapping) · [data/README.md](data/README.md) (sources, license, download) · [docs/assignment/](docs/assignment/) (assignment PDF and analysis). Files under `docs/` stay in Vietnamese.
+## Decision problem
 
-## Layout
+Each month the Seller Quality manager chooses an intervention policy (no action, fixed KPI thresholds, or predicted-risk thresholds) under two locked caps: at most **10%** of GMV affected and at most **40** sellers.
+
+| Phase | What the app answers |
+|---|---|
+| Intelligence | How healthy is the marketplace, and where do GMV and bad experience come from? |
+| Design | Which sellers look risky next month, and which policy shapes (P0 / P1 / P2) exist? |
+| Choice | Which policy stays inside X and N, and should that choice be written to `dss.decision_log`? |
+
+## Data
+
+- Main source: [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (Kaggle), license [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Nine order/item/customer/seller tables.
+- Extra source: [Marketing Funnel by Olist](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist), same license, two files joined on `seller_id`.
+- Window on Gold (queried 11/11/2026): purchase dates **2016-09-04 → 2018-10-17**, **99,441** orders. Sparse months stay in the warehouse. Details: [data/README.md](data/README.md).
+
+## Medallion and data model
+
+Catalog: `olist_catalog`. Schemas: `bronze`, `silver`, `gold`, `dss`. Gold is the only warehouse. OLAP and DSS read Gold (and `dss` outputs), not Bronze or Silver.
+
+| Layer | Load | Objects |
+|---|---|---|
+| Volume | Manual CSV upload | `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`) |
+| Bronze | Batch full-load overwrite | 12 Delta tables, every business column `STRING`, plus `_ingest_ts`, `_source_file` |
+| Silver | Batch full-load overwrite (truncate then insert) | Typed, deduped, IBGE region, geo and review rules |
+| Gold | `MERGE` upsert only (`WHEN MATCHED THEN UPDATE`, `WHEN NOT MATCHED THEN INSERT`) | 7 dimensions (SCD Type 1, Unknown member `-1`) + `fact_order_item`, `fact_order`, `fact_seller_monthly`. Item fact is merged before the order fact. `gold.etl_audit` logs each load |
+| `dss` | Separate job overwrite + Streamlit append | View `v_seller_features`; job writes `seller_risk_score`, `policy_scenario`, and eval/contrib tables when filled; Streamlit appends `decision_log` |
+
+ETL job order: **setup → bronze → silver → gold dims → gold facts → fact_seller_monthly**. The DSS job is **not** a task of that job.
+
+## DSS
+
+- **M1** is a **forecast**: logistic regression on the seller×month panel from Gold. It estimates the probability that a seller’s next-month order is a bad-experience order (review ≤ 2 **or** late to the customer). Train/test split is by time, not random. It is a classifier, not a time-series model. Scoring month `AS_OF_MONTH` = **2018-08** (`src/dss/params.py`). 2018-09 has too few sellers.
+- **M2** is a **simulation**, not a forecast of GMV. It applies policies P0 (do nothing), P1 (fixed KPI thresholds), P2 (predicted-risk tiers) with assumed effects `e_k` and transfer rate `r`, then checks GMV share ≤ 10% and sellers ≤ 40. The UI also runs goal seeking and a tornado (±20% on `e_k`, `r`, `s`).
+
+## Streamlit app
+
+One local app (`src/frontend/app.py`) is both the dashboard and the DSS UI. Five pages:
+
+| # | Page title | Role |
+|---|---|---|
+| 0 | Giới thiệu | Home: problem, scale, how to read numbers |
+| 1 | Sức khỏe marketplace đang thế nào? | Actual KPIs |
+| 2 | GMV và trải nghiệm xấu đến từ đâu? | Five OLAP operations + Brazil map |
+| 3 | Seller nào đáng lo nhất? | M1 scores for 2018-08 |
+| 4 | Chọn chính sách nào? | M2 what-if, goal seek, tornado, `decision_log` |
+
+![Home](docs/images/app_home.png)
+
+![Marketplace health](docs/images/app_kpi.png)
+
+![Policy](docs/images/app_policy.png)
+
+Terms: [docs/glossary.md](docs/glossary.md). Brazil GeoJSON source and MIT license: see the map note at the end of this file.
+
+## How to run
+
+**Prerequisites:** a Databricks Free Edition workspace, catalog `olist_catalog`, a SQL Warehouse, Python 3 with the repo venv, and the CSVs listed in [data/README.md](data/README.md).
+
+1. Copy `.env.example` to `.env`. Fill `DATABRICKS_SERVER_HOSTNAME` (or `DATABRICKS_HOST`), `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN`. Leave the token empty in `.env.example`. Do not commit `.env`.
+2. Upload the CSVs to `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`).
+3. In the workspace UI, create serverless job `olist_etl` from `src/etl/olist_etl.job.yml` (skeleton, not a DAB deploy). Run setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Notebooks under `src/etl/` do not read `data/sample/`.
+4. Create a **separate** serverless job from `src/dss/dss_job.yml` and run `src/dss/dss_job.py`. It writes `dss.seller_risk_score` and `dss.policy_scenario` for month **2018-08**.
+5. Streamlit, from the repo root:
+
+```powershell
+python -m streamlit run src\frontend\app.py
+```
+
+A local warehouse replay on `data/sample/` (`USE_SAMPLE=1`, pyspark + delta-spark) is R46 (S6, Phase 6, Phase 7). It is not the Phase 3 path.
+
+## Repository layout
 
 ```
 olist-dw-dss/
 ├── README.md, .gitignore, .env.example
-├── docs/
-│   ├── assignment/        # assignment PDF and analysis
-│   ├── TOPIC_EVALUATION.md, SPEC.md, PLAN.md, DESIGN.md, architecture.md, PROGRESS_LOG.md
-│   └── report/            # report draft and figures
-├── data/
-│   ├── README.md          # sources, license, download, file notes
-│   ├── raw/               # original Olist CSVs (gitignored)
-│   ├── external/          # extra sources
-│   └── sample/            # small key-consistent sample (committed for submission)
+├── docs/                  SPEC, PLAN, DESIGN, architecture, glossary, PROGRESS_LOG
+├── data/                  README, raw (gitignored), external, sample
 └── src/
-    ├── sql/               # views/ and olap_queries/ (Phase 4). Phase 3 DDL is in src/etl/
-    ├── etl/               # Databricks notebooks: Bronze, Silver, Gold, and their DDL
-    ├── dss/               # models that read gold.* and write dss.*
-    ├── frontend/          # one Streamlit app: KPI, OLAP, and DSS UI
-    ├── notebooks/         # Bronze profiling; 00_verify_and_sample.py
-    └── tests/             # ETL and data-quality checks
+    ├── etl/               Databricks notebooks + olist_etl.job.yml
+    ├── sql/               olap_queries/ and views/v_seller_features.sql
+    ├── dss/               M1, M2, dss_job.py
+    ├── frontend/          Streamlit app.py and pages
+    ├── notebooks/         profiling and sample builder
+    └── tests/             pytest on insights/stats (not Phase 3 DoD)
 ```
 
-## How to run
-1. Put the CSVs in `data/raw/` as described in [data/README.md](data/README.md), then:
-   ```bash
-   python src/notebooks/00_verify_and_sample.py
-   ```
-2. Copy `.env.example` to `.env` and fill in the Databricks variables. `DATABRICKS_TOKEN` stays empty in `.env.example`. Do not commit `.env`.
-3. **Databricks:** catalog `olist_catalog`. CSVs live at `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`). Workspace Git folder: repo `toann1405/olist-dw-dss`, branch `main`. Phase 3 ETL is Databricks-only: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Create that job in the workspace UI. `src/etl/olist_etl.job.yml` is a skeleton, not a deploy file. Notebooks under `src/etl/` do not use `USE_SAMPLE`.
-4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): not part of Phase 3. It stays with R46 after spike S6 (Phase 6 and Phase 7).
-5. **Streamlit** (local, after spike S2): `.\.venv\Scripts\python.exe -m streamlit run src\frontend\app.py`
+Read order: this file → [docs/SPEC.md](docs/SPEC.md) → [docs/PLAN.md](docs/PLAN.md) → [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+
+## Main results (measured, not invented)
+
+From SQL Warehouse, empty sidebar filters, recorded 11/11/2026 in `docs/PROGRESS_LOG.md`:
+
+| Measure | Value |
+|---|---|
+| GMV (`SUM(price)`, exclude canceled/unavailable) | R$ 13,494,400.74 |
+| Bad-experience rate (marketplace flag) | 16,8% (16,444 / 98,079) |
+| Active sellers with ≥ 1 valid order | 3,053 |
+| Orders on `fact_order` | 99,441 |
+| Scoring month | 2018-08 (`AS_OF_MONTH`) |
+
+Rates on the app are always **SUM(numerator) / SUM(denominator)**. Seller late ship is not the same as late delivery to the customer. See [docs/glossary.md](docs/glossary.md).
+
+## Limits and future work
+
+- Historical 2016–2018 window; “next month” in M1 is a one-step-ahead simulation on 2018-08, not live operations.
+- Sparse months (2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10) stay in Gold.
+- `e_k` and `r` in M2 are assumed, not measured.
+- **Power BI**, incremental/watermark load, append Bronze, CDF, Auto Loader, CDC, streaming, and CI for the warehouse job are **future work**.
+- Local pyspark + delta-spark on `data/sample/` remains R46 (S6).
+
+## Tech stack
+
+Databricks Free Edition, Unity Catalog, Delta Lake, PySpark / Spark SQL, serverless Jobs, Databricks SQL Warehouse. Python: scikit-learn (M1), Streamlit, `databricks-sql-connector`, pandas, Plotly.
 
 ## Brazil state map
 
-The KPI page tab `Xảy ra ở đâu` draws a state choropleth from `src/frontend/assets/brazil_states.geojson`.
+The KPI tab `Xảy ra ở đâu` uses `src/frontend/assets/brazil_states.geojson`.
 
-- Source: [click_that_hood `public/data/brazil-states.geojson`](https://github.com/codeforamerica/click_that_hood/blob/master/public/data/brazil-states.geojson) (Code for America). The file in this repo was fetched from that path on 11/11/2026 and was not simplified.
-- License: MIT, Copyright (c) 2013-2021 Code for America. The permission notice is in that repository's `LICENSE`.
-- Join key: feature property `sigla` (AC, AL, AM, …, TO). That is the same 2-letter code as `state_code` on `gold.dim_seller` and `gold.fact_order.customer_state_code`. The file also carries `codigo_ibg` (the IBGE numeric state code) and `name`. This project does not replace those properties.
+- Source: [click_that_hood](https://github.com/codeforamerica/click_that_hood/blob/master/public/data/brazil-states.geojson) `public/data/brazil-states.geojson` (Code for America), fetched 11/11/2026.
+- License: MIT, Copyright (c) 2013-2021 Code for America.
+- Join key: feature property `sigla`, the same 2-letter code as `state_code` on Gold.
 
-## Status
-On 10/11/2026 the UI decision changed to a single Streamlit app. Power BI is future work. S2 is still open. Phase 2 (warehouse design) is locked. The load contract of 26/10/2026 was corrected on 05/11/2026 (MERGE without delete-by-source, Streamlit-only `decision_log`, seller GMV as sum of price). Phase 3 ETL notebooks are in `src/etl/`. Table DDL lives in the notebook that owns the table. `src/etl/olist_etl.job.yml` is a skeleton, not a deploy file. The job has not been run on the workspace. Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2 and S6 are still open. S3 is future work. S6 does not block Phase 3. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).
+## License of the data excerpt
+
+Olist and Marketing Funnel are CC BY-NC-SA 4.0. Cite Olist/Kaggle when sharing `data/sample/`. Do not present the sample as the full dataset.

@@ -3,8 +3,8 @@
 | Mục | Giá trị |
 |---|---|
 | Môn | CO4031 Kho dữ liệu và Hệ hỗ trợ Quyết định — HK261 |
-| Phiên bản | v0.9 — 05/11/2026 |
-| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** Load và frontend 26/10/2026; sửa MERGE, `decision_log`, GMV và review dùng chung ngày 05/11/2026. Cùng ngày: ETL warehouse Phase 3 chỉ Databricks, không đường local. Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE không xóa theo nguồn, ROLAP, một app Streamlit. Power BI là future work. S1, S4, S5 đạt (13/10/2026). Phase 1 Cloud đã đo trên Volume (15/10/2026): G1–G5 pass, G6 record 12,3%. T1 chốt 15/10/2026. X=10, N=40. Plan Phase 3 đã ghi; ETL chưa viết. S2 và S6 chưa chạy. S3 (Power BI) là future work. S6 không chặn Phase 3. Hợp đồng schema: `docs/DESIGN.md`. Sơ đồ: `docs/architecture.md` |
+| Phiên bản | v0.10 — 11/11/2026 |
+| Trạng thái | **Phase 2 (thiết kế DW) đã khóa 22/10/2026.** Load 26/10 và 05/11/2026. Frontend: một app Streamlit năm trang (10–11/11/2026). Power BI là future work. Bronze/Silver FULL LOAD OVERWRITE, Gold MERGE không xóa theo nguồn. Job ETL: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Job DSS tách riêng, tháng chấm **2018-08**. T1 chốt 15/10/2026. X=10, N=40. S1, S4, S5 đạt (13/10/2026). S3 (Power BI) là future work. S6 (pyspark local) chưa chạy. Hợp đồng: `docs/DESIGN.md`. Sơ đồ: `docs/architecture.md`. Thuật ngữ: `docs/glossary.md` |
 | Nguồn thẩm quyền | `docs/assignment/CO4031_Assignment_HK261.pdf` (gọi tắt **[ĐỀ]**). File phân tích của nhóm chỉ để tham khảo |
 
 Quy ước: **[ĐỀ]** = ghi trong đề · **[SUY LUẬN]** = nhóm suy ra từ L.O./mục tiêu/slide, không phải tiêu chí chấm điểm được công bố · **[GIẢ ĐỊNH]** = chưa kiểm chứng, kiểm tra ở spike S1–S6 hoặc Phase 1. Trang đề ghi theo số in ("Trang x/6").
@@ -249,7 +249,7 @@ Chỉ batch. Notebook/pipeline lưu ở `src/etl/` dạng `.py`.
 
 ## 7. OLAP và frontend
 
-Truy vấn viết bằng Spark SQL trên Gold. OLAP là ROLAP qua Databricks SQL Warehouse. Một app Streamlit local là dashboard KPI, OLAP Explorer và DSS. App đọc `gold.*` và `dss.*`. Không đọc Volume hay Silver. Power BI là future work, không thuộc scope hiện tại. Kết nối từ máy local vẫn là [GIẢ ĐỊNH] cho đến S2.
+Truy vấn viết bằng Spark SQL trên Gold. OLAP là ROLAP qua Databricks SQL Warehouse. Một app Streamlit local (`src/frontend/app.py`) là dashboard và DSS. App đọc `gold.*` và `dss.*`. Không đọc Volume hay Silver. Power BI là future work, không thuộc scope hiện tại. App đã đọc warehouse trong các phiên 10–11/11/2026; checkbox S2 trên RTM vẫn chưa tick.
 
 | Phép | Câu hỏi nghiệp vụ | Truy vấn / màn hình |
 |---|---|---|
@@ -259,7 +259,17 @@ Truy vấn viết bằng Spark SQL trên Gold. OLAP là ROLAP qua Databricks SQL
 | Dice | Khách vùng Norte + Nordeste, Q1–Q2/2018, hàng cồng kềnh: tỷ lệ trễ và review xấu theo bang seller | Spark SQL lọc vùng khách trên `fact_order`, quý, và `size_band` |
 | Pivot | Bảng Bang seller × Quý (tỷ lệ bàn giao trễ) xoay thành Nhóm danh mục × Quý để tìm nguồn gây trễ | Spark SQL `PIVOT` trên Gold |
 
-**Danh sách màn hình.** Một app Streamlit, bốn trang. (1) Tổng quan KPI: GMV, tỷ lệ bàn giao trễ, tỷ lệ review xấu theo measure seller, AOV, cancel rate, lọc năm mua và vùng seller. (2) OLAP Explorer: năm phép SPEC, mỗi phép một visual, SQL ở `src/sql/olap_queries/`. (3) Seller risk: đọc `dss.seller_risk_score`, lọc `min_orders` mặc định 5, xem một seller. (4) Policy scenario: chỉnh tham số, xem P0/P1/P2, goal seeking, sensitivity ±20%, xuất CSV seller bị gắn cờ, nút ghi quyết định append `dss.decision_log`. Trang 4 không ghi `dss.seller_risk_score` hay `dss.policy_scenario`. Không có ô SQL tự do. Power BI là future work.
+**Danh sách màn hình.** Một app Streamlit, **năm** trang (tiêu đề trên `st.navigation`):
+
+| # | Tiêu đề | Việc |
+|---|---|---|
+| 0 | Giới thiệu | Bối cảnh, KPI toàn sàn, cách đọc số, nguồn dữ liệu |
+| 1 | Sức khỏe marketplace đang thế nào? | ~~Tổng quan KPI~~ (đổi 11/11: cùng trang, đổi tên). GMV, bàn giao trễ, review seller, AOV, cancel, trải nghiệm xấu |
+| 2 | GMV và trải nghiệm xấu đến từ đâu? | ~~OLAP Explorer~~ (đổi 11/11: cùng năm phép + bản đồ bang). SQL ở `src/sql/olap_queries/` |
+| 3 | Seller nào đáng lo nhất? | Đọc `dss.seller_risk_score` tháng **2018-08**, `min_orders` mặc định 5 |
+| 4 | Chọn chính sách nào? | P0/P1/P2, goal seeking, tornado ±20%, append `dss.decision_log` |
+
+Trang 4 không ghi `dss.seller_risk_score` hay `dss.policy_scenario`. Không có ô SQL tự do. Power BI là future work.
 
 ---
 
@@ -271,7 +281,7 @@ Truy vấn viết bằng Spark SQL trên Gold. OLAP là ROLAP qua Databricks SQL
 |---|---|
 | Data | Feature view (ví dụ `dss.v_seller_features`) xây **chỉ trên `gold.*`** (`gold.fact_seller_monthly` + dimension Gold). Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit ghi thêm `dss.decision_log` qua SQL Warehouse, một dòng mới cho mỗi quyết định đã chốt |
 | Model | M1 mô hình rủi ro; M2 mô phỏng chính sách; goal seeking; sensitivity |
-| UI | Bốn trang Streamlit ở §7. Trang Policy append `dss.decision_log`. Kết nối vẫn **[GIẢ ĐỊNH]**, S2 |
+| UI | Năm trang Streamlit ở §7. Trang *Chọn chính sách nào?* append `dss.decision_log`. App đã đọc warehouse 10–11/11/2026 |
 
 **Lệch có chủ đích:** mô hình huấn luyện trên Gold, không trên Silver, để DSS dựa trên DW theo mục tiêu 4 của đề.
 
@@ -335,7 +345,8 @@ flowchart LR
 | `.gitignore`, `.env.example` | Bỏ qua dữ liệu/secret/cache và thư mục Spark local; mẫu cấu hình Databricks (token để trống) | 0 | ☑ |
 | `docs/assignment/` | PDF đề + file phân tích đề | 0 | ☑ |
 | `docs/TOPIC_EVALUATION.md` | Feasibility + chọn đề tài | 0 | ☑ (T1 chốt 15/10/2026; G1–G6 đã đo trên Volume) |
-| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.9: ETL warehouse Phase 3 chỉ Databricks, 05/11/2026. Còn mở: thuyết trình, vai trò, S2–S3, S6) |
+| `docs/SPEC.md` | Đặc tả + RTM (file này) | 0 | ☑ (v0.10: năm trang Streamlit, tháng chấm 2018-08, 11/11/2026) |
+| `docs/glossary.md` | Thuật ngữ KPI / DSS, khớp `lib/glossary.py` | 4–5 | ☑ |
 | `docs/PLAN.md` | Kế hoạch phase | 0 | ☑ |
 | `docs/DESIGN.md` | Schema, ETL mapping, data dictionary | 2 | ☑ (thiết kế Phase 2 khóa 22/10/2026; load 26/10/2026; sửa hợp đồng 05/11/2026. DDL thuộc Phase 3) |
 | `docs/architecture.md` | Sơ đồ kiến trúc: object, load, transform, data model | 2 | ☑ (26/10/2026; Job Phase 3 dừng ở `fact_seller_monthly`, 05/11/2026) |
@@ -347,9 +358,9 @@ flowchart LR
 | `src/notebooks/` | Profiling trên Bronze; notebook lưu `.py` | 1 | ☑ `01_profiling.py` chạy trên Volume 15/10/2026 |
 | `src/etl/` | Notebook Phase 3, gồm DDL schema, Silver, Gold và `etl_audit`. `olist_etl.job.yml` là skeleton, chưa deploy | 3 | ☐ |
 | `src/sql/olap_queries/` | Năm câu OLAP trên Gold. Chạy SQL Warehouse 07/11/2026 | 4 | ☑ |
-| `src/sql/views/` | `v_seller_features` cho DSS. Chưa tạo trên warehouse. View tổng hợp OLAP (R42) chưa viết | 4–5 | ◐ |
-| `src/dss/` | M1, M2, goal seek, sensitivity; đọc Gold, ghi `dss.*`. Job chưa chạy trên workspace. Không làm R43 | 5 | ◐ |
-| `src/frontend/` | Một app Streamlit (`app.py`). Power BI là future work. S2 chưa đạt | 4–5 | ◐ |
+| `src/sql/views/` | `v_seller_features` cho DSS. Job DSS `CREATE OR REPLACE` view này. View tổng hợp OLAP (R42) chưa viết | 4–5 | ◐ |
+| `src/dss/` | M1, M2, goal seek, sensitivity; đọc Gold, ghi `dss.*`. Tháng chấm `AS_OF_MONTH` = 2018-08. Không làm R43 | 5 | ◐ |
+| `src/frontend/` | Một app Streamlit (`app.py`), năm trang. Power BI là future work | 4–5 | ◐ |
 | `src/tests/` | Pytest local trên sample khi làm R46. Không thuộc DoD Phase 3 | 6 | ☐ |
 
 ---
@@ -378,7 +389,7 @@ flowchart LR
 | Decision maker / quyết định / alternatives / principle of choice giữ như SPEC §1 | 10/10/2026 |
 | Nguồn bổ sung Marketing Funnel by Olist (CC BY-NC-SA 4.0) dùng chắc chắn | 10/10/2026 |
 | Kiến trúc medallion trên Databricks Free Edition: Bronze (staging) → Silver (làm sạch/conform) → Gold (DW / data mart Kimball, fact constellation, star schema) + schema `dss`. Chỉ batch. PySpark + Spark SQL, notebook `.py`, Delta `MERGE` trên Gold. DSS Python (scikit-learn/statsmodels) đọc Gold, ghi `dss.*`, huấn luyện trên Gold. Lý do: giảng viên cho phép cloud/Databricks và Power BI; nhóm muốn lakehouse; Gold vẫn là DW nên vẫn đáp ứng mục tiêu 2–4 và điều kiện 3.1(a); bỏ PostgreSQL để không giữ hai kho. Cách nạp từng layer nằm ở dòng 05/11/2026 | 10/10/2026 |
-| Load đơn giản hóa vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE`, DQ, grain, measure, SCD, surrogate key. Bronze và Silver: batch, FULL LOAD, OVERWRITE; Bronze mọi cột STRING as-is, thêm `_ingest_ts` và `_source_file`. Silver giữ dedup trong file (`order_reviews` `ROW_NUMBER`, `order_reviews_dedup`, `geolocation_zip` một dòng/prefix) và luật làm sạch §7 DESIGN. Nếu file còn nhiều dòng cùng khóa grain, ngoài hai luật đó, giữ một dòng bằng chuỗi ghép các cột nghiệp vụ lớn nhất theo thứ tự từ điển (DESIGN §2.3). Gold: bảng Delta, `MERGE` theo grain, idempotent, chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT` trên 3 fact và 7 dimension. Không dùng `WHEN NOT MATCHED BY SOURCE THEN DELETE`. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` chỉ 10 cột ở §6; `rows_rejected` là dòng bỏ hẳn; cảnh báo và `rows_dropped_by_dedup` in ở notebook. Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Job DSS ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit đọc Gold và `dss` qua SQL Warehouse và chỉ ghi thêm `dss.decision_log` (append). Streamlit không sở hữu schema `dss` ngoài các dòng đó. Job ETL Gold không ghi `dss.decision_log`. Power BI là dashboard. OLAP = ROLAP. Incremental, CDF, Auto Loader là future work (R28, ⏸) | 05/11/2026 |
+| Load đơn giản hóa vì dataset tĩnh và ưu tiên tiến độ. Giữ star schema, `MERGE`, DQ, grain, measure, SCD, surrogate key. Bronze và Silver: batch, FULL LOAD, OVERWRITE; Bronze mọi cột STRING as-is, thêm `_ingest_ts` và `_source_file`. Silver giữ dedup trong file (`order_reviews` `ROW_NUMBER`, `order_reviews_dedup`, `geolocation_zip` một dòng/prefix) và luật làm sạch §7 DESIGN. Nếu file còn nhiều dòng cùng khóa grain, ngoài hai luật đó, giữ một dòng bằng chuỗi ghép các cột nghiệp vụ lớn nhất theo thứ tự từ điển (DESIGN §2.3). Gold: bảng Delta, `MERGE` theo grain, idempotent, chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT` trên 3 fact và 7 dimension. Không dùng `WHEN NOT MATCHED BY SOURCE THEN DELETE`. `snapshot_date` = `DATE '2018-10-17'` trong config. `gold.etl_audit` chỉ 10 cột ở §6; `rows_rejected` là dòng bỏ hẳn; cảnh báo và `rows_dropped_by_dedup` in ở notebook. Job ETL: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Job DSS **tách riêng**, ghi `dss.seller_risk_score` và `dss.policy_scenario`. Streamlit đọc Gold và `dss` qua SQL Warehouse và chỉ ghi thêm `dss.decision_log` (append). ~~Power BI là dashboard~~ (đổi 10/11: một app Streamlit). OLAP = ROLAP. Incremental, CDF, Auto Loader là future work (R28, ⏸) | 05/11/2026 |
 | Catalog `olist_catalog`; Volume `/Volumes/olist_catalog/bronze/raw/` (`olist/` 9 CSV, `funnel/` 2 CSV, `ref/` bảng bang → vùng). `spark.read` trên `olist_orders_dataset.csv`: 99.441 dòng, cột `string` | 13/10/2026 (S1) |
 | Databricks Jobs dùng được trên Free Edition: job `s4_smoke`, Serverless, Run now thành công, lịch lưu được (Paused) | 13/10/2026 (S4) |
 | Git folder dùng được trên Free Edition: `olist-dw-dss`, nhánh `main`, repo `https://github.com/toann1405/olist-dw-dss.git` | 13/10/2026 (S5) |
@@ -406,6 +417,7 @@ flowchart LR
 | `dim_product`: LEFT JOIN translation. `category_pt` và `category_en` = `COALESCE` về `'Unknown'` khi thiếu tên, cùng chữ với dòng `-1`, `category_group` và `size_band`. `pc_gamer` là ví dụ minh họa, chưa đo trên Volume. DQ chỉ cảnh báo: translation unique; `dim_product` trừ dòng `-1` bằng `silver.products`; đếm sản phẩm `'Unknown'` và số category thiếu bản dịch | 22/10/2026 |
 | ETL warehouse Phase 3 chỉ Databricks. Notebook `src/etl/` không có nhánh `USE_SAMPLE`, không đọc `data/sample/` hay `data/raw/`, không có pytest local. Job Phase 3 là setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Không có task `dss`. DQ Phase 3 là Delta constraints và cảnh báo in ở notebook. Pytest local trên sample thuộc R46 (S6, Phase 6, Phase 7), không phải DoD Phase 3. R46 giữ mở | 05/11/2026 |
 | Một app Streamlit local cho KPI, năm phép OLAP và DSS. Đọc `gold.*` và `dss.*` qua Databricks SQL Warehouse (`databricks-sql-connector`). Không đọc Volume, Bronze, hay Silver. Streamlit append `dss.decision_log`. Job DSS vẫn ghi `dss.seller_risk_score` và `dss.policy_scenario`. Power BI là future work. ROLAP giữ nguyên. Grain Gold, GMV, X=10, N=40 không đổi | 10/11/2026 |
+| Năm trang Streamlit (Home + bốn trang câu hỏi). Tháng chấm DSS `AS_OF_MONTH` = `2018-08`, không `MAX(month)` vì 2018-09/10 thưa | 11/11/2026 |
 
 ### Lịch sử quyết định
 
@@ -439,4 +451,4 @@ flowchart LR
 |---|---|
 | Thuyết trình trực tiếp hay video | Đăng ký với giảng viên |
 | Phân vai thành viên | Nhóm tự điền README |
-| Kết quả S2, S3, S6 | Chưa chạy. Công cụ và ROLAP đã chốt 26/10/2026. S2 và S3 chỉ kiểm kết nối. Nếu không đạt: 2 phương án, chờ nhóm |
+| Kết quả S2, S3, S6 | S3 = Power BI, future work. S6 chưa chạy. App Streamlit đã đọc SQL Warehouse 10–11/11/2026; RTM vẫn chưa tick S2 |

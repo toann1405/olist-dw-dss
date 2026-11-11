@@ -10,15 +10,20 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Mọi biểu đồ Plotly đi qua `style_fig`. Bản đồ bang nằm trên tab "Xảy ra ở đâu". R09 vẫn ◐. Checkbox PLAN chưa tick |
+| Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
+| Đang làm | R09 vẫn ◐. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick. Không sửa code trong phiên docs này |
 | Blocker | Không đo lại SQL trong phiên này |
-| Việc tiếp theo | Rà tiêu đề bị cắt trên cột hẹp của OLAP. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (chú giải roll-up mức state sang lề phải) |
+| Việc tiếp theo | Báo cáo PDF, slide, tick RTM khi DoD thật sự đủ. Không đổi công thức KPI |
+| Cập nhật | 11/11/2026 (đồng bộ README và docs/) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Đồng bộ README và docs/ với trạng thái hiện tại
+
+- **Đã làm:** Viết lại `README.md` (11 mục). Thêm `docs/glossary.md`. Cập nhật SPEC v0.10 §7 (năm trang), PLAN v0.7 (đổi phạm vi 10/11, không tick checkbox), `architecture.md` (Job DSS tách khỏi ETL), DESIGN §6.6 (tháng chấm 2018-08, không `MAX(month)`), `data/README.md` (cửa sổ Gold đã đo). Copy ba ảnh app vào `docs/images/app_*.png` từ `docs/report/screenshots/`. Không sửa `src/`. Không tick PLAN/RTM.
+- **Không làm:** không bịa số mới. Không đổi SPEC §10 grain/X/N. Không viết lại nhật ký cũ.
 
 ### 11/11/2026 — Chú giải roll-up mức state không còn đè cột
 

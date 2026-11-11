@@ -139,7 +139,7 @@ def _star_counts(tables: pd.DataFrame) -> tuple[int | None, int | None]:
 
 
 def _hero(fmt_brl, fmt_int, fmt_pct) -> None:
-    st.markdown("**Olist Seller Performance**")
+    st.markdown("# **Olist Seller Performance**")
     st.write(
         "Hệ hỗ trợ ra quyết định giúp sàn Olist chọn cách xử lý seller "
         "để giảm đơn trải nghiệm xấu mà không mất quá nhiều doanh thu."
