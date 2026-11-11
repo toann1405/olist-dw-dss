@@ -106,6 +106,46 @@ def page_header(title_question: str, subtitle: str, tech_name: str) -> None:
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
+MIN_N_DISPLAY = 30
+
+
+def filter_badge(kind: str, question: str | None = None) -> None:
+    if kind == "fixed_spec":
+        st.caption(f"Cố định theo câu hỏi SPEC {question}")
+    else:
+        st.caption("Áp dụng bộ lọc")
+
+
+def add_platform_reference(fig: go.Figure, value) -> go.Figure:
+    """Dashed line for the platform rate. value is a ratio on 0–1."""
+    if value is None:
+        return fig
+    try:
+        if pd.isna(value):
+            return fig
+    except TypeError:
+        return fig
+    fig.add_hline(
+        y=float(value),
+        line_dash="dash",
+        line_color=NAVY,
+        annotation_text="Trung bình toàn sàn",
+        annotation_position="top left",
+    )
+    return fig
+
+
+def point_opacity(samples) -> list[float]:
+    output = []
+    for sample in samples:
+        try:
+            small = sample is None or pd.isna(sample) or float(sample) < MIN_N_DISPLAY
+        except TypeError:
+            small = True
+        output.append(0.3 if small else 1.0)
+    return output
+
+
 def insight_box(text: str) -> None:
     st.info(text)
 

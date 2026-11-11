@@ -40,19 +40,31 @@ GLOSSARY: dict[str, dict[str, str]] = {
         "denominator": "Số đơn có bad_experience_flag khác null, seller khác −1 và ngày mua khác −1.",
     },
     "late_ship": {
-        "label": "Tỷ lệ bàn giao trễ",
-        "definition": "Item seller bàn giao cho đối tác vận chuyển sau hạn.",
+        "label": "Bàn giao trễ",
+        "definition": "Seller bàn giao cho đối tác vận chuyển sau hạn. Đây là lỗi seller, không phải giao trễ tới khách.",
         "numerator": "Số item có seller_ship_late_flag = 1.",
         "denominator": "Số item có seller_ship_late_flag khác null.",
     },
+    "late_delivery": {
+        "label": "Giao trễ tới khách",
+        "definition": "Đơn tới khách sau ngày hẹn. Khác với bàn giao trễ của seller.",
+        "numerator": "Số đơn phân biệt có late_flag = 1.",
+        "denominator": "Số đơn phân biệt có late_flag khác null.",
+    },
     "negative_review": {
-        "label": "Review xấu",
+        "label": "Review xấu (theo seller)",
         "definition": (
-            "Đơn điểm review ≤ 2, theo measure của seller. "
+            "Đơn điểm review ≤ 2, quy cho seller. "
             "Loại đơn nhiều seller và shared_review_type = cross_seller."
         ),
         "numerator": "Số đơn phân biệt có negative_review_flag = 1 trong tập seller.",
         "denominator": "COUNT(DISTINCT order_id) có điểm trong cùng tập.",
+    },
+    "negative_review_market": {
+        "label": "Review xấu (toàn sàn)",
+        "definition": "Đơn điểm review ≤ 2 trên cả sàn, kể cả đơn nhiều seller và cross_seller.",
+        "numerator": "Số đơn có negative_review_flag = 1.",
+        "denominator": "Số đơn có negative_review_flag khác null.",
     },
     "cancel_rate": {
         "label": "Cancel rate",
@@ -83,6 +95,8 @@ HOME_TERMS = (
     "bad_experience",
     "late_ship",
     "negative_review",
+    "negative_review_market",
+    "late_delivery",
     "cancel_rate",
     "risk_score",
 )
