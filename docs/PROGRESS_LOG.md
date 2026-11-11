@@ -10,15 +10,20 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Bộ lọc sidebar là selectbox. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
+| Đang làm | R09 vẫn ◐. Consumption layer chỉ đổi chữ và bố cục. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Phiên này không gửi lại SELECT 1 lên SQL Warehouse |
 | Việc tiếp theo | Báo cáo PDF, slide. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (dropdown bộ lọc sidebar) |
+| Cập nhật | 11/11/2026 (bố cục consumption layer) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Bố cục consumption layer trên Streamlit
+
+- **Đã làm:** Theo spec đã chốt cùng ngày. `page_header(title, conclusion, kind)` và `chart_card` trong `src/frontend/lib/ui.py`. Nhãn Thực tế / Dự báo một lần ở đầu trang. Chú thích chart vào popover. Trang Chính sách mở bằng thẻ khuyến nghị và nút Chốt; lập luận M2 nằm trong tab. Home chỉ còn KPI, X/N, bốn lối vào và một dòng độ mới. Trang mới `pages/method.py` nhận bối cảnh, cách đọc, lineage, giới hạn và giả định M1/M2. Menu: bốn trang câu hỏi, rồi *Dữ liệu & phương pháp*. Không tick checkbox PLAN. R09 vẫn ◐. SPEC §10 giữ dòng năm trang và đánh dấu đã thay.
+- **Không làm:** không đổi figure Plotly, không đổi `lib/queries.py`, không đổi công thức M1/M2, không đổi cách ghi `dss.decision_log`. Không đo lại SQL Warehouse trong phiên này.
 
 ### 11/11/2026 — Bộ lọc sidebar trở lại dropdown
 

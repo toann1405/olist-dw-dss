@@ -858,7 +858,7 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 **Loại OLAP: ROLAP**, chốt 26/10/2026. Databricks SQL Warehouse đọc bảng Gold. Không chọn MOLAP. Không chọn HOLAP.
 
-**Streamlit** dựng dashboard, OLAP và DSS trên **năm trang**, đọc Gold và schema `dss` qua SQL Warehouse. App đã đọc warehouse 10–11/11/2026; RTM chưa tick S2. Power BI là future work. S3 không còn là cổng của app.
+**Streamlit** dựng dashboard, OLAP và DSS trên **sáu trang**, đọc Gold và schema `dss` qua SQL Warehouse. App đã đọc warehouse 10–11/11/2026; RTM chưa tick S2. Power BI là future work. S3 không còn là cổng của app.
 
 Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4.1 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
 
