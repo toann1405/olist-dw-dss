@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. App đọc kết nối theo st.secrets → biến môi trường → .env. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Bộ lọc sidebar là selectbox. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Phiên này không gửi lại SELECT 1 lên SQL Warehouse |
-| Việc tiếp theo | Trên Databricks App, đặt DATABRICKS_HTTP_PATH và DATABRICKS_TOKEN (Apps tự tiêm DATABRICKS_HOST). Báo cáo PDF, slide. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (cấu hình kết nối Streamlit) |
+| Việc tiếp theo | Báo cáo PDF, slide. Không đổi công thức KPI |
+| Cập nhật | 11/11/2026 (dropdown bộ lọc sidebar) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Bộ lọc sidebar trở lại dropdown
+
+- **Đã làm:** Bảy bộ lọc trong sidebar (`Năm mua`, `Vùng seller`, `Bang seller`, `Nhóm danh mục`, `Từ tháng`, `Đến tháng`, `Funnel`) dùng `st.selectbox`. Bỏ popover nút. Trang OLAP và Seller risk vẫn khóa bộ lọc. Không đổi bộ chọn dạng nút ở trong trang. Không tick PLAN. R09 vẫn ◐.
+- **Đã mở:** `http://localhost:8501/kpi` có 7 combobox. Mở "Năm mua" thấy Tất cả, 2016, 2017, 2018, 2019, 2020. `http://localhost:8501/olap` vẫn có dòng "Trang này không dùng bộ lọc" và 7 dropdown bị khóa. Không đo lại SQL.
 
 ### 11/11/2026 — App đọc cấu hình kho theo secrets, môi trường, rồi .env
 

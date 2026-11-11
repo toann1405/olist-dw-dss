@@ -14,7 +14,7 @@ for path in (str(ROOT), str(FRONT)):
 import streamlit as st
 
 from lib import db, queries
-from lib.ui import ALL, NAVY, button_dropdown
+from lib.ui import ALL, NAVY
 from pages import home, kpi, olap, policy, seller_risk
 
 
@@ -25,6 +25,14 @@ def _labels(frame, column: str) -> list[str]:
 def _keep(key: str, options: list[str]) -> None:
     if st.session_state.get(key) not in options:
         st.session_state[key] = ALL
+
+
+def _dropdown(label: str, options: list[str], key: str, disabled: bool) -> None:
+    """Native select. The sidebar used to open each filter as a button list."""
+    if not options:
+        st.sidebar.caption(label)
+        return
+    st.sidebar.selectbox(label, options, key=key, disabled=disabled)
 
 
 def render_sidebar() -> None:
@@ -51,23 +59,23 @@ def render_sidebar() -> None:
         regions = _labels(db.query(*queries.regions()), "region_name")
         _keep("filter_year", years)
         _keep("filter_region", regions)
-        button_dropdown("Năm mua", years, "filter_year", disabled=filters_off, container=st.sidebar)
-        button_dropdown("Vùng seller", regions, "filter_region", disabled=filters_off, container=st.sidebar)
+        _dropdown("Năm mua", years, "filter_year", filters_off)
+        _dropdown("Vùng seller", regions, "filter_region", filters_off)
         region = None if st.session_state["filter_region"] == ALL else st.session_state["filter_region"]
         states = _labels(db.query(*queries.states(region)), "state_code")
         categories = _labels(queries.category_groups(), "category_group")
         _keep("filter_state", states)
         _keep("filter_category", categories)
-        button_dropdown("Bang seller", states, "filter_state", disabled=filters_off, container=st.sidebar)
-        button_dropdown("Nhóm danh mục", categories, "filter_category", disabled=filters_off, container=st.sidebar)
+        _dropdown("Bang seller", states, "filter_state", filters_off)
+        _dropdown("Nhóm danh mục", categories, "filter_category", filters_off)
         months = _labels(db.query(*queries.months()), "year_month")
         _keep("filter_month_from", months)
         _keep("filter_month_to", months)
-        button_dropdown("Từ tháng", months, "filter_month_from", disabled=filters_off, container=st.sidebar)
-        button_dropdown("Đến tháng", months, "filter_month_to", disabled=filters_off, container=st.sidebar)
+        _dropdown("Từ tháng", months, "filter_month_from", filters_off)
+        _dropdown("Đến tháng", months, "filter_month_to", filters_off)
         funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
         _keep("filter_funnel", funnel_options)
-        button_dropdown("Funnel", funnel_options, "filter_funnel", disabled=filters_off, container=st.sidebar)
+        _dropdown("Funnel", funnel_options, "filter_funnel", filters_off)
     except Exception as exc:
         st.sidebar.error(db.redact(exc))
 
