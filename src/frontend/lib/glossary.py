@@ -37,7 +37,7 @@ GLOSSARY: dict[str, dict[str, str]] = {
             "Hủy không nằm trong cờ này. KPI sàn giữ đơn nhiều seller và review cross_seller."
         ),
         "numerator": "Số đơn có bad_experience_flag = 1.",
-        "denominator": "Số đơn có bad_experience_flag khác null, seller khác −1 và ngày mua khác −1.",
+        "denominator": "Số đơn tính được cờ trải nghiệm xấu.",
     },
     "late_ship": {
         "label": "Bàn giao trễ",
@@ -85,7 +85,7 @@ GLOSSARY: dict[str, dict[str, str]] = {
     "active_sellers": {
         "label": "Seller đang hoạt động",
         "definition": "Seller có ít nhất một đơn hợp lệ trong khoảng dữ liệu.",
-        "numerator": "Số seller phân biệt có n_orders_valid ≥ 1. Không tính member −1.",
+        "numerator": "Số seller phân biệt có ít nhất một đơn hợp lệ.",
         "denominator": "Không phải tỷ lệ.",
     },
 }

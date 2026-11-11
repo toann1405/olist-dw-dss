@@ -240,7 +240,7 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
     add_platform_reference(figure, platform_bad if choice == "bad_rate" else None)
     apply_theme(figure, height=420)
     st.plotly_chart(figure, width="stretch")
-    st.caption(f"Tháng tô nhạt là tháng thưa trong SPEC. Điểm mờ có n < {MIN_N_DISPLAY}.")
+    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ có n < {MIN_N_DISPLAY}.")
     peak = data[data[count_column] >= MIN_N_DISPLAY].dropna(subset=[choice]).sort_values(choice, ascending=False).head(1)
     if not peak.empty:
         row = peak.iloc[0]

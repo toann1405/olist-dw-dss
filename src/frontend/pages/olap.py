@@ -8,7 +8,7 @@ import streamlit as st
 
 from lib import db, queries
 from lib.glossary import explain
-from lib.ui import LATE, MIN_N_DISPLAY, REVIEW, apply_theme, filter_badge, filters, fmt_int, fmt_pct, kpi_card, next_step, page_header
+from lib.ui import LATE, MIN_N_DISPLAY, REVIEW, apply_theme, filters, fmt_int, fmt_pct, kpi_card, next_step, page_header
 
 DICE_MIN_N = 30
 
@@ -120,60 +120,12 @@ def _kpi_strip() -> None:
     late = _ratio(monthly["late_ship_count"], monthly["late_ship_eligible"])
     review = _ratio(monthly["negative_review_count"], monthly["negative_review_eligible"])
     aov = _ratio(orders["gmv_from_items"], orders["valid_orders"])
-    # #region agent log
-    import json as _json
-    import time as _time
-
-    def _dbg(hypothesis_id, message, data):
-        try:
-            with open(r"d:\STUDY\DW\olist-dw-dss\.cursor\debug-14f7bb.log", "a", encoding="utf-8") as _f:
-                _f.write(
-                    _json.dumps(
-                        {
-                            "sessionId": "14f7bb",
-                            "runId": "pre-fix",
-                            "hypothesisId": hypothesis_id,
-                            "location": "olap.py:_kpi_strip",
-                            "message": message,
-                            "data": data,
-                            "timestamp": int(_time.time() * 1000),
-                        },
-                        default=str,
-                    )
-                    + "\n"
-                )
-        except Exception:
-            pass
-
-    _probe_error = None
-    _probe_len = None
-    try:
-        _probe_len = len(values)
-    except UnboundLocalError as _exc:
-        _probe_error = f"{type(_exc).__name__}: { _exc}"
-    _dbg(
-        "A",
-        "probe values before st.columns",
-        {
-            "values_len": _probe_len,
-            "error": _probe_error,
-            "gmv": gmv,
-            "aov": aov,
-            "late": late,
-            "review": review,
-        },
-    )
-    # #endregion
-    columns = st.columns(len(values))
     values = [
         ("GMV", fmt_brl_local(gmv), explain("gmv")),
         ("AOV", fmt_brl_local(aov), explain("aov")),
         ("Bàn giao trễ", fmt_pct(late), explain("late_ship")),
         ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
-    # #region agent log
-    _dbg("B", "values list built after columns", {"values_len": len(values), "column_count": len(columns)})
-    # #endregion
     try:
         quality = db.query(*queries.market_quality(year, region, state))
         if not quality.empty and quality.iloc[0]["bad_eligible"]:
@@ -181,13 +133,7 @@ def _kpi_strip() -> None:
             values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
     except Exception as exc:
         st.error(db.redact(exc))
-    # #region agent log
-    _dbg(
-        "B",
-        "lengths before zip",
-        {"values_len": len(values), "column_count": len(columns), "dropped_by_zip": max(0, len(values) - len(columns))},
-    )
-    # #endregion
+    columns = st.columns(len(values))
     for column, (label, value, help_text) in zip(columns, values):
         with column:
             kpi_card(label, value, help_text=help_text)
@@ -225,8 +171,7 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
         top3 = states.sort_values("late_items", ascending=False).head(3)
         share = float(top3["late_items"].sum()) / total_late
         lines.append(f"Top 3 bang chiếm {fmt_pct(share)} số item bàn giao trễ.")
-    lines.append("Seller −1 không vào mẫu. Tỷ lệ = item trễ / item có cờ khác null.")
-    filter_badge("fixed_spec", "Q1")
+    lines.append("Tỷ lệ = item trễ / item có cờ khác null.")
     with chart_col:
         mode = _view("rollup_view")
         if mode == "Bảng":
@@ -272,7 +217,7 @@ def _tab_drill(frame: pd.DataFrame) -> None:
     small = grouped[grouped["reviewed_orders"] < 500]
     lines = ["KPI sàn: giữ cross_seller. Tỷ lệ = đơn review xấu / đơn có điểm."]
     lines.append(
-        "Đỉnh tháng 3/2018 khoảng 1,6% là giả định trong SPEC, chưa đo lại trên biểu đồ này. Hãy tự đối chiếu."
+        "Đỉnh tháng 3/2018 khoảng 1,6% là giả định, chưa đo lại trên biểu đồ này. Hãy tự đối chiếu."
     )
     if not peak.empty:
         row = peak.iloc[0]
@@ -430,7 +375,7 @@ def _tab_dice(frame: pd.DataFrame) -> None:
             "Ở lát cắt này, bang seller nào trễ và bị review xấu?",
             lines,
             data,
-            "Nguồn: gold.fact_order, gold.fact_order_item. Cố định theo SPEC Q4 vì lát cắt là một câu hỏi, không phải bộ lọc sidebar.",
+            "Nguồn: đơn và dòng hàng. Lát cắt cố định: khách Norte hoặc Nordeste, quý 1–2 năm 2018, hàng cồng kềnh.",
             "dice_table",
         )
 
@@ -510,7 +455,7 @@ def render(settings=None) -> None:
     del settings
     page_header(
         "GMV và trải nghiệm xấu đến từ đâu?",
-        "Mỗi tab trả lời một câu trong SPEC. Đọc biểu đồ trước, rồi câu kết luận ngay bên dưới.",
+        "Năm tab hỏi Gold qua SQL Warehouse bằng năm câu đã soạn sẵn. Bộ lọc bên cạnh không đổi các biểu đồ này.",
         "OLAP Explorer",
     )
     year, region, state, category = filters()

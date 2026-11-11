@@ -33,32 +33,39 @@ def render_sidebar() -> None:
         unsafe_allow_html=True,
     )
     st.sidebar.caption("Đọc theo thứ tự 1 → 4")
+    filters_off = False
+    try:
+        path = str(st.context.url).rstrip("/")
+        filters_off = path.endswith("/olap") or path.endswith("/risk")
+    except Exception:
+        filters_off = False
+    if filters_off:
+        st.sidebar.caption("Trang này không dùng bộ lọc.")
     try:
         years = _labels(db.query(*queries.years()), "year")
         years = [ALL] + [str(int(float(value))) for value in years if value != ALL]
         regions = _labels(db.query(*queries.regions()), "region_name")
         _keep("filter_year", years)
         _keep("filter_region", regions)
-        st.sidebar.selectbox("Năm mua", years, key="filter_year")
-        st.sidebar.selectbox("Vùng seller", regions, key="filter_region")
+        st.sidebar.selectbox("Năm mua", years, key="filter_year", disabled=filters_off)
+        st.sidebar.selectbox("Vùng seller", regions, key="filter_region", disabled=filters_off)
         region = None if st.session_state["filter_region"] == ALL else st.session_state["filter_region"]
         states = _labels(db.query(*queries.states(region)), "state_code")
         categories = _labels(queries.category_groups(), "category_group")
         _keep("filter_state", states)
         _keep("filter_category", categories)
-        st.sidebar.selectbox("Bang seller", states, key="filter_state")
-        st.sidebar.selectbox("Nhóm danh mục", categories, key="filter_category")
+        st.sidebar.selectbox("Bang seller", states, key="filter_state", disabled=filters_off)
+        st.sidebar.selectbox("Nhóm danh mục", categories, key="filter_category", disabled=filters_off)
         months = _labels(db.query(*queries.months()), "year_month")
         _keep("filter_month_from", months)
         _keep("filter_month_to", months)
-        st.sidebar.selectbox("Từ tháng", months, key="filter_month_from")
-        st.sidebar.selectbox("Đến tháng", months, key="filter_month_to")
+        st.sidebar.selectbox("Từ tháng", months, key="filter_month_from", disabled=filters_off)
+        st.sidebar.selectbox("Đến tháng", months, key="filter_month_to", disabled=filters_off)
         funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
         _keep("filter_funnel", funnel_options)
-        st.sidebar.selectbox("Funnel", funnel_options, key="filter_funnel")
+        st.sidebar.selectbox("Funnel", funnel_options, key="filter_funnel", disabled=filters_off)
     except Exception as exc:
         st.sidebar.error(db.redact(exc))
-    st.sidebar.caption("Member −1 không nằm trong các danh sách này.")
 
 
 def main() -> None:

@@ -75,12 +75,6 @@ def render(settings=None) -> None:
         st.markdown(f"**Can thiệp ≤ {int(N)} seller**")
 
     st.write(freshness_line())
-    st.markdown("**Cách đọc dashboard này**")
-    st.write(
-        "Dành cho trưởng bộ phận chất lượng seller. "
-        "Dùng trong buổi review hằng tháng để chọn chính sách. "
-        "Đi theo thứ tự trang 1 đến trang 4."
-    )
 
     pages = st.session_state.get("nav_pages", {})
     cards = [
