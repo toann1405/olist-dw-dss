@@ -189,6 +189,13 @@ def kpi_card(label: str, value: str, delta: str | None = None, help_text: str | 
         st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
 
 
+def chip(label: str, value: str) -> None:
+    """One compact fact. Not a KPI formula."""
+    with st.container(border=True):
+        st.caption(label)
+        st.markdown(f"**{value}**")
+
+
 def filters() -> tuple[int | None, str | None, str | None, str | None]:
     """Sidebar choices. 'Tất cả' is None. Year is an int when set."""
     year_label = st.session_state.get("filter_year", ALL)

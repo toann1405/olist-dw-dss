@@ -11,14 +11,39 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
-| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
+| Đang làm | Home đã có sáu khối hướng dẫn. KPI Home khớp SQL Warehouse phiên 11/11/2026. R09 chuyển ◐. Checkbox PLAN chưa tick |
+| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Không đo lại số dòng bảng điểm trong phiên này |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (tháng chấm 2018-08) |
+| Cập nhật | 11/11/2026 (Home) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Home bổ sung bối cảnh, người dùng và nguồn dữ liệu
+
+- **Đối chiếu trước khi sửa:** ① câu hỏi business, 3 KPI, hai badge X/N đã có; thiếu tên app, câu DSS và badge Thực tế. ② và ③ chưa có. ④ bốn thẻ điều hướng đã có; thiếu tiêu đề, sơ đồ bước, badge loại số và dòng bộ lọc. ⑤ expander giải thích đã có; thiếu cách đọc hai badge, glossary ngắn (kể cả P0/P1/P2) và hai dòng M1/M2. ⑥ một dòng freshness và expander một câu đã có; thiếu dòng tháng chấm + job, sơ đồ tầng, expander kỹ thuật và giới hạn. Dòng freshness chuyển xuống khối ⑥.
+- **Đã làm:** `src/frontend/pages/home.py` chỉ thêm phần thiếu. Số lấy từ SQL Warehouse, X/N từ `src/dss/params.py`, ngày chốt và tháng chấm từ glossary và `AS_OF_MONTH`. Không tick checkbox PLAN. R09 chuyển ◐ vì trang Home đã chạy, DoD cả frontend chưa xong.
+- **Đã đo, bộ lọc trống, cùng câu với app:**
+
+  | Ô trên Home | SQL | Giá trị | App |
+  |---|---|---:|---|
+  | Tổng GMV | `kpi_seller_month` không lọc, cột `gmv` | 13494400.74 | R$ 13,49 tr |
+  | % đơn trải nghiệm xấu | `story_by_region` dòng tổng, 16444 / 98079 | 0.16766 | 16,8% |
+  | Seller đang hoạt động | `active_sellers` | 3053 | 3.053 |
+  | Khoảng thời gian đơn | min/max `dim_date.full_date` của `fact_order.purchase_date_key` | 2016-09-04 → 2018-10-17 | cùng chữ |
+  | Số đơn | `COUNT(*)` `fact_order` | 99441 | 99.441 |
+  | Số seller | `dim_seller` trừ khóa −1 | 3095 | 3.095 |
+  | Số khách | `dim_customer` trừ khóa −1 | 96096 | 96.096 |
+  | Số danh mục | `COUNT(DISTINCT category_pt)` trừ Unknown | 73 | 73 |
+  | Số bang | `COUNT(DISTINCT state_code)` seller, trừ Unknown | 23 | 23 |
+  | Đơn nhiều seller | `fact_order.n_sellers > 1` | 1278 | 1.278 |
+  | Tháng ít đơn | tháng có dưới 1000 đơn | 2016-09, 2016-10, 2016-12, 2017-01, 2018-09, 2018-10 | cùng danh sách |
+  | Tháng không có đơn | lỗ giữa min và max | 2016-11 | cùng chữ |
+  | Chiều / sự kiện | `information_schema` tiền tố `dim_` / `fact_` | 7 / 3 | 7 chiều và 3 bảng sự kiện |
+  | Job lần cuối | `MAX(scored_at)` muộn hơn `MAX(etl_audit.loaded_at)` | 2026-11-11 09:00:12 UTC; Gold 2026-11-07 11:47:01 UTC | 2026-11-11 09:00 UTC |
+
+- **Đã mở:** trang Home trên `http://localhost:8501/`. Hai link Kaggle (Brazilian E-Commerce và Marketing Funnel) mở được. Không commit `.env`.
 
 ### 11/11/2026 — Tháng chấm không còn là tháng lịch cuối
 

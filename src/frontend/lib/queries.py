@@ -557,3 +557,71 @@ def risk_contrib(seller_id: str, as_of_month: str) -> tuple[str, tuple]:
       AND as_of_month = {p}
     """
     return _bind(sql), (str(seller_id), str(as_of_month))
+
+
+def home_profile() -> tuple[str, tuple]:
+    """Scale of the mart, plus the latest Gold and DSS job timestamps."""
+    sql = """
+    SELECT
+      (SELECT MIN(d.full_date)
+       FROM {catalog}.{gold}.fact_order AS o
+       INNER JOIN {catalog}.{gold}.dim_date AS d
+         ON o.purchase_date_key = d.date_key
+       WHERE d.date_key <> -1) AS min_purchase,
+      (SELECT MAX(d.full_date)
+       FROM {catalog}.{gold}.fact_order AS o
+       INNER JOIN {catalog}.{gold}.dim_date AS d
+         ON o.purchase_date_key = d.date_key
+       WHERE d.date_key <> -1) AS max_purchase,
+      (SELECT COUNT(*) FROM {catalog}.{gold}.fact_order) AS n_orders,
+      (SELECT COUNT(*)
+       FROM {catalog}.{gold}.dim_seller
+       WHERE seller_key <> -1) AS n_sellers,
+      (SELECT COUNT(*)
+       FROM {catalog}.{gold}.dim_customer
+       WHERE customer_key <> -1) AS n_customers,
+      (SELECT COUNT(DISTINCT category_pt)
+       FROM {catalog}.{gold}.dim_product
+       WHERE product_key <> -1
+         AND category_pt <> 'Unknown') AS n_categories,
+      (SELECT COUNT(DISTINCT state_code)
+       FROM {catalog}.{gold}.dim_seller
+       WHERE seller_key <> -1
+         AND state_code IS NOT NULL
+         AND state_code <> 'Unknown') AS n_states,
+      (SELECT COUNT(*)
+       FROM {catalog}.{gold}.fact_order
+       WHERE n_sellers > 1) AS multi_seller_orders,
+      (SELECT MAX(loaded_at) FROM {catalog}.{gold}.etl_audit) AS gold_loaded_at,
+      (SELECT MAX(scored_at) FROM {catalog}.{dss}.seller_risk_score) AS dss_scored_at
+    """
+    return _bind(sql), ()
+
+
+def home_months() -> tuple[str, tuple]:
+    """Distinct orders by purchase month. Home flags thin months in Python."""
+    sql = """
+    SELECT
+      m.year_month,
+      COUNT(DISTINCT o.order_id) AS n_orders
+    FROM {catalog}.{gold}.fact_order AS o
+    INNER JOIN {catalog}.{gold}.dim_date AS d
+      ON o.purchase_date_key = d.date_key
+    INNER JOIN {catalog}.{gold}.dim_month AS m
+      ON d.month_key = m.month_key
+    WHERE d.date_key <> -1
+      AND m.month_key <> -1
+    GROUP BY m.year_month
+    ORDER BY m.year_month
+    """
+    return _bind(sql), ()
+
+
+def home_tables() -> tuple[str, tuple]:
+    sql = """
+    SELECT table_schema, table_name
+    FROM {catalog}.information_schema.tables
+    WHERE table_schema IN ('{gold}', '{dss}')
+    ORDER BY table_schema, table_name
+    """
+    return _bind(sql), ()

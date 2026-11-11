@@ -11,6 +11,22 @@ DATA_AS_OF = "2018-10-17"
 DATA_SPAN = "2016–2018"
 DATA_PLACE = "Brazil"
 
+# SPEC: a dense month has at least this many orders. Home lists the rest from a query.
+DENSE_MONTH_MIN_ORDERS = 1000
+
+OLIST_DATASET_URL = "https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce"
+FUNNEL_DATASET_URL = "https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist"
+LICENSE_NAME = "CC BY-NC-SA 4.0"
+LICENSE_URL = "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+REPO_URL = "https://github.com/toann1405/olist-dw-dss"
+
+MODEL_M1 = (
+    "M1 là phân loại (logistic regression): dự báo xác suất một đơn tháng tới của seller là đơn xấu."
+)
+MODEL_M2 = (
+    "M2 là mô phỏng chính sách, có ràng buộc GMV bị ảnh hưởng và số seller được can thiệp."
+)
+
 GLOSSARY: dict[str, dict[str, str]] = {
     "valid_orders": {
         "label": "Số đơn",
@@ -88,6 +104,24 @@ GLOSSARY: dict[str, dict[str, str]] = {
         "numerator": "Số seller phân biệt có ít nhất một đơn hợp lệ.",
         "denominator": "Không phải tỷ lệ.",
     },
+    "policy_p0": {
+        "label": "P0",
+        "definition": "Không can thiệp. Giữ nguyên để làm mốc so sánh.",
+        "numerator": "Không gắn cờ seller.",
+        "denominator": "Không phải tỷ lệ.",
+    },
+    "policy_p1": {
+        "label": "P1",
+        "definition": "Can thiệp theo ngưỡng KPI đã xảy ra (bàn giao trễ hoặc điểm review).",
+        "numerator": "Seller vượt ngưỡng KPI cố định.",
+        "denominator": "Không phải tỷ lệ.",
+    },
+    "policy_p2": {
+        "label": "P2",
+        "definition": "Can thiệp theo xác suất đơn xấu do mô hình dự báo.",
+        "numerator": "Seller có xác suất đơn xấu vượt ngưỡng hạng.",
+        "denominator": "Không phải tỷ lệ.",
+    },
 }
 
 HOME_TERMS = (
@@ -102,11 +136,31 @@ HOME_TERMS = (
     "risk_score",
 )
 
+HOME_SHORT_TERMS = (
+    "gmv",
+    "bad_experience",
+    "late_ship",
+    "late_delivery",
+    "risk_score",
+    "policy_p0",
+    "policy_p1",
+    "policy_p2",
+)
+
 
 def explain(term: str) -> str:
     """Definition plus numerator and denominator, for a tooltip or expander."""
     row = GLOSSARY[term]
     return f"{row['definition']} Tử: {row['numerator']} Mẫu: {row['denominator']}"
+
+
+def short_label(term: str) -> str:
+    return GLOSSARY[term]["label"]
+
+
+def short_text(term: str) -> str:
+    """Plain definition, without the numerator and denominator."""
+    return GLOSSARY[term]["definition"]
 
 
 def freshness_line() -> str:
