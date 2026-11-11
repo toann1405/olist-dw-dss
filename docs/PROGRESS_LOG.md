@@ -14,11 +14,27 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (trang Seller risk) |
+| Cập nhật | 11/11/2026 (tháng chấm 2018-08) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Tháng chấm không còn là tháng lịch cuối
+
+- **Đã làm:** `AS_OF_MONTH` = `2018-08` trong `src/dss/params.py`. Job DSS chấm đúng tháng đó, không dùng `MAX(month)`. UI Seller risk và Policy chỉ đọc điểm của tháng này. Kỳ không đủ seller thì ẩn thẻ phần trăm, Pareto và insight. Thêm nhãn dự báo/thực tế và khung bài toán 30 giây trên Policy.
+- **Đã đo trên Gold, `n_orders_valid` cộng theo seller-tháng:**
+
+  | Tháng | Seller | Đủ ≥ 5 đơn | Đơn hợp lệ |
+  |---|---:|---:|---:|
+  | 2018-06 | 1175 | 312 | 6259 |
+  | 2018-07 | 1261 | 304 | 6334 |
+  | 2018-08 | 1278 | 342 | 6540 |
+  | 2018-09 | 1 | 0 | 1 |
+  | 2018-10 | 0 | 0 | 0 |
+
+- **Chưa chạy:** notebook `src/dss/dss_job.py` trên Databricks. Bảng điểm hiện vẫn là tháng 2018-09 với 1 seller. Trước khi chạy job, hai trang báo kỳ 2018-08 chưa đủ dữ liệu. Sau khi chạy, `sellers` trong log phải là số seller của 2018-08, không phải 1.
+- **Không làm:** không đổi công thức M1/M2. Không commit `.env`.
 
 ### 11/11/2026 — Seller risk theo hướng intelligence
 

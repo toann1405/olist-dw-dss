@@ -109,6 +109,27 @@ def page_header(title_question: str, subtitle: str, tech_name: str) -> None:
 MIN_N_DISPLAY = 30
 
 
+def badge_predicted() -> None:
+    st.markdown(
+        "<span style='background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:999px;'>"
+        "🔮 Dự báo của mô hình — tháng tới</span>",
+        unsafe_allow_html=True,
+    )
+    st.caption("Số này là ước tính, không phải đã xảy ra.")
+
+
+def badge_actual() -> None:
+    st.markdown(
+        "<span style='background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:999px;'>"
+        "📊 Số liệu thực tế đã xảy ra</span>",
+        unsafe_allow_html=True,
+    )
+
+
+def chart_note(shows: str, how: str) -> None:
+    st.caption(f"Biểu đồ này cho thấy {shows} Cách đọc: {how}")
+
+
 def filter_badge(kind: str, question: str | None = None) -> None:
     if kind == "fixed_spec":
         st.caption(f"Cố định theo câu hỏi SPEC {question}")

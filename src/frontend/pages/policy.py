@@ -26,8 +26,9 @@ from lib.labels import (
     policy_name,
 )
 from lib.policy_cache import cached_compare, cached_goal, cached_tornado, param_token, score_token
-from lib.ui import apply_theme, fmt_brl, insight_box, next_step, page_header
+from lib.ui import apply_theme, badge_predicted, chart_note, fmt_brl, insight_box, next_step, page_header
 from src.dss.params import (
+    AS_OF_MONTH,
     AVG_REVIEW_THRESHOLD,
     E1,
     E2,
@@ -180,6 +181,11 @@ def _render_cards(results, recommended: str | None) -> None:
                 st.markdown("**Khuyến nghị**")
             st.markdown(f"**{policy_name(item.policy_code)}**")
             st.caption(POLICY_BLURB.get(item.policy_code, ""))
+            st.caption({
+                "P0": "Cách này nghĩa là không xử lý seller nào.",
+                "P1": "Cách này nghĩa là xử lý seller có KPI quá khứ vượt ngưỡng.",
+                "P2": "Cách này nghĩa là xử lý seller có xác suất đơn xấu vượt ngưỡng hạng.",
+            }.get(item.policy_code, ""))
             delta = None
             if base is not None and item.policy_code != "P0":
                 gap = item.expected_bad_orders - base.expected_bad_orders
@@ -264,7 +270,7 @@ def _tornado_chart(frame: pd.DataFrame) -> None:
             x=[row["span"] for row in ordered],
             y=[row["label"] for row in ordered],
             orientation="h",
-            marker_color="#1f3a5f",
+            marker_color="#6d28d9",
             customdata=[[fmt_number(row["low"]), fmt_number(row["high"])] for row in ordered],
             hovertemplate=(
                 "%{y}<br>Đơn xấu dự kiến thấp %{customdata[0]}"
@@ -276,6 +282,10 @@ def _tornado_chart(frame: pd.DataFrame) -> None:
     figure.update_layout(margin=dict(l=140, r=16, t=24, b=16))
     figure.update_xaxes(title="Độ lệch đơn xấu dự kiến")
     st.plotly_chart(figure, width="stretch")
+    chart_note(
+        "giả định nào làm đơn xấu dự kiến đổi nhiều nhất khi lệch ±20%.",
+        "thanh dài nhất là giả định cần kiểm chứng trước.",
+    )
 
 
 def _flagged_source(result) -> pd.DataFrame:
@@ -539,6 +549,14 @@ def render(settings=None) -> None:
         ),
         "Policy scenario – M2",
     )
+    st.markdown("**Bài toán trong 30 giây**")
+    st.write("Mục tiêu: giảm đơn xấu tháng tới.")
+    st.write(f"Luật chơi: GMV bị ảnh hưởng ≤ {fmt_limit(X)}%, xử lý ≤ {fmt_limit(N)} seller.")
+    st.write("Ba cách: Không làm gì (P0) · Xử lý theo KPI quá khứ (P1) · Xử lý theo dự báo rủi ro (P2).")
+    st.write(
+        "Seller bị gắn cờ → can thiệp giảm e% đơn xấu của họ → mất r% GMV của họ. "
+        "e và r là giả định, không phải số đã đo."
+    )
     try:
         with st.spinner("Đang tải dữ liệu…"):
             scores = db.query(*queries.scores())
@@ -549,6 +567,11 @@ def render(settings=None) -> None:
         return
     if scores.empty:
         st.info("Chưa có điểm rủi ro cho kỳ này, hãy liên hệ nhóm dữ liệu.")
+        next_step("policy")
+        return
+    scores = scores[scores["as_of_month"].astype(str) == AS_OF_MONTH].copy()
+    if scores.empty:
+        st.info("Kỳ này chưa đủ dữ liệu để chấm.")
         next_step("policy")
         return
 
@@ -575,6 +598,7 @@ def render(settings=None) -> None:
 
     st.subheader("① Nên chọn phương án nào?")
     st.caption("What-if")
+    badge_predicted()
     insight_box(advice["sentence"])
     _render_cards(results, advice["code"])
     with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
@@ -582,6 +606,7 @@ def render(settings=None) -> None:
 
     st.subheader("② Ngưỡng nào tối ưu?")
     st.caption("Goal seeking")
+    badge_predicted()
     chosen, sought = cached_goal(token, param_token(params))
     st.write(_goal_sentence(chosen, sought))
     st.button(
@@ -593,6 +618,7 @@ def render(settings=None) -> None:
 
     st.subheader("③ Kết quả này đáng tin đến đâu?")
     st.caption("Sensitivity")
+    badge_predicted()
     st.write(
         "Khi mỗi giả định đổi ±20%, kết quả thay đổi như sau "
         "(tính quanh ngưỡng gợi ý ở ②, không phải slider hiện tại)."

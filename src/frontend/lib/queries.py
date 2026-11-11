@@ -506,8 +506,15 @@ def seller_categories(seller_id: str, year_month: str) -> tuple[str, tuple]:
     sql = """
     SELECT
       COALESCE(p.category_group, 'Unknown') AS category_group,
-      COUNT(*) AS items
+      SUM(CASE
+        WHEN st.order_status IS NULL OR st.order_status NOT IN ('canceled', 'unavailable')
+          THEN i.price
+      END) AS gmv
     FROM {catalog}.{gold}.fact_order_item AS i
+    INNER JOIN {catalog}.{gold}.fact_order AS o
+      ON i.order_id = o.order_id
+    INNER JOIN {catalog}.{gold}.dim_order_status AS st
+      ON o.order_status_key = st.order_status_key
     INNER JOIN {catalog}.{gold}.dim_seller AS s
       ON i.seller_key = s.seller_key
     INNER JOIN {catalog}.{gold}.dim_product AS p
@@ -518,7 +525,7 @@ def seller_categories(seller_id: str, year_month: str) -> tuple[str, tuple]:
       AND format_string('%04d-%02d', d.year, d.month) = {p}
       AND i.seller_key <> -1
     GROUP BY p.category_group
-    ORDER BY items DESC
+    ORDER BY gmv DESC
     """
     return _bind(sql), (str(seller_id), str(year_month))
 
