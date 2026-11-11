@@ -50,5 +50,13 @@ olist-dw-dss/
 4. **Local sample** (pyspark + delta-spark, `USE_SAMPLE=1`): not part of Phase 3. It stays with R46 after spike S6 (Phase 6 and Phase 7).
 5. **Streamlit** (local, after spike S2): `.\.venv\Scripts\python.exe -m streamlit run src\frontend\app.py`
 
+## Brazil state map
+
+The KPI page tab `Xảy ra ở đâu` draws a state choropleth from `src/frontend/assets/brazil_states.geojson`.
+
+- Source: [click_that_hood `public/data/brazil-states.geojson`](https://github.com/codeforamerica/click_that_hood/blob/master/public/data/brazil-states.geojson) (Code for America). The file in this repo was fetched from that path on 11/11/2026 and was not simplified.
+- License: MIT, Copyright (c) 2013-2021 Code for America. The permission notice is in that repository's `LICENSE`.
+- Join key: feature property `sigla` (AC, AL, AM, …, TO). That is the same 2-letter code as `state_code` on `gold.dim_seller` and `gold.fact_order.customer_state_code`. The file also carries `codigo_ibg` (the IBGE numeric state code) and `name`. This project does not replace those properties.
+
 ## Status
 On 10/11/2026 the UI decision changed to a single Streamlit app. Power BI is future work. S2 is still open. Phase 2 (warehouse design) is locked. The load contract of 26/10/2026 was corrected on 05/11/2026 (MERGE without delete-by-source, Streamlit-only `decision_log`, seller GMV as sum of price). Phase 3 ETL notebooks are in `src/etl/`. Table DDL lives in the notebook that owns the table. `src/etl/olist_etl.job.yml` is a skeleton, not a deploy file. The job has not been run on the workspace. Topic T1 was locked on 15/10/2026. Spikes S1, S4, and S5 passed on Databricks Free Edition (13/10/2026). S2 and S6 are still open. S3 is future work. S6 does not block Phase 3. See [docs/PROGRESS_LOG.md](docs/PROGRESS_LOG.md).

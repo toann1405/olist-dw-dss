@@ -11,14 +11,21 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Home đã có sáu khối hướng dẫn. KPI Home khớp SQL Warehouse phiên 11/11/2026. R09 chuyển ◐. Checkbox PLAN chưa tick |
+| Đang làm | Tab KPI "Xảy ra ở đâu" có bản đồ 27 bang. Home giữ mục nhật ký Home. R09 vẫn ◐. Checkbox PLAN chưa tick |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Không đo lại số dòng bảng điểm trong phiên này |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (Home) |
+| Cập nhật | 11/11/2026 (bản đồ bang) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Bản đồ bang trên tab Xảy ra ở đâu
+
+- **Đã làm:** Tab KPI "Xảy ra ở đâu" thêm bản đồ choropleth Brazil, radio bang seller / bang khách (mặc định bang seller), và selectbox "Chỉ số" cùng hàng với "Mức địa lý". Chỉ số và mức địa lý áp cho cả bản đồ và cột. Tử và mẫu phía seller là `SUM` trên `fact_seller_monthly`, cùng định nghĩa `kpi_late_by_region` (bàn giao trễ) và `seller_month_series` (các tỷ lệ còn lại, GMV). Bang khách dựng lại từ cờ đơn và item, mỗi đơn một lần. GeoJSON 27 bang ở `src/frontend/assets/brazil_states.geojson`, nguồn click_that_hood, giấy phép MIT, khóa `sigla`. Không tick checkbox PLAN. R09 đã là ◐, không đổi.
+- **Đối soát** bộ lọc năm 2018, vùng tất cả, bang tất cả, địa lý seller, chỉ số bàn giao trễ. Cột mức Bang và bản đồ dùng cùng một khung số: 21 bang có mẫu, chênh lệch tuyệt đối lớn nhất của tỷ lệ là 0. Roll-up theo vùng khớp `kpi_late_by_region`: Centro-Oeste 95/827, Nordeste 171/1121, Norte 2/5, Sudeste 4481/49754, Sul 808/7979. Tổng tử/mẫu 5557/59686. GeoJSON có 27 mã. Bản đồ gắn đủ 27 mã, không mã thừa và không mã thiếu. Năm 2018 không có seller ở AC, AL, AM, AP, RR, TO; sáu bang đó vẫn được vẽ với n = 0. Mọi năm có seller ở 23 bang (thiếu AL, AP, RR, TO). Câu bang khách năm 2018 trả 27 mã, không mã lạ.
+- **Đã mở app:** tab hiện bản đồ, cột ngang và scatter. Không đo lại GMV toàn sàn trong phiên này.
+- **Không làm:** không đổi SPEC §10. Không commit `.env`.
 
 ### 11/11/2026 — Home bổ sung bối cảnh, người dùng và nguồn dữ liệu
 

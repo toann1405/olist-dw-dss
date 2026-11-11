@@ -625,3 +625,171 @@ def home_tables() -> tuple[str, tuple]:
     ORDER BY table_schema, table_name
     """
     return _bind(sql), ()
+
+
+# Seller geography sums the same fact_seller_monthly numerators and denominators
+# as kpi_late_by_region (late ship) and seller_month_series (the other rates, GMV).
+# Customer geography rebuilds those counts from the order and item flags, grouped
+# by customer_state_code. Each order is counted once. Sidebar filters stay on the
+# seller: purchase year, seller region, seller state.
+_WHERE_SELLER_STATE = """
+SELECT
+  s.state_code AS state_code,
+  MAX(s.region_name) AS region_name,
+  SUM(f.gmv) AS gmv,
+  SUM(f.n_items_valid) AS n_items_valid,
+  SUM(f.bad_experience_count) AS bad_experience_count,
+  SUM(f.bad_experience_eligible) AS bad_experience_eligible,
+  SUM(f.late_delivery_count) AS late_delivery_count,
+  SUM(f.late_delivery_eligible) AS late_delivery_eligible,
+  SUM(f.late_ship_count) AS late_ship_count,
+  SUM(f.late_ship_eligible) AS late_ship_eligible,
+  SUM(f.negative_review_count) AS negative_review_count,
+  SUM(f.negative_review_eligible) AS negative_review_eligible
+FROM {catalog}.{gold}.fact_seller_monthly AS f
+INNER JOIN {catalog}.{gold}.dim_month AS m
+  ON f.month_key = m.month_key
+INNER JOIN {catalog}.{gold}.dim_seller AS s
+  ON f.seller_key = s.seller_key
+WHERE f.seller_key <> -1
+  AND m.month_key <> -1
+  AND s.seller_key <> -1
+  AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
+  AND ({p} IS NULL OR m.year = {p})
+  AND ({p} IS NULL OR s.region_name = {p})
+  AND ({p} IS NULL OR s.state_code = {p})
+GROUP BY s.state_code
+"""
+
+_WHERE_CUSTOMER_STATE = """
+WITH items AS (
+  SELECT
+    i.order_id,
+    i.price,
+    i.seller_ship_late_flag,
+    o.customer_state_code,
+    o.late_flag,
+    o.n_sellers,
+    o.review_score,
+    o.shared_review_type,
+    o.negative_review_flag,
+    st.order_status
+  FROM {catalog}.{gold}.fact_order_item AS i
+  INNER JOIN {catalog}.{gold}.fact_order AS o
+    ON i.order_id = o.order_id
+  INNER JOIN {catalog}.{gold}.dim_order_status AS st
+    ON o.order_status_key = st.order_status_key
+  INNER JOIN {catalog}.{gold}.dim_seller AS s
+    ON i.seller_key = s.seller_key
+  INNER JOIN {catalog}.{gold}.dim_date AS d
+    ON i.purchase_date_key = d.date_key
+  WHERE i.seller_key <> -1
+    AND s.seller_key <> -1
+    AND d.date_key <> -1
+    AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
+    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR s.region_name = {p})
+    AND ({p} IS NULL OR s.state_code = {p})
+),
+by_order AS (
+  SELECT
+    order_id,
+    MAX(customer_state_code) AS state_code,
+    MAX(late_flag) AS late_flag,
+    MAX(n_sellers) AS n_sellers,
+    MAX(review_score) AS review_score,
+    MAX(shared_review_type) AS shared_review_type,
+    MAX(negative_review_flag) AS negative_review_flag,
+    SUM(CASE
+      WHEN order_status IS NULL OR order_status NOT IN ('canceled', 'unavailable')
+        THEN price
+    END) AS gmv,
+    SUM(CASE
+      WHEN order_status IS NULL OR order_status NOT IN ('canceled', 'unavailable')
+        THEN 1 ELSE 0
+    END) AS n_items_valid,
+    SUM(CASE WHEN seller_ship_late_flag = 1 THEN 1 ELSE 0 END) AS late_ship_count,
+    SUM(CASE WHEN seller_ship_late_flag IS NOT NULL THEN 1 ELSE 0 END) AS late_ship_eligible
+  FROM items
+  GROUP BY order_id
+),
+states AS (
+  SELECT
+    state_code,
+    SUM(COALESCE(gmv, 0)) AS gmv,
+    SUM(n_items_valid) AS n_items_valid,
+    SUM(late_ship_count) AS late_ship_count,
+    SUM(late_ship_eligible) AS late_ship_eligible,
+    SUM(CASE WHEN late_flag = 1 THEN 1 ELSE 0 END) AS late_delivery_count,
+    SUM(CASE WHEN late_flag IS NOT NULL THEN 1 ELSE 0 END) AS late_delivery_eligible,
+    SUM(CASE
+      WHEN n_sellers = 1
+       AND shared_review_type IN ('none', 'same_seller')
+       AND review_score IS NOT NULL
+       AND negative_review_flag = 1
+      THEN 1 ELSE 0
+    END) AS negative_review_count,
+    SUM(CASE
+      WHEN n_sellers = 1
+       AND shared_review_type IN ('none', 'same_seller')
+       AND review_score IS NOT NULL
+      THEN 1 ELSE 0
+    END) AS negative_review_eligible,
+    SUM(CASE
+      WHEN (
+        n_sellers = 1
+        AND shared_review_type IN ('none', 'same_seller')
+        AND review_score IS NOT NULL
+        AND negative_review_flag = 1
+      ) OR late_flag = 1
+      THEN 1 ELSE 0
+    END) AS bad_experience_count,
+    SUM(CASE
+      WHEN (
+        n_sellers = 1
+        AND shared_review_type IN ('none', 'same_seller')
+        AND review_score IS NOT NULL
+      ) OR late_flag IS NOT NULL
+      THEN 1 ELSE 0
+    END) AS bad_experience_eligible
+  FROM by_order
+  WHERE state_code IS NOT NULL
+    AND state_code <> 'Unknown'
+  GROUP BY state_code
+)
+SELECT
+  states.state_code,
+  geo.region_name,
+  states.gmv,
+  states.n_items_valid,
+  states.bad_experience_count,
+  states.bad_experience_eligible,
+  states.late_delivery_count,
+  states.late_delivery_eligible,
+  states.late_ship_count,
+  states.late_ship_eligible,
+  states.negative_review_count,
+  states.negative_review_eligible
+FROM states
+LEFT JOIN (
+  SELECT s.state_code, MAX(s.region_name) AS region_name
+  FROM {catalog}.{gold}.dim_seller AS s
+  WHERE s.seller_key <> -1
+    AND s.state_code IS NOT NULL
+    AND s.state_code <> 'Unknown'
+    AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
+  GROUP BY s.state_code
+) AS geo
+  ON states.state_code = geo.state_code
+"""
+
+
+def kpi_where_by_state(year, region, state, geography: str) -> tuple[str, tuple]:
+    """One row per state. geography is seller or customer. Values stay in the tuple."""
+    if geography == "seller":
+        sql = _WHERE_SELLER_STATE
+    elif geography == "customer":
+        sql = _WHERE_CUSTOMER_STATE
+    else:
+        raise ValueError("geography must be seller or customer")
+    return _bind(sql), (year, year, region, region, state, state)

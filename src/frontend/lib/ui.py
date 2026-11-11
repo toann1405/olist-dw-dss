@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -137,7 +139,7 @@ def filter_badge(kind: str, question: str | None = None) -> None:
         st.caption("Áp dụng bộ lọc")
 
 
-def add_platform_reference(fig: go.Figure, value) -> go.Figure:
+def add_platform_reference(fig: go.Figure, value, yref: str = "y") -> go.Figure:
     """Dashed line for the platform rate. value is a ratio on 0–1."""
     if value is None:
         return fig
@@ -150,9 +152,29 @@ def add_platform_reference(fig: go.Figure, value) -> go.Figure:
         y=float(value),
         line_dash="dash",
         line_color=NAVY,
-        annotation_text="Trung bình toàn sàn",
-        annotation_position="top left",
+        yref=yref,
     )
+    add_legend_swatch(fig, "Trung bình toàn sàn", NAVY, dash="dash")
+    return fig
+
+
+def add_vertical_platform_reference(fig: go.Figure, value) -> go.Figure:
+    """Vertical platform line for a horizontal bar. add_platform_reference stays on add_hline."""
+    if value is None:
+        return fig
+    try:
+        if pd.isna(value):
+            return fig
+    except TypeError:
+        return fig
+    fig.add_vline(
+        x=float(value),
+        line_dash="dash",
+        line_color=NAVY,
+        annotation_text="Trung bình toàn sàn",
+        annotation_position="top",
+    )
+    add_legend_swatch(fig, "Trung bình toàn sàn", NAVY, dash="dash")
     return fig
 
 
@@ -221,3 +243,161 @@ def highlight_colors(values: list[float], accent: str = LATE) -> list[str]:
         return []
     peak = max(values)
     return [accent if value == peak else NEUTRAL for value in values]
+
+
+def small_n_label() -> str:
+    """Legend text for a faded mark. Reads MIN_N_DISPLAY so the cutoff is not copied."""
+    return f"Mẫu nhỏ (n < {MIN_N_DISPLAY})"
+
+
+def add_legend_swatch(
+    fig: go.Figure,
+    name: str,
+    color: str,
+    opacity: float = 1.0,
+    dash: str | None = None,
+) -> go.Figure:
+    """Legend entry for a color, size, opacity, or reference line. Not a data series."""
+    if dash:
+        trace = go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=name,
+            line=dict(color=color, dash=dash, width=2),
+            showlegend=True,
+            hoverinfo="skip",
+        )
+    else:
+        trace = go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            name=name,
+            marker=dict(color=color, opacity=opacity, size=11, symbol="square"),
+            showlegend=True,
+            hoverinfo="skip",
+        )
+    fig.add_trace(trace)
+    return fig
+
+
+def scope_subtitle(
+    *,
+    include_year: bool = True,
+    include_region: bool = True,
+    include_state: bool = True,
+    include_category: bool = False,
+    include_months: bool = False,
+    include_funnel: bool = False,
+    extra: str | None = None,
+) -> str:
+    """Period and filters actually in effect, for chart subtitles."""
+    year, region, state, category = filters()
+    parts: list[str] = []
+    if include_year:
+        parts.append(f"Năm {year if year is not None else 'tất cả'}")
+    if include_region:
+        parts.append(f"vùng {region or 'tất cả'}")
+    if include_state:
+        parts.append(f"bang {state or 'tất cả'}")
+    if include_category and category:
+        parts.append(f"nhóm {category}")
+    if include_months:
+        start = st.session_state.get("filter_month_from", ALL)
+        end = st.session_state.get("filter_month_to", ALL)
+        if st.session_state.get("kpi_dense"):
+            parts.append("chỉ giai đoạn đủ dữ liệu")
+        elif start not in (None, ALL) or end not in (None, ALL):
+            left = start if start not in (None, ALL) else "đầu kỳ"
+            right = end if end not in (None, ALL) else "cuối kỳ"
+            parts.append(f"tháng {left} → {right}")
+        else:
+            parts.append("mọi tháng")
+    if include_funnel:
+        funnel = st.session_state.get("filter_funnel", ALL)
+        if funnel not in (None, ALL):
+            parts.append(str(funnel))
+    if extra:
+        parts.append(extra)
+    return " · ".join(parts)
+
+
+def _axis_title_text(axis) -> str:
+    title = getattr(axis, "title", None)
+    if title is None or title.text is None:
+        return ""
+    return str(title.text)
+
+
+def _percent_if_needed(colorbar) -> None:
+    if colorbar is None:
+        return
+    title = getattr(colorbar, "title", None)
+    text = ""
+    if title is not None and getattr(title, "text", None):
+        text = str(title.text)
+    if "%" in text:
+        colorbar.tickformat = ".0%"
+
+
+def _enforce_percent_axes(fig: go.Figure) -> None:
+    def _fix(axis) -> None:
+        if "%" in _axis_title_text(axis):
+            axis.tickformat = ".0%"
+
+    fig.for_each_xaxis(_fix)
+    fig.for_each_yaxis(_fix)
+    for trace in fig.data:
+        _percent_if_needed(getattr(trace, "colorbar", None))
+        marker = getattr(trace, "marker", None)
+        if marker is not None:
+            _percent_if_needed(getattr(marker, "colorbar", None))
+    coloraxis = getattr(fig.layout, "coloraxis", None)
+    if coloraxis is not None:
+        _percent_if_needed(getattr(coloraxis, "colorbar", None))
+
+
+def style_fig(fig: go.Figure, title: str, subtitle: str | None = None, legend: bool = True) -> go.Figure:
+    """Question title, period subtitle, and legend on the olist theme.
+
+    Callers pass the sentence the chart answers and the filters in effect.
+    Do not set title, legend, or margin after this returns. Axis units stay
+    on the axes; this only wins on margin.t so the title and legend can share
+    the top of the chart.
+    """
+    height = fig.layout.height
+    apply_theme(fig, height=int(height) if height else 360)
+    top = 88
+    if subtitle:
+        top += 36
+    if legend:
+        top += 12
+    question = f"<b>{escape(title)}</b>"
+    if subtitle:
+        question += (
+            "<br><span style='font-size:12px;font-weight:400'>"
+            f"{escape(subtitle)}</span>"
+        )
+    fig.update_layout(
+        title=dict(
+            text=question,
+            x=0,
+            xanchor="left",
+            y=0.90,
+            yanchor="top",
+            yref="container",
+            font=dict(size=16, color=INK),
+        ),
+        showlegend=legend,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
+        margin_t=top,
+    )
+    _enforce_percent_axes(fig)
+    return fig

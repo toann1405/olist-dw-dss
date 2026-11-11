@@ -28,6 +28,10 @@ def _keep(key: str, options: list[str]) -> None:
 
 
 def render_sidebar() -> None:
+    pending_state = st.session_state.pop("pending_filter_state", None)
+    if pending_state:
+        st.session_state["filter_region"] = ALL
+        st.session_state["filter_state"] = str(pending_state)
     st.sidebar.markdown(
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
