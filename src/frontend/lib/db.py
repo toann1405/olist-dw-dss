@@ -1,8 +1,10 @@
-"""SQL Warehouse connection for the local Streamlit app."""
+"""SQL Warehouse connection for the Streamlit app."""
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -10,9 +12,22 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[3]
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Within one source, the server-hostname name wins when both are set.
+HOST_KEYS = ("DATABRICKS_SERVER_HOSTNAME", "DATABRICKS_HOST")
+MISSING_LABELS = {
+    "host": "DATABRICKS_HOST hoặc DATABRICKS_SERVER_HOSTNAME",
+    "http_path": "DATABRICKS_HTTP_PATH",
+    "token": "DATABRICKS_TOKEN",
+}
 
 
-def load_env(path: Path) -> dict[str, str]:
+def load_dotenv(path: Path) -> dict[str, str]:
+    """Read KEY=VALUE lines. Returns {} when the file is absent.
+
+    Called only for an existing `.env`. The file is optional. This parser
+    does not write `os.environ`, so a variable already in the environment
+    stays ahead of the file.
+    """
     values: dict[str, str] = {}
     if not path.is_file():
         return values
@@ -21,31 +36,84 @@ def load_env(path: Path) -> dict[str, str]:
         if not text or text.startswith("#") or "=" not in text:
             continue
         key, value = text.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
+        values[key.strip()] = _clean(value)
     return values
 
 
+def _clean(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().strip('"').strip("'").strip()
+
+
+def normalize_host(value: str) -> str:
+    """Drop a leading https:// or http:// and any trailing slashes."""
+    text = value.strip()
+    lowered = text.lower()
+    for prefix in ("https://", "http://"):
+        if lowered.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    return text.strip().strip("/")
+
+
+def _read_secrets() -> dict[str, str]:
+    """Read top-level Streamlit secrets. Missing secrets.toml is not an error."""
+    try:
+        raw = dict(st.secrets)
+    except Exception:
+        return {}
+    found: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(value, Mapping):
+            continue
+        text = _clean(value)
+        if text:
+            found[str(key)] = text
+    return found
+
+
+def _pick(names: tuple[str, ...], *sources: Mapping[str, str]) -> str:
+    """First non-empty value. Source order is the priority order."""
+    for source in sources:
+        for name in names:
+            text = _clean(source.get(name, ""))
+            if text:
+                return text
+    return ""
+
+
 def settings() -> dict[str, str]:
-    """Read warehouse settings from .env. The token stays in this dict only."""
-    env = load_env(ROOT / ".env")
-    host = env.get("DATABRICKS_SERVER_HOSTNAME", "").strip()
-    if not host:
-        host = env.get("DATABRICKS_HOST", "")
-    host = host.replace("https://", "").strip().strip("/")
-    catalog = (env.get("UC_CATALOG") or "olist_catalog").strip()
-    gold = (env.get("GOLD_SCHEMA") or "gold").strip()
-    dss = (env.get("DSS_SCHEMA") or "dss").strip()
+    """Resolve warehouse settings.
+
+    Priority for each variable: ``st.secrets``, then ``os.environ``, then
+    `.env` when that file exists. The token stays in this dict only.
+    """
+    env_path = ROOT / ".env"
+    file_values = load_dotenv(env_path) if env_path.is_file() else {}
+    sources = (_read_secrets(), os.environ, file_values)
+    host = normalize_host(_pick(HOST_KEYS, *sources))
+    http_path = _pick(("DATABRICKS_HTTP_PATH",), *sources)
+    token = _pick(("DATABRICKS_TOKEN",), *sources)
+    catalog = _pick(("UC_CATALOG",), *sources) or "olist_catalog"
+    gold = _pick(("GOLD_SCHEMA",), *sources) or "gold"
+    dss = _pick(("DSS_SCHEMA",), *sources) or "dss"
     for name, value in (("UC_CATALOG", catalog), ("GOLD_SCHEMA", gold), ("DSS_SCHEMA", dss)):
         if not NAME_RE.match(value):
             raise RuntimeError(f"Invalid {name}")
     return {
         "host": host,
-        "http_path": env.get("DATABRICKS_HTTP_PATH", "").strip(),
-        "token": env.get("DATABRICKS_TOKEN", "").strip(),
+        "http_path": http_path,
+        "token": token,
         "catalog": catalog,
         "gold": gold,
         "dss": dss,
     }
+
+
+def missing_connection(cfg: Mapping[str, str]) -> list[str]:
+    """Names of connection variables that are still empty. Values are not included."""
+    return [MISSING_LABELS[name] for name in ("host", "http_path", "token") if not _clean(cfg.get(name, ""))]
 
 
 def marker() -> str:
@@ -63,11 +131,11 @@ def marker() -> str:
 
 
 def _connect(cfg: dict[str, str]):
+    missing = missing_connection(cfg)
+    if missing:
+        raise RuntimeError("Thiếu cấu hình kết nối: " + ", ".join(missing))
     from databricks import sql as dbsql
 
-    missing = [name for name in ("host", "http_path", "token") if not cfg.get(name)]
-    if missing:
-        raise RuntimeError("Missing .env values: " + ", ".join(missing))
     return dbsql.connect(
         server_hostname=cfg["host"],
         http_path=cfg["http_path"],
@@ -153,7 +221,7 @@ def show_warehouse_error(exc: Exception) -> None:
         """
 Hai phương án:
 
-1. Điền `DATABRICKS_SERVER_HOSTNAME` (hoặc `DATABRICKS_HOST`), `DATABRICKS_HTTP_PATH` và `DATABRICKS_TOKEN` trong `.env`, bật warehouse, rồi bấm **Làm mới**.
+1. Đặt `DATABRICKS_HOST` (hoặc `DATABRICKS_SERVER_HOSTNAME`), `DATABRICKS_HTTP_PATH` và `DATABRICKS_TOKEN` trong `st.secrets`, biến môi trường, hoặc file `.env` nếu có. Bật warehouse, rồi bấm **Làm mới**.
 2. Dừng tại đây và ghi PROGRESS_LOG. App không đọc CSV.
         """
     )

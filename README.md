@@ -69,7 +69,7 @@ Terms: [docs/glossary.md](docs/glossary.md). Brazil GeoJSON source and MIT licen
 
 **Prerequisites:** a Databricks Free Edition workspace, catalog `olist_catalog`, a SQL Warehouse, Python 3 with the repo venv, and the CSVs listed in [data/README.md](data/README.md).
 
-1. Copy `.env.example` to `.env`. Fill `DATABRICKS_SERVER_HOSTNAME` (or `DATABRICKS_HOST`), `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN`. Leave the token empty in `.env.example`. Do not commit `.env`.
+1. Provide `DATABRICKS_SERVER_HOSTNAME` (or `DATABRICKS_HOST`), `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN`. The app reads `st.secrets`, then the process environment, then `.env` if that file exists. Copy `.env.example` to `.env` for a local run. Leave the token empty in `.env.example`. Do not commit `.env` or `.streamlit/secrets.toml`.
 2. Upload the CSVs to `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`).
 3. In the workspace UI, create serverless job `olist_etl` from `src/etl/olist_etl.job.yml` (skeleton, not a DAB deploy). Run setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Notebooks under `src/etl/` do not read `data/sample/`.
 4. Create a **separate** serverless job from `src/dss/dss_job.yml` and run `src/dss/dss_job.py`. It writes `dss.seller_risk_score` and `dss.policy_scenario` for month **2018-08**.

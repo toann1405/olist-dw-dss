@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick. Không sửa code trong phiên docs này |
-| Blocker | Không đo lại SQL trong phiên này |
-| Việc tiếp theo | Báo cáo PDF, slide, tick RTM khi DoD thật sự đủ. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (đồng bộ README và docs/) |
+| Đang làm | R09 vẫn ◐. App đọc kết nối theo st.secrets → biến môi trường → .env. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Blocker | Phiên này không gửi lại SELECT 1 lên SQL Warehouse |
+| Việc tiếp theo | Trên Databricks App, đặt DATABRICKS_HTTP_PATH và DATABRICKS_TOKEN (Apps tự tiêm DATABRICKS_HOST). Báo cáo PDF, slide. Không đổi công thức KPI |
+| Cập nhật | 11/11/2026 (cấu hình kết nối Streamlit) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — App đọc cấu hình kho theo secrets, môi trường, rồi .env
+
+- **Đã làm:** `src/frontend/lib/db.py` lấy từng biến theo thứ tự `st.secrets` → `os.environ` → `.env`. `load_dotenv` chỉ đọc file khi file đó có mặt; không có `.env` thì bỏ qua. Host nhận `DATABRICKS_HOST` hoặc `DATABRICKS_SERVER_HOSTNAME`, bỏ tiền tố `https://` / `http://` và dấu `/` cuối. Không có `secrets.toml` thì nuốt lỗi, không làm app sập. Câu lỗi đổi thành `Thiếu cấu hình kết nối: <tên biến>`, không ghi giá trị token. `.streamlit/secrets.toml` được gitignore; `config.toml` vẫn được theo dõi. Không tick checkbox PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** `python -m pytest src/tests/test_db_settings.py -q` → 8 passed in 1.69s. Có ca chỉ `.env`, ca chỉ `.streamlit/secrets.toml` (secrets thắng biến môi trường và `.env`), ca `st.secrets` ném lỗi vẫn đọc được `.env`, và `git check-ignore` cho `secrets.toml`. Không mở SQL Warehouse. `settings()` trên máy này thấy host, http_path và token đều có; host không còn tiền tố `http`. Không in token.
 
 ### 11/11/2026 — Đồng bộ README và docs/ với trạng thái hiện tại
 

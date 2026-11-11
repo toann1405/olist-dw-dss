@@ -11,6 +11,9 @@ data/external/large/
 .env
 .env.*
 !.env.example
+# Streamlit secrets.toml holds the warehouse token. config.toml stays tracked.
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
 .kaggle/
 kaggle.json
 *.token
