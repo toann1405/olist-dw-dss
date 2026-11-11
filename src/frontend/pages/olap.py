@@ -120,6 +120,50 @@ def _kpi_strip() -> None:
     late = _ratio(monthly["late_ship_count"], monthly["late_ship_eligible"])
     review = _ratio(monthly["negative_review_count"], monthly["negative_review_eligible"])
     aov = _ratio(orders["gmv_from_items"], orders["valid_orders"])
+    # #region agent log
+    import json as _json
+    import time as _time
+
+    def _dbg(hypothesis_id, message, data):
+        try:
+            with open(r"d:\STUDY\DW\olist-dw-dss\.cursor\debug-14f7bb.log", "a", encoding="utf-8") as _f:
+                _f.write(
+                    _json.dumps(
+                        {
+                            "sessionId": "14f7bb",
+                            "runId": "pre-fix",
+                            "hypothesisId": hypothesis_id,
+                            "location": "olap.py:_kpi_strip",
+                            "message": message,
+                            "data": data,
+                            "timestamp": int(_time.time() * 1000),
+                        },
+                        default=str,
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+
+    _probe_error = None
+    _probe_len = None
+    try:
+        _probe_len = len(values)
+    except UnboundLocalError as _exc:
+        _probe_error = f"{type(_exc).__name__}: { _exc}"
+    _dbg(
+        "A",
+        "probe values before st.columns",
+        {
+            "values_len": _probe_len,
+            "error": _probe_error,
+            "gmv": gmv,
+            "aov": aov,
+            "late": late,
+            "review": review,
+        },
+    )
+    # #endregion
     columns = st.columns(len(values))
     values = [
         ("GMV", fmt_brl_local(gmv), explain("gmv")),
@@ -127,6 +171,9 @@ def _kpi_strip() -> None:
         ("Bàn giao trễ", fmt_pct(late), explain("late_ship")),
         ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
+    # #region agent log
+    _dbg("B", "values list built after columns", {"values_len": len(values), "column_count": len(columns)})
+    # #endregion
     try:
         quality = db.query(*queries.market_quality(year, region, state))
         if not quality.empty and quality.iloc[0]["bad_eligible"]:
@@ -134,6 +181,13 @@ def _kpi_strip() -> None:
             values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
     except Exception as exc:
         st.error(db.redact(exc))
+    # #region agent log
+    _dbg(
+        "B",
+        "lengths before zip",
+        {"values_len": len(values), "column_count": len(columns), "dropped_by_zip": max(0, len(values) - len(columns))},
+    )
+    # #endregion
     for column, (label, value, help_text) in zip(columns, values):
         with column:
             kpi_card(label, value, help_text=help_text)
