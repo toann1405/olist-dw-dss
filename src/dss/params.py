@@ -11,6 +11,12 @@ X = 10.0
 N = 40
 MIN_ORDERS = 5
 
+# Scoring month. Not MAX(month): 2018-09 and 2018-10 are too thin.
+# A month is usable when sellers with n_orders_valid >= MIN_ORDERS
+# is at least MIN_SCORED_SELLERS. 2018-08 is the latest such month.
+MIN_SCORED_SELLERS = 5
+AS_OF_MONTH = "2018-08"
+
 # P2 tiers. A seller at or above theta_3 is tier 3.
 THETA_1 = 0.20
 THETA_2 = 0.35

@@ -149,9 +149,14 @@ def _score_frame(
     return out
 
 
-def train_and_score(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Fit on history and score every seller in the latest month."""
+def train_and_score(features: pd.DataFrame, as_of_month: str | None = None) -> tuple[pd.DataFrame, dict]:
+    """Fit on history up to as_of_month and score every seller in that month."""
+    from src.dss.params import AS_OF_MONTH
+
     scored_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    chosen = str(as_of_month or AS_OF_MONTH)
+    if not features.empty and "year_month" in features.columns:
+        features = features[features["year_month"].astype(str) <= chosen].copy()
     if features.empty:
         metrics = {
             "model_name": "baseline_rate",
@@ -165,8 +170,19 @@ def train_and_score(features: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         }
         return pd.DataFrame(), metrics
 
-    latest_key = int(pd.to_numeric(features["month_key"]).max())
-    latest = features[pd.to_numeric(features["month_key"]) == latest_key].copy()
+    latest = features[features["year_month"].astype(str) == chosen].copy()
+    if latest.empty:
+        metrics = {
+            "model_name": "baseline_rate",
+            "reason": f"no sellers in {chosen}",
+            "auc": None,
+            "brier": None,
+            "n_train_orders": 0,
+            "n_test_orders": 0,
+            "trained_through_month": None,
+            "as_of_month": chosen,
+        }
+        return pd.DataFrame(), metrics
     labeled = _labeled(features)
     population = _train_population(features)
     labeled = labeled[labeled["seller_key"].isin(population)].copy()

@@ -56,6 +56,7 @@ repo_root = find_repo_root(widget("repo_root", ""))
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
+from src.dss.params import AS_OF_MONTH
 from src.dss.policy import PolicyParams, compare_policies, scenario_record
 from src.dss.train import train_and_score
 
@@ -185,7 +186,7 @@ spark.sql(
 features = spark.table(f"{catalog}.{dss}.v_seller_features").toPandas()
 if features.empty:
     raise RuntimeError("v_seller_features returned no rows. The monthly Gold fact is empty.")
-scores, metrics = train_and_score(features)
+scores, metrics = train_and_score(features, AS_OF_MONTH)
 if scores.empty:
     raise RuntimeError("Scoring returned no sellers.")
 params = PolicyParams()
