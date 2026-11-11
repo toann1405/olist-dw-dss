@@ -557,7 +557,7 @@ def render(settings=None) -> None:
         ),
         "Policy scenario – M2",
     )
-    st.markdown("**Bài toán trong 30 giây**")
+    st.markdown("**Bài toán**")
     st.write("Mục tiêu: giảm đơn xấu tháng tới.")
     st.write(f"Luật chơi: GMV bị ảnh hưởng ≤ {fmt_limit(X)}%, xử lý ≤ {fmt_limit(N)} seller.")
     st.write("Ba cách: Không làm gì (P0) · Xử lý theo KPI quá khứ (P1) · Xử lý theo dự báo rủi ro (P2).")

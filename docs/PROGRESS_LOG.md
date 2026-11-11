@@ -14,11 +14,16 @@
 | Đang làm | Mọi biểu đồ Plotly đi qua `style_fig`. Bản đồ bang nằm trên tab "Xảy ra ở đâu". R09 vẫn ◐. Checkbox PLAN chưa tick |
 | Blocker | Không đo lại SQL trong phiên này |
 | Việc tiếp theo | Rà tiêu đề bị cắt trên cột hẹp của OLAP. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (tiêu đề và chú giải biểu đồ) |
+| Cập nhật | 11/11/2026 (chú giải roll-up mức state sang lề phải) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Chú giải roll-up mức state không còn đè cột
+
+- **Đã làm:** Ở tab Roll-up, khi mức là `state`, hai mục chú giải ("Cao nhất", "Các nhóm còn lại") chuyển sang lề phải của biểu đồ. Mức region và city vẫn để chú giải phía trên. `style_fig` nhận `legend_side`. Không đổi SQL hay công thức.
+- **Chưa đo:** không chạy lại câu SQL. Không tick PLAN. R09 vẫn ◐.
 
 ### 11/11/2026 — Tiêu đề và chú giải trên mọi biểu đồ
 

@@ -181,7 +181,7 @@ def _context_block(fmt_int) -> tuple[pd.Series | None, pd.DataFrame | None, pd.D
         "Olist là marketplace kết nối seller nhỏ với các sàn lớn ở Brazil. "
         f"Dữ liệu là [Brazilian E-Commerce Public Dataset by Olist]({OLIST_DATASET_URL}) "
         f"và [Marketing Funnel by Olist]({FUNNEL_DATASET_URL}). "
-        f"Cả hai bộ dùng license [{LICENSE_NAME}]({LICENSE_URL})."
+
     )
     profile = months = tables = None
     try:

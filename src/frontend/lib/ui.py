@@ -114,7 +114,7 @@ MIN_N_DISPLAY = 30
 def badge_predicted() -> None:
     st.markdown(
         "<span style='background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:999px;'>"
-        "🔮 Dự báo của mô hình — tháng tới</span>",
+        "Dự báo của mô hình — tháng tới</span>",
         unsafe_allow_html=True,
     )
     st.caption("Số này là ước tính, không phải đã xảy ra.")
@@ -123,7 +123,7 @@ def badge_predicted() -> None:
 def badge_actual() -> None:
     st.markdown(
         "<span style='background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:999px;'>"
-        "📊 Số liệu thực tế đã xảy ra</span>",
+        "Số liệu thực tế đã xảy ra</span>",
         unsafe_allow_html=True,
     )
 
@@ -358,26 +358,51 @@ def _enforce_percent_axes(fig: go.Figure) -> None:
         _percent_if_needed(getattr(coloraxis, "colorbar", None))
 
 
-def style_fig(fig: go.Figure, title: str, subtitle: str | None = None, legend: bool = True) -> go.Figure:
+def style_fig(
+    fig: go.Figure,
+    title: str,
+    subtitle: str | None = None,
+    legend: bool = True,
+    legend_side: str = "top",
+) -> go.Figure:
     """Question title, period subtitle, and legend on the olist theme.
 
     Callers pass the sentence the chart answers and the filters in effect.
     Do not set title, legend, or margin after this returns. Axis units stay
-    on the axes; this only wins on margin.t so the title and legend can share
-    the top of the chart.
+    on the axes. legend_side "top" keeps the legend above the plot.
+    "right" puts it in the right margin so a long category axis does not cover it.
     """
     height = fig.layout.height
     apply_theme(fig, height=int(height) if height else 360)
     top = 88
     if subtitle:
         top += 36
-    if legend:
+    on_right = legend and legend_side == "right"
+    if legend and not on_right:
         top += 12
     question = f"<b>{escape(title)}</b>"
     if subtitle:
         question += (
             "<br><span style='font-size:12px;font-weight:400'>"
             f"{escape(subtitle)}</span>"
+        )
+    if on_right:
+        legend_layout = dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            xref="paper",
+            yref="paper",
+        )
+    else:
+        legend_layout = dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
         )
     fig.update_layout(
         title=dict(
@@ -390,14 +415,10 @@ def style_fig(fig: go.Figure, title: str, subtitle: str | None = None, legend: b
             font=dict(size=16, color=INK),
         ),
         showlegend=legend,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="left",
-            x=0,
-        ),
+        legend=legend_layout,
         margin_t=top,
     )
+    if on_right:
+        fig.update_layout(margin_r=168)
     _enforce_percent_axes(fig)
     return fig

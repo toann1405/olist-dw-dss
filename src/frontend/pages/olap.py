@@ -102,7 +102,16 @@ def _place_label(frame: pd.DataFrame, level: str) -> pd.DataFrame:
     return out
 
 
-def _hbar(labels, rates, samples, color: str, axis_title: str, question: str, subtitle: str) -> go.Figure:
+def _hbar(
+    labels,
+    rates,
+    samples,
+    color: str,
+    axis_title: str,
+    question: str,
+    subtitle: str,
+    legend_side: str = "top",
+) -> go.Figure:
     colors = highlight_colors([float(value) for value in rates], color)
     fig = go.Figure(
         go.Bar(
@@ -121,7 +130,7 @@ def _hbar(labels, rates, samples, color: str, axis_title: str, question: str, su
     fig.update_layout(height=max(280, 34 * len(labels) + 120), margin_l=160, margin_r=16, margin_b=16)
     fig.update_xaxes(tickformat=".0%", title=axis_title)
     fig.update_yaxes(title="Nơi bán", automargin=True)
-    return style_fig(fig, question, subtitle)
+    return style_fig(fig, question, subtitle, legend_side=legend_side)
 
 
 def _kpi_strip() -> None:
@@ -205,6 +214,7 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
                     "Bàn giao trễ (%)",
                     "Bàn giao trễ là chuyện cả vùng hay một nơi?",
                     f"Mức {level} · mọi năm · không theo bộ lọc sidebar",
+                    legend_side="right" if level == "state" else "top",
                 ),
                 width="stretch",
             )
