@@ -48,6 +48,14 @@ def render_sidebar() -> None:
         _keep("filter_category", categories)
         st.sidebar.selectbox("Bang seller", states, key="filter_state")
         st.sidebar.selectbox("Nhóm danh mục", categories, key="filter_category")
+        months = _labels(db.query(*queries.months()), "year_month")
+        _keep("filter_month_from", months)
+        _keep("filter_month_to", months)
+        st.sidebar.selectbox("Từ tháng", months, key="filter_month_from")
+        st.sidebar.selectbox("Đến tháng", months, key="filter_month_to")
+        funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
+        _keep("filter_funnel", funnel_options)
+        st.sidebar.selectbox("Funnel", funnel_options, key="filter_funnel")
     except Exception as exc:
         st.sidebar.error(db.redact(exc))
     st.sidebar.caption("Member −1 không nằm trong các danh sách này.")

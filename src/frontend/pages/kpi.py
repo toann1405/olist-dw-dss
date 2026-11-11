@@ -7,8 +7,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db, queries
-from lib.glossary import explain
+from lib.glossary import DATA_AS_OF, explain
 from lib.insights import build_insight_kpi
+from lib.stats import DENSE_FROM, DENSE_TO
+from pages import kpi_panels
 from lib.ui import (
     LATE,
     NAVY,
@@ -191,10 +193,29 @@ def render(settings=None) -> None:
     del settings
     page_header(
         "Sức khỏe marketplace đang thế nào?",
-        "Sáu chỉ số giữ nguyên công thức. Câu phía trên theo bộ lọc đang chọn.",
+        "Đọc tỷ lệ từ trái sang phải: cả sàn, rồi nơi phát sinh, rồi seller nào kéo số lên.",
         "Tổng quan KPI",
     )
     year, region, state, category = filters()
+    dense = st.toggle(
+        "Chỉ giai đoạn đủ dữ liệu (2017-02 → 2018-08)",
+        key="kpi_dense",
+    )
+    funnel_label = st.session_state.get("filter_funnel", "Tất cả")
+    funnel = {"Có closed deal": 1, "Không có closed deal": 0}.get(funnel_label)
+    month_from = st.session_state.get("filter_month_from", "Tất cả")
+    month_to = st.session_state.get("filter_month_to", "Tất cả")
+    start = None if month_from in (None, "Tất cả") else str(month_from)
+    end = None if month_to in (None, "Tất cả") else str(month_to)
+    if dense:
+        start = DENSE_FROM if start is None else max(start, DENSE_FROM)
+        end = DENSE_TO if end is None else min(end, DENSE_TO)
+    st.caption(
+        f"Năm {year or 'tất cả'} · vùng {region or 'tất cả'} · bang {state or 'tất cả'} · "
+        f"chốt {DATA_AS_OF}"
+        + (f" · tháng {start} → {end}" if start or end else "")
+        + (f" · {funnel_label}" if funnel is not None else "")
+    )
     try:
         with st.spinner("Đang tải dữ liệu…"):
             current = _load_base(year, region, state)
@@ -240,28 +261,50 @@ def render(settings=None) -> None:
         ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, explain("valid_orders"), "normal"),
         ("AOV", fmt_brl(current["aov"]), aov_delta, explain("aov"), "normal"),
         ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, explain("late_ship"), "inverse"),
-        ("Review xấu", fmt_pct(current["review_rate"]), points_review, explain("negative_review"), "inverse"),
+        ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), points_review, explain("negative_review"), "inverse"),
         ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, explain("cancel_rate"), "inverse"),
     ]
-    for start in (0, 3):
-        for column, (label, value, delta, help_text, color) in zip(st.columns(3), specs[start : start + 3]):
+    for offset in (0, 3):
+        for column, (label, value, delta, help_text, color) in zip(st.columns(3), specs[offset : offset + 3]):
             with column:
                 kpi_card(label, value, delta=delta, help_text=help_text, delta_color=color)
+    st.caption("Sáu số trên giữ công thức cũ theo năm, vùng, bang và nhóm danh mục.")
 
-    st.subheader("GMV và bàn giao trễ theo tháng mua")
-    _combo(months)
-    one, two, three = st.columns(3)
-    with one:
-        st.markdown("**Top 10 nhóm danh mục theo GMV**")
-        _category_bars(categories)
-    with two:
-        st.markdown("**Bàn giao trễ theo vùng seller**")
-        _region_bars(regions)
-    with three:
-        st.markdown("**Top 10 seller rủi ro**")
-        st.caption("Tháng chấm mới nhất, chỉ seller có ít nhất 5 đơn hợp lệ.")
-        try:
-            _risk_table()
-        except Exception as exc:
-            st.error(db.redact(exc))
+    series = quality = scatter = sellers = funnel_frame = snapshot = None
+    try:
+        with st.spinner("Đang tải dữ liệu…"):
+            series = db.query(*queries.seller_month_series(year, region, state, funnel, start, end))
+            quality = db.query(*queries.market_quality(year, region, state))
+            scatter = db.query(*queries.category_scatter(year, region, state))
+            sellers = db.query(*queries.seller_pareto(year, region, state, funnel, start, end, 1))
+            funnel_frame = db.query(*queries.funnel_compare(year, region, state, start, end))
+            snapshot = db.query(*queries.policy_snapshot())
+    except Exception as exc:
+        st.error(db.redact(exc))
+    if snapshot is not None:
+        kpi_panels.constraint_strip(snapshot)
+    if quality is not None and not quality.empty:
+        row = quality.iloc[0]
+        rate = None if not row["bad_eligible"] else float(row["bad_orders"]) / float(row["bad_eligible"])
+        previous_rate = None
+        if previous is not None:
+            previous_rate = None
+        kpi_panels.hero(
+            pd.DataFrame([{
+                "is_total": 1,
+                "bad_orders": row["bad_orders"],
+                "eligible_orders": row["bad_eligible"],
+            }]),
+            previous_rate,
+        )
+    if series is not None:
+        kpi_panels.grouped_cards(current, series)
+        platform_bad = None
+        platform_late = current["late_rate"]
+        if quality is not None and not quality.empty and quality.iloc[0]["bad_eligible"]:
+            platform_bad = float(quality.iloc[0]["bad_orders"]) / float(quality.iloc[0]["bad_eligible"])
+        kpi_panels.render_tabs(
+            series, regions, scatter if scatter is not None else categories,
+            sellers, funnel_frame, quality, platform_bad, platform_late, _risk_table,
+        )
     next_step("kpi")
