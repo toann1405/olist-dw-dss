@@ -1,6 +1,6 @@
 # DESIGN — Thiết kế DW, ETL mapping, data dictionary
 
-> **Trạng thái: thiết kế Phase 2 đã khóa 22/10/2026.** Load 26/10/2026 và sửa hợp đồng 05/11/2026 nằm ở hai mục dưới. DDL Phase 3 nằm trong notebook `src/etl/`, không còn thư mục `src/sql/ddl/`. Job chưa chạy trên workspace. SPEC v0.8 §5–6 là bản tóm tắt; file này là hợp đồng để Phase 3 code.
+> **Trạng thái: thiết kế Phase 2 đã khóa 22/10/2026.** Load 26/10/2026 và sửa hợp đồng 05/11/2026 nằm ở hai mục dưới. DDL Phase 3 nằm trong notebook `src/etl/`. ~~Job chưa chạy trên workspace~~ (đổi 11/11: Gold đã có số đo trên SQL Warehouse; xem `PROGRESS_LOG`). SPEC §5–6 là bản tóm tắt; file này là hợp đồng vật lý. Tháng chấm DSS = **2018-08**.
 >
 > Nguồn dùng khi viết: `docs/SPEC.md` (số đo Volume trong §3; quyết định Phase 2 ở v0.5, bổ sung v0.6 ngày 22/10/2026), `docs/PLAN.md` Phase 2, `docs/PROGRESS_LOG.md`, `docs/TOPIC_EVALUATION.md` §1.2–1.4, header CSV trong `data/sample/` và `data/external/` (cùng tên cột với `data/raw/`). Không dùng `data/sample/` để ước lượng số dòng.
 >
@@ -27,7 +27,7 @@ Không đổi: grain ba fact, star schema (7 dimension + 3 fact), measure, SCD, 
 | Gold | Bảng Delta, không phải view. `MERGE` theo grain, idempotent: chỉ `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT`. Không `WHEN NOT MATCHED BY SOURCE THEN DELETE`. 7 dimension + 3 fact |
 | `snapshot_date` | Hằng số `DATE '2018-10-17'` trong config. Không suy từ watermark |
 | `gold.etl_audit` | `audit_id`, `run_id`, `layer`, `target_table`, `source_name`, `rows_read`, `rows_loaded`, `rows_rejected`, `rows_unknown_fk`, `loaded_at`. Cảnh báo geo, translation, conflict và các đếm cùng loại là DQ check trong notebook: in kết quả, không lưu cột riêng |
-| Orchestration | Databricks Jobs: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss |
+| Orchestration | Job ETL: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. Job DSS tách riêng |
 | Frontend | Một app Streamlit: dashboard, OLAP và DSS, đọc Gold và `dss` qua SQL Warehouse. Power BI là future work. `dss.decision_log` do Streamlit append. OLAP = ROLAP qua SQL Warehouse. Job ETL Gold không ghi bảng này |
 | Future work | Incremental, append, CDF, Auto Loader (R28) |
 
@@ -746,7 +746,7 @@ Không ghi sẵn các hiệu số chưa đo (số dòng review theo grain mới,
 
 ### 6.6 Schema `dss` (Phase 5)
 
-Nguồn duy nhất của view là `gold.*`. Job DSS tạo view và ba bảng, rồi ghi đè hai bảng kết quả của tháng chấm (tháng `month_key` lớn nhất trên `fact_seller_monthly`). Job không xóa `dss.decision_log`. Streamlit chỉ `INSERT` bảng đó.
+Nguồn duy nhất của view là `gold.*`. Job DSS tạo view và các bảng dưới đây, rồi ghi đè điểm và kịch bản của tháng chấm **`AS_OF_MONTH` = `2018-08`** (`src/dss/params.py`). ~~Tháng `month_key` lớn nhất trên `fact_seller_monthly`~~ (đổi 11/11: 2018-09/10 thưa nên không dùng `MAX(month)`). Job không xóa `dss.decision_log`. Streamlit chỉ `INSERT` bảng đó. Ngoài hai bảng kết quả, job còn `CREATE TABLE IF NOT EXISTS` `seller_risk_contrib`, `model_eval`, `model_calibration`.
 
 `late_ship_rate_3m` là trung bình `late_ship_rate` của dòng seller-tháng hiện tại và hai dòng seller-tháng liền trước trên fact (bỏ rate null). Fact không có dòng seller-tháng rỗng, nên cửa sổ không điền tháng lịch bị thiếu. `category_group` là nhóm có nhiều item nhất trong tháng; hòa thì lấy tên nhỏ hơn theo thứ tự từ điển. `avg_distance_km` là `AVG(distance_km)` của item, bỏ null. `seller_age_days` null khi `won_date` null.
 
@@ -858,13 +858,13 @@ Giữ nguyên số từ profiling Volume 15/10/2026. Không đo lại ở Phase 
 
 **Loại OLAP: ROLAP**, chốt 26/10/2026. Databricks SQL Warehouse đọc bảng Gold. Không chọn MOLAP. Không chọn HOLAP.
 
-**Streamlit** dựng dashboard, OLAP và DSS, đọc Gold và schema `dss` qua SQL Warehouse. Kết nối từ máy local vẫn là **[GIẢ ĐỊNH]** cho đến S2. Power BI là future work. S3 không còn là cổng của app.
+**Streamlit** dựng dashboard, OLAP và DSS trên **năm trang**, đọc Gold và schema `dss` qua SQL Warehouse. App đã đọc warehouse 10–11/11/2026; RTM chưa tick S2. Power BI là future work. S3 không còn là cổng của app.
 
 Năm phép OLAP (SPEC §7) viết SQL ở Phase 4. Bus matrix §4.1 cho thấy fact nào chịu từng phép. `category_group` và `size_band` đã có luật, nên slice và dice cắt được.
 
 ### 8.1 Influence diagram (bản cuối, R36, 10/11/2026)
 
-Feature view và ba bảng `dss` nằm ở §6.6. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
+Feature view và bảng `dss` nằm ở §6.6. Sơ đồ kiểm tra Gold đã có biến cho DSS. Hình cùng SPEC §8.
 
 ```mermaid
 flowchart LR
@@ -903,7 +903,7 @@ X = 10% GMV và N = 40 seller/tháng là tham số chính sách, không phải c
 
 ## 9. Hợp đồng cho người viết DDL và ETL (Phase 3)
 
-Thứ tự đầy đủ: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly` → dss. Job ETL Phase 3 chỉ có 6 task và dừng ở `fact_seller_monthly`. Không tạo task `dss` trong Job này. Không có nhánh `USE_SAMPLE`.
+Thứ tự Job ETL: setup → bronze → silver → gold dims → gold facts → `fact_seller_monthly`. ~~→ dss~~ (đổi 05/11 và 11/11: Job DSS tách riêng). Job ETL Phase 3 chỉ có 6 task. Không tạo task `dss` trong Job này. Không có nhánh `USE_SAMPLE`.
 
 setup tạo bốn schema và `gold.etl_audit` nếu chưa có, rồi kiểm tra Volume đã có; không tạo lại Volume. DDL Gold nằm trong notebook Gold, `CREATE TABLE IF NOT EXISTS` rồi `MERGE`. DDL Silver nằm trong notebook Silver. Bronze không có DDL riêng: overwrite ghi mọi cột nghiệp vụ `STRING`. `snapshot_date` trong config là hằng số `DATE '2018-10-17'`. Bronze và Silver mỗi bước là FULL LOAD, OVERWRITE của ảnh hiện tại. Silver overwrite không thay schema, để giữ `NOT NULL`. Gold dims chèn member `-1` trước fact. Trong task gold facts: cờ mức đơn tính từ Silver, `MERGE` `fact_order_item` trước (cờ được lặp lên từng item), rồi `MERGE` `fact_order`. `fact_seller_monthly` `MERGE` sau hai fact đó. Cả 3 fact và 7 dimension chỉ dùng `WHEN MATCHED THEN UPDATE` và `WHEN NOT MATCHED THEN INSERT` (§2). Không viết `WHEN NOT MATCHED BY SOURCE THEN DELETE`. Mỗi bước ghi dòng `gold.etl_audit` của bảng đích trong cùng `run_id`. Bước dss thuộc Phase 5: job ghi `dss.seller_risk_score` và `dss.policy_scenario`. `dss.decision_log` do Streamlit ghi qua SQL Warehouse, một dòng mới cho mỗi quyết định đã chốt. Job ETL Gold không ghi `dss.decision_log`.
 

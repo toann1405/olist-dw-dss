@@ -10,15 +10,40 @@
 
 | Mục | Nội dung |
 |---|---|
-| Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Home đã có sáu khối hướng dẫn. KPI Home khớp SQL Warehouse phiên 11/11/2026. R09 chuyển ◐. Checkbox PLAN chưa tick |
-| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Không đo lại số dòng bảng điểm trong phiên này |
-| Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (Home) |
+| Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
+| Đang làm | R09 vẫn ◐. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick. Không sửa code trong phiên docs này |
+| Blocker | Không đo lại SQL trong phiên này |
+| Việc tiếp theo | Báo cáo PDF, slide, tick RTM khi DoD thật sự đủ. Không đổi công thức KPI |
+| Cập nhật | 11/11/2026 (đồng bộ README và docs/) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Đồng bộ README và docs/ với trạng thái hiện tại
+
+- **Đã làm:** Viết lại `README.md` (11 mục). Thêm `docs/glossary.md`. Cập nhật SPEC v0.10 §7 (năm trang), PLAN v0.7 (đổi phạm vi 10/11, không tick checkbox), `architecture.md` (Job DSS tách khỏi ETL), DESIGN §6.6 (tháng chấm 2018-08, không `MAX(month)`), `data/README.md` (cửa sổ Gold đã đo). Copy ba ảnh app vào `docs/images/app_*.png` từ `docs/report/screenshots/`. Không sửa `src/`. Không tick PLAN/RTM.
+- **Không làm:** không bịa số mới. Không đổi SPEC §10 grain/X/N. Không viết lại nhật ký cũ.
+
+### 11/11/2026 — Chú giải roll-up mức state không còn đè cột
+
+- **Đã làm:** Ở tab Roll-up, khi mức là `state`, hai mục chú giải ("Cao nhất", "Các nhóm còn lại") chuyển sang lề phải của biểu đồ. Mức region và city vẫn để chú giải phía trên. `style_fig` nhận `legend_side`. Không đổi SQL hay công thức.
+- **Chưa đo:** không chạy lại câu SQL. Không tick PLAN. R09 vẫn ◐.
+
+### 11/11/2026 — Tiêu đề và chú giải trên mọi biểu đồ
+
+- **Đã làm:** Thêm `style_fig(fig, title, subtitle=None, legend=True)` trong `src/frontend/lib/ui.py`. Helper gọi `apply_theme` rồi ghi đè `margin.t`, đặt tiêu đề câu hỏi (cỡ 16, đậm, x = 0) và phụ đề kỳ/bộ lọc. Chú giải nằm ngang phía trên đồ thị. Trục phần trăm dùng `tickformat` `.0%` khi tiêu đề trục có `%`. Chữ "Mẫu nhỏ" đọc `MIN_N_DISPLAY`, không chép số 30. Bản đồ giữ `fitbounds`, bang xám khi mẫu nhỏ, colorbar có đơn vị. Không tick checkbox PLAN. Không đổi RTM.
+- **Grep `st.plotly_chart` dưới `src/frontend`:** `kpi.py` (3), `kpi_panels.py` (8, trong đó bản đồ gọi `style_fig` rồi truyền cùng `figure`), `olap.py` (5, roll-up qua `_hbar` đã gọi `style_fig`), `seller_risk.py` (7), `policy.py` (1). Home không có Plotly.
+- **Đã mở app** trên `http://localhost:8501`. Home không có biểu đồ. KPI, OLAP (năm tab), Seller risk và Policy đều hiện tiêu đề và chú giải. Ảnh nằm ở `C:\Users\Administrator\AppData\Local\Temp\cursor\screenshots\` (`home-clean.png`, `kpi-sparks-titled.png`, `kpi-trend-titled.png`, `kpi-map.png`, `kpi-seller.png`, `kpi-trust.png`, `olap-rollup.png`, `olap-drill.png`, `olap-slice.png`, `olap-dice.png`, `olap-pivot.png`, `risk-hist.png`, `policy-tornado.png`).
+- **Git:** `style_fig` và các biểu đồ trong `kpi_panels.py` đã vào commit bản đồ `42e6cdb` vì hai việc sửa cùng file. Commit phiên này chỉ các trang còn lại.
+- **Không làm:** không commit `.env` hay `data/raw`. Không đổi SPEC §10.
+
+### 11/11/2026 — Bản đồ bang trên tab Xảy ra ở đâu
+
+- **Đã làm:** Tab KPI "Xảy ra ở đâu" thêm bản đồ choropleth Brazil, radio bang seller / bang khách (mặc định bang seller), và selectbox "Chỉ số" cùng hàng với "Mức địa lý". Chỉ số và mức địa lý áp cho cả bản đồ và cột. Tử và mẫu phía seller là `SUM` trên `fact_seller_monthly`, cùng định nghĩa `kpi_late_by_region` (bàn giao trễ) và `seller_month_series` (các tỷ lệ còn lại, GMV). Bang khách dựng lại từ cờ đơn và item, mỗi đơn một lần. GeoJSON 27 bang ở `src/frontend/assets/brazil_states.geojson`, nguồn click_that_hood, giấy phép MIT, khóa `sigla`. Không tick checkbox PLAN. R09 đã là ◐, không đổi.
+- **Đối soát** bộ lọc năm 2018, vùng tất cả, bang tất cả, địa lý seller, chỉ số bàn giao trễ. Cột mức Bang và bản đồ dùng cùng một khung số: 21 bang có mẫu, chênh lệch tuyệt đối lớn nhất của tỷ lệ là 0. Roll-up theo vùng khớp `kpi_late_by_region`: Centro-Oeste 95/827, Nordeste 171/1121, Norte 2/5, Sudeste 4481/49754, Sul 808/7979. Tổng tử/mẫu 5557/59686. GeoJSON có 27 mã. Bản đồ gắn đủ 27 mã, không mã thừa và không mã thiếu. Năm 2018 không có seller ở AC, AL, AM, AP, RR, TO; sáu bang đó vẫn được vẽ với n = 0. Mọi năm có seller ở 23 bang (thiếu AL, AP, RR, TO). Câu bang khách năm 2018 trả 27 mã, không mã lạ.
+- **Đã mở app:** tab hiện bản đồ, cột ngang và scatter. Không đo lại GMV toàn sàn trong phiên này.
+- **Không làm:** không đổi SPEC §10. Không commit `.env`.
 
 ### 11/11/2026 — Home bổ sung bối cảnh, người dùng và nguồn dữ liệu
 

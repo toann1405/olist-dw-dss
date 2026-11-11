@@ -11,10 +11,9 @@ from lib.glossary import explain
 from lib.labels import fmt_count, fmt_limit, fmt_number, fmt_percent_points, fmt_ratio
 from lib.stats import pareto
 from lib.ui import (
-    LATE,
     MIN_N_DISPLAY,
     NAVY,
-    apply_theme,
+    add_legend_swatch,
     badge_actual,
     badge_predicted,
     chart_note,
@@ -24,6 +23,7 @@ from lib.ui import (
     kpi_card,
     next_step,
     page_header,
+    style_fig,
 )
 from src.dss.params import AS_OF_MONTH, MIN_ORDERS, N, THETA_1, THETA_2, THETA_3, X
 from src.dss.policy import PolicyParams, simulate
@@ -195,11 +195,24 @@ def _distribution(frame: pd.DataFrame) -> None:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
     badge_predicted()
-    figure = go.Figure(go.Histogram(x=pd.to_numeric(frame["p_bad"], errors="coerce"), nbinsx=20, marker_color=PREDICTED))
-    for value, name in ((THETA_1, "Hạng 1"), (THETA_2, "Hạng 2"), (THETA_3, "Hạng 3")):
+    figure = go.Figure(
+        go.Histogram(
+            x=pd.to_numeric(frame["p_bad"], errors="coerce"),
+            nbinsx=20,
+            name="Số seller",
+            marker_color=PREDICTED,
+        )
+    )
+    for value, name in ((THETA_1, "Ngưỡng hạng 1"), (THETA_2, "Ngưỡng hạng 2"), (THETA_3, "Ngưỡng hạng 3")):
         figure.add_vline(x=float(value), line_dash="dash", line_color=PREDICTED, annotation_text=name)
-    apply_theme(figure, height=320)
-    st.plotly_chart(figure, width="stretch")
+        add_legend_swatch(figure, name, PREDICTED, dash="dash")
+    figure.update_layout(height=340)
+    figure.update_xaxes(title="Xác suất đơn xấu (%)", tickformat=".0%")
+    figure.update_yaxes(title="Số seller")
+    st.plotly_chart(
+        style_fig(figure, "Xác suất đơn xấu của seller phân bố thế nào?", f"Tháng chấm {AS_OF_MONTH}"),
+        width="stretch",
+    )
     chart_note(
         "xác suất đơn xấu tháng tới của các seller được chấm.",
         "cột dồn về bên phải là nhóm đáng lo hơn. Đường đứt là ngưỡng hạng.",
@@ -209,6 +222,7 @@ def _distribution(frame: pd.DataFrame) -> None:
     figure = go.Figure(go.Scatter(
         x=ranked["seller_share"],
         y=ranked["bad_share"],
+        name="Đơn xấu dự kiến cộng dồn (%)",
         mode="lines",
         line=dict(color=PREDICTED, dash="dash"),
     ))
@@ -218,12 +232,19 @@ def _distribution(frame: pd.DataFrame) -> None:
             y=mark["bad_share"],
             mode="markers",
             marker=dict(color=PREDICTED, size=12),
-            name=f"Top {int(N)}",
+            name=f"Top {int(N)} seller",
         )
-    apply_theme(figure, height=320)
-    figure.update_xaxes(tickformat=".0%")
-    figure.update_yaxes(tickformat=".0%")
-    st.plotly_chart(figure, width="stretch")
+    figure.update_layout(height=340)
+    figure.update_xaxes(tickformat=".0%", title="Seller, tệ nhất trước (%)")
+    figure.update_yaxes(tickformat=".0%", title="Đơn xấu dự kiến cộng dồn (%)")
+    st.plotly_chart(
+        style_fig(
+            figure,
+            "Đơn xấu dự kiến dồn vào ít seller hay trải đều?",
+            f"Tháng chấm {AS_OF_MONTH}",
+        ),
+        width="stretch",
+    )
     chart_note(
         "bao nhiêu phần đơn xấu dự kiến dồn vào nhóm seller rủi ro nhất.",
         "đường càng dốc lên sớm thì xử lý ít seller càng hiệu quả.",
@@ -234,16 +255,26 @@ def _distribution(frame: pd.DataFrame) -> None:
     figure = go.Figure(go.Scatter(
         x=plot["gmv_plot"],
         y=pd.to_numeric(plot["p_bad"], errors="coerce"),
+        name="Seller",
         mode="markers",
         text=plot["seller_id"].astype(str).str.slice(0, 8),
         marker=dict(size=8, color=PREDICTED, opacity=0.75),
     ))
-    figure.add_vline(x=median_gmv, line_dash="dot", line_color=PREDICTED)
-    figure.add_hline(y=float(THETA_2), line_dash="dot", line_color=PREDICTED)
+    figure.add_vline(x=median_gmv, line_dash="dot", line_color=PREDICTED, annotation_text="GMV trung vị")
+    figure.add_hline(y=float(THETA_2), line_dash="dot", line_color=PREDICTED, annotation_text="Ngưỡng hạng 2")
+    add_legend_swatch(figure, "GMV trung vị", PREDICTED, dash="dot")
+    add_legend_swatch(figure, "Ngưỡng hạng 2", PREDICTED, dash="dash")
+    figure.update_layout(height=440)
     figure.update_xaxes(type="log", title="GMV (R$)")
-    figure.update_yaxes(title="Xác suất đơn xấu", tickformat=".0%")
-    apply_theme(figure, height=420)
-    st.plotly_chart(figure, width="stretch")
+    figure.update_yaxes(title="Xác suất đơn xấu (%)", tickformat=".0%")
+    st.plotly_chart(
+        style_fig(
+            figure,
+            "Seller nào vừa rủi ro cao vừa chiếm nhiều GMV?",
+            f"Tháng chấm {AS_OF_MONTH}",
+        ),
+        width="stretch",
+    )
     chart_note(
         "seller nào vừa rủi ro cao vừa chiếm nhiều GMV.",
         "góc trên trái là ưu tiên dễ. Góc trên phải khó hơn vì GMV cao dễ chạm trần.",
@@ -281,12 +312,21 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
                 x=categories["share"],
                 y=categories["category_group"],
                 orientation="h",
+                name="Tỷ trọng GMV (%)",
                 marker_color=NAVY,
                 hovertemplate="%{y}<br>%{x:.1%} GMV<extra></extra>",
             ))
-            apply_theme(figure, height=max(220, 28 * len(categories)))
-            figure.update_xaxes(tickformat=".0%", title="Tỷ trọng GMV")
-            st.plotly_chart(figure, width="stretch")
+            figure.update_layout(height=max(240, 28 * len(categories) + 80), margin_l=140, margin_b=12)
+            figure.update_xaxes(tickformat=".0%", title="Tỷ trọng GMV (%)")
+            figure.update_yaxes(title="Nhóm danh mục", automargin=True)
+            st.plotly_chart(
+                style_fig(
+                    figure,
+                    "GMV của seller này nằm ở nhóm hàng nào?",
+                    f"Tháng chấm {AS_OF_MONTH} · seller {str(seller_id)[:8]}",
+                ),
+                width="stretch",
+            )
             chart_note(
                 "GMV của seller này nằm ở nhóm hàng nào.",
                 "thanh dài là nhóm mang lại nhiều doanh thu nhất.",
@@ -323,13 +363,27 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
     else:
         history["late_rate"] = [_rate(a, b) for a, b in zip(history["late_ship_count"], history["late_ship_eligible"])]
         figure = go.Figure()
-        figure.add_scatter(x=history["year_month"], y=history["late_rate"], name="Seller", mode="lines+markers", line=dict(color=NAVY))
+        figure.add_scatter(
+            x=history["year_month"],
+            y=history["late_rate"],
+            name="Seller này",
+            mode="lines+markers",
+            line=dict(color=NAVY),
+        )
         if platform_late is not None:
-            figure.add_hline(y=platform_late, line_dash="dash", annotation_text="Trung bình toàn sàn")
-        apply_theme(figure, height=280)
+            figure.add_hline(y=platform_late, line_dash="dash", line_color=NAVY, annotation_text="Trung bình toàn sàn")
+            add_legend_swatch(figure, "Trung bình toàn sàn", NAVY, dash="dash")
+        figure.update_layout(height=300)
         figure.update_xaxes(title="Tháng")
-        figure.update_yaxes(tickformat=".0%", title="Bàn giao trễ")
-        st.plotly_chart(figure, width="stretch")
+        figure.update_yaxes(tickformat=".0%", title="Bàn giao trễ (%)")
+        st.plotly_chart(
+            style_fig(
+                figure,
+                "Bàn giao trễ của seller này so với sàn theo từng tháng?",
+                f"Tháng chấm {AS_OF_MONTH} · seller {str(seller_id)[:8]}",
+            ),
+            width="stretch",
+        )
         chart_note(
             "bàn giao trễ của seller này qua từng tháng.",
             "điểm nằm trên đường đứt là tháng tệ hơn mặt bằng sàn.",
@@ -353,10 +407,20 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
             x=pd.to_numeric(contrib["contribution"], errors="coerce"),
             y=contrib["feature"],
             orientation="h",
+            name="Đóng góp (log-odds)",
             marker_color=PREDICTED,
         ))
-        apply_theme(figure, height=max(220, 28 * len(contrib)))
-        st.plotly_chart(figure, width="stretch")
+        figure.update_layout(height=max(240, 28 * len(contrib) + 80), margin_l=140, margin_b=12)
+        figure.update_xaxes(title="Đóng góp (log-odds)")
+        figure.update_yaxes(title="Yếu tố", automargin=True)
+        st.plotly_chart(
+            style_fig(
+                figure,
+                "Yếu tố nào đẩy xác suất đơn xấu của seller này?",
+                f"Tháng chấm {AS_OF_MONTH} · seller {str(seller_id)[:8]}",
+            ),
+            width="stretch",
+        )
         chart_note(
             "yếu tố nào đẩy xác suất lên hoặc kéo xuống.",
             "thanh dương là tăng rủi ro theo log-odds, không phải phần trăm.",
@@ -393,13 +457,29 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
         figure.add_scatter(
             x=pd.to_numeric(calibration["mean_pred"], errors="coerce"),
             y=pd.to_numeric(calibration["observed_rate"], errors="coerce"),
+            name="Tỷ lệ quan sát (%)",
             mode="markers+lines",
             text=calibration["n"].map(lambda item: f"n={fmt_count(item)}"),
             marker_color=NAVY,
         )
-        figure.add_scatter(x=[0, 1], y=[0, 1], mode="lines", line=dict(dash="dash", color="#8a93a0"), name="Khớp")
-        apply_theme(figure, height=320)
-        st.plotly_chart(figure, width="stretch")
+        figure.add_scatter(
+            x=[0, 1],
+            y=[0, 1],
+            mode="lines",
+            line=dict(dash="dash", color="#8a93a0"),
+            name="Khớp hoàn hảo",
+        )
+        figure.update_layout(height=340)
+        figure.update_xaxes(title="Xác suất dự báo (%)", tickformat=".0%")
+        figure.update_yaxes(title="Tỷ lệ quan sát (%)", tickformat=".0%")
+        st.plotly_chart(
+            style_fig(
+                figure,
+                "Xác suất dự báo có khớp tỷ lệ đơn xấu thực tế không?",
+                f"Tháng chấm {as_of}",
+            ),
+            width="stretch",
+        )
         chart_note(
             "xác suất dự báo và tỷ lệ đơn xấu thực tế theo nhóm.",
             "điểm nằm gần đường đứt là nhóm được hiệu chỉnh sát thực tế. n là số đơn trong nhóm.",

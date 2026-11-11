@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản | v0.6 — 05/11/2026 |
+| Phiên bản | v0.7 — 11/11/2026 |
 | Hạn nộp | **23:59 Chủ nhật 15/11/2026** (ZIP qua LMS) — mốc nội bộ: **đóng băng 14/11** |
 | Thứ tự hiện thực | **Cloud trước, local sau.** DW, ETL, OLAP SQL và DSS chạy trên Databricks Free Edition trước. Đường local (pyspark + delta-spark trên `data/sample/`, R46) chỉ làm khi phần Cloud tương ứng đã chạy được — để người chấm chạy lại, không phải nơi dựng hệ thống trước. |
 
@@ -234,6 +234,8 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11
 
+**Đổi phạm vi 10/11/2026:** một app Streamlit cho cả dashboard và DSS. ~~Power BI là dashboard Phase 4~~ (đổi 10/11: future work). ~~Ba màn hình Power BI + Streamlit DSS riêng~~ (đổi 10–11/11: năm trang trong `src/frontend/app.py`). Checkbox dưới đây **không tick** nếu DoD chưa đủ (R09 vẫn ◐).
+
 **Mục tiêu:** 5 phép OLAP trên **Gold trong Databricks** trước. Frontend gắn vào Gold đó; không dựng OLAP trên sample local trước.
 
 **Cloud**
@@ -244,14 +246,16 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 **Local → Cloud**
 
-- [ ] Streamlit, trang Tổng quan KPI: năm chỉ số ở plan app, lọc năm mua và vùng seller, đọc Gold qua SQL Warehouse (R09)
-- [ ] Streamlit, trang OLAP Explorer: đủ 5 phép, mỗi phép một visual, SQL lấy từ `src/sql/olap_queries/` (R09, R24, R25)
+- [ ] Streamlit, trang ~~Tổng quan KPI~~ **Sức khỏe marketplace đang thế nào?**: năm chỉ số ở plan app, lọc năm mua và vùng seller, đọc Gold qua SQL Warehouse (R09)
+- [ ] Streamlit, trang ~~OLAP Explorer~~ **GMV và trải nghiệm xấu đến từ đâu?**: đủ 5 phép, mỗi phép một visual, SQL lấy từ `src/sql/olap_queries/` (R09, R24, R25)
 
 **Sản phẩm:** `src/sql/olap_queries/`, `src/frontend/` (app KPI và OLAP). View DSS nằm ở Phase 5. Power BI là future work.
 **DoD:** demo đủ 5 phép trên Gold Cloud; kết quả khớp Spark SQL. Năm câu SQL trên Gold đã chạy 07/11/2026. App Streamlit gọi lại đúng các file đó. Một KPI trên app khớp một câu SQL Editor cùng bộ lọc, khi S2 chạy được. Chưa có số đối soát thì không ghi là đã khớp. Power BI không thuộc DoD.
 **Phụ thuộc:** Phase 3 Cloud (Gold đã có dữ liệu). **Rủi ro:** UI tốn thời gian → ưu tiên 5 câu SQL trên Cloud. Nếu S3 không đạt, dừng ở 2 phương án và chờ nhóm.
 
 ## Phase 5 — DSS · 26/10 → 08/11
+
+**Đổi phạm vi 10–11/11/2026:** UI DSS nằm trong cùng app Streamlit (trang 3–4), không phải app thứ hai. Tháng chấm khóa **2018-08**. Job DSS tách khỏi `olist_etl`.
 
 **Mục tiêu:** mô hình đọc Gold trên Databricks, ghi `dss.`* trên workspace trước. UI local chỉ là lớp gọi warehouse.
 
@@ -265,14 +269,14 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 **Local → Cloud** (sau khi bảng `dss.`* đã có trên Cloud và S2 đạt)
 
-- [ ] Hai trang còn lại của cùng app: Seller risk đọc `dss.seller_risk_score`; Policy scenario gọi `policy.py` trên điểm đã ghi, rồi append `dss.decision_log` (R32, R34, R35). Nếu S2 không đạt: ghi 2 phương án, chờ, không đọc CSV
+- [ ] Hai trang còn lại của cùng app: ~~Seller risk~~ **Seller nào đáng lo nhất?** đọc `dss.seller_risk_score` tháng 2018-08; ~~Policy scenario~~ **Chọn chính sách nào?** gọi `policy.py` trên điểm đã ghi, rồi append `dss.decision_log` (R32, R34, R35). Nếu S2 không đạt: ghi 2 phương án, chờ, không đọc CSV
 
 **Local** (tài liệu, không cần cluster)
 
 - [ ] Influence diagram bản cuối, bảng biến, phân loại DSS, ánh xạ pha (R36, R37, R38)
 - [ ] (ĐC) luật khuyến nghị hành động theo hạng (R43)
 
-**Sản phẩm:** `src/dss/` (giữ notebook hiện có), hai trang DSS trong `src/frontend/app.py`.
+**Sản phẩm:** `src/dss/` (giữ notebook hiện có), hai trang DSS trong cùng `src/frontend/app.py` (cộng trang Home).
 **DoD:** so sánh ≥ 3 phương án (P0/P1/P2), số liệu lấy từ Gold trên Cloud; không có `read_csv` / đường dẫn `data/raw` trong `src/dss/`. Trang Policy không ghi đè `dss.policy_scenario`.
 **Phụ thuộc:** Phase 3 Cloud (`gold.fact_seller_monthly`). UI cần S2. **Rủi ro:** M1 kém → giữ baseline, nêu ở hạn chế; M2 + what-if trên Cloud là tối thiểu bắt buộc.
 
