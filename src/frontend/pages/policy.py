@@ -26,7 +26,7 @@ from lib.labels import (
     policy_name,
 )
 from lib.policy_cache import cached_compare, cached_goal, cached_tornado, param_token, score_token
-from lib.ui import apply_theme, badge_predicted, chart_note, fmt_brl, insight_box, next_step, page_header
+from lib.ui import badge_predicted, chart_note, fmt_brl, insight_box, next_step, page_header, style_fig
 from src.dss.params import (
     AS_OF_MONTH,
     AVG_REVIEW_THRESHOLD,
@@ -270,6 +270,7 @@ def _tornado_chart(frame: pd.DataFrame) -> None:
             x=[row["span"] for row in ordered],
             y=[row["label"] for row in ordered],
             orientation="h",
+            name="Độ lệch đơn xấu dự kiến (số đơn)",
             marker_color="#6d28d9",
             customdata=[[fmt_number(row["low"]), fmt_number(row["high"])] for row in ordered],
             hovertemplate=(
@@ -278,10 +279,17 @@ def _tornado_chart(frame: pd.DataFrame) -> None:
             ),
         )
     )
-    apply_theme(figure, height=280)
-    figure.update_layout(margin=dict(l=140, r=16, t=24, b=16))
-    figure.update_xaxes(title="Độ lệch đơn xấu dự kiến")
-    st.plotly_chart(figure, width="stretch")
+    figure.update_layout(height=320, margin_l=160, margin_r=16, margin_b=16)
+    figure.update_xaxes(title="Độ lệch đơn xấu dự kiến (số đơn)")
+    figure.update_yaxes(title="Giả định", automargin=True)
+    st.plotly_chart(
+        style_fig(
+            figure,
+            "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?",
+            f"Lệch ±20% quanh ngưỡng gợi ý · tháng chấm {AS_OF_MONTH}",
+        ),
+        width="stretch",
+    )
     chart_note(
         "giả định nào làm đơn xấu dự kiến đổi nhiều nhất khi lệch ±20%.",
         "thanh dài nhất là giả định cần kiểm chứng trước.",

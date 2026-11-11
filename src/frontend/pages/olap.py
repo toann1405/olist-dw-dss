@@ -8,9 +8,24 @@ import streamlit as st
 
 from lib import db, queries
 from lib.glossary import explain
-from lib.ui import LATE, MIN_N_DISPLAY, REVIEW, apply_theme, filters, fmt_int, fmt_pct, kpi_card, next_step, page_header
+from lib.ui import (
+    LATE,
+    MIN_N_DISPLAY,
+    NEUTRAL,
+    REVIEW,
+    add_legend_swatch,
+    filters,
+    fmt_int,
+    fmt_pct,
+    highlight_colors,
+    kpi_card,
+    next_step,
+    page_header,
+    small_n_label,
+    style_fig,
+)
 
-DICE_MIN_N = 30
+DICE_MIN_N = MIN_N_DISPLAY
 
 
 def _num(series_value):
@@ -87,25 +102,26 @@ def _place_label(frame: pd.DataFrame, level: str) -> pd.DataFrame:
     return out
 
 
-def _hbar(labels, rates, samples, color: str, title: str) -> go.Figure:
-    from lib.ui import highlight_colors
-
+def _hbar(labels, rates, samples, color: str, axis_title: str, question: str, subtitle: str) -> go.Figure:
     colors = highlight_colors([float(value) for value in rates], color)
     fig = go.Figure(
         go.Bar(
             x=rates,
             y=labels,
             orientation="h",
+            name=axis_title,
+            showlegend=False,
             marker_color=colors,
             customdata=samples,
-            hovertemplate="%{y}<br>" + title + " %{x:.1%}<br>n %{customdata:,.0f}<extra></extra>",
+            hovertemplate="%{y}<br>" + axis_title + " %{x:.1%}<br>n %{customdata:,.0f}<extra></extra>",
         )
     )
-    apply_theme(fig, height=max(260, 34 * len(labels) + 70))
-    fig.update_layout(margin=dict(l=160, r=16, t=24, b=16))
-    fig.update_xaxes(tickformat=".0%", title=title)
-    fig.update_yaxes(automargin=True)
-    return fig
+    add_legend_swatch(fig, "Cao nhất", color)
+    add_legend_swatch(fig, "Các nhóm còn lại", NEUTRAL)
+    fig.update_layout(height=max(280, 34 * len(labels) + 120), margin_l=160, margin_r=16, margin_b=16)
+    fig.update_xaxes(tickformat=".0%", title=axis_title)
+    fig.update_yaxes(title="Nơi bán", automargin=True)
+    return style_fig(fig, question, subtitle)
 
 
 def _kpi_strip() -> None:
@@ -181,7 +197,15 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
         else:
             ordered = shown.sort_values("late_ship_rate")
             st.plotly_chart(
-                _hbar(ordered["axis"], ordered["late_ship_rate"], ordered["eligible_items"], LATE, "Bàn giao trễ"),
+                _hbar(
+                    ordered["axis"],
+                    ordered["late_ship_rate"],
+                    ordered["eligible_items"],
+                    LATE,
+                    "Bàn giao trễ (%)",
+                    "Bàn giao trễ là chuyện cả vùng hay một nơi?",
+                    f"Mức {level} · mọi năm · không theo bộ lọc sidebar",
+                ),
                 width="stretch",
             )
     with side:
@@ -234,6 +258,7 @@ def _tab_drill(frame: pd.DataFrame) -> None:
                 go.Scatter(
                     x=grouped["axis"],
                     y=grouped["negative_review_rate"],
+                    name="Review xấu (%)",
                     mode="lines+markers",
                     line=dict(color=REVIEW, width=2),
                     marker=dict(color="#c8963e", size=8),
@@ -241,9 +266,17 @@ def _tab_drill(frame: pd.DataFrame) -> None:
                     hovertemplate="%{x}<br>Review xấu %{y:.1%}<br>n %{customdata:,.0f}<extra></extra>",
                 )
             )
-            apply_theme(fig, 360)
-            fig.update_yaxes(tickformat=".0%", title="Review xấu")
-            st.plotly_chart(fig, width="stretch")
+            fig.update_layout(height=360)
+            fig.update_xaxes(title="Kỳ")
+            fig.update_yaxes(tickformat=".0%", title="Review xấu (%)")
+            st.plotly_chart(
+                style_fig(
+                    fig,
+                    "Kỳ nào review xấu nổi hơn các kỳ quanh nó?",
+                    "Mọi năm · review trên đơn sàn · không theo bộ lọc sidebar",
+                ),
+                width="stretch",
+            )
     with side:
         _panel(
             "Kỳ nào review xấu nổi hơn các kỳ quanh nó?",
@@ -301,15 +334,23 @@ def _tab_slice(groups: pd.DataFrame) -> None:
                     x=plot["late_delivery_rate"],
                     y=plot["short_id"],
                     orientation="h",
+                    name="Giao trễ tới khách (%)",
                     marker_color="#c8963e",
                     customdata=list(zip(plot["seller_id"], plot["eligible_orders"])),
                     hovertemplate="%{customdata[0]}<br>Giao trễ %{x:.1%}<br>n %{customdata[1]:,.0f}<extra></extra>",
                 )
             )
-            apply_theme(fig, max(280, 32 * len(plot) + 60))
-            fig.update_xaxes(tickformat=".0%")
-            fig.update_layout(margin=dict(l=90, r=12, t=24, b=12))
-            st.plotly_chart(fig, width="stretch")
+            fig.update_layout(height=max(300, 32 * len(plot) + 100), margin_l=90, margin_r=12, margin_b=12)
+            fig.update_xaxes(tickformat=".0%", title="Giao trễ tới khách (%)")
+            fig.update_yaxes(title="Seller", automargin=True)
+            st.plotly_chart(
+                style_fig(
+                    fig,
+                    "Seller nào giao trễ tới khách nhiều nhất trong nhóm này?",
+                    f"Nhóm {chosen} · ít nhất {minimum} đơn đủ mẫu · không theo bộ lọc sidebar",
+                ),
+                width="stretch",
+            )
     with side:
         _panel(
             "Trong một nhóm danh mục, seller nào giao trễ tới khách nhiều nhất?",
@@ -366,10 +407,23 @@ def _tab_dice(frame: pd.DataFrame) -> None:
                 customdata=kept["review_eligible_orders"],
                 hovertemplate="%{y}<br>Review xấu %{x:.1%}<br>n %{customdata:,.0f}<extra></extra>",
             )
-            apply_theme(fig, max(320, 46 * len(kept) + 80))
-            fig.update_xaxes(tickformat=".0%")
-            fig.update_layout(barmode="group", margin=dict(l=120, r=12, t=24, b=12))
-            st.plotly_chart(fig, width="stretch")
+            fig.update_layout(
+                height=max(340, 46 * len(kept) + 120),
+                barmode="group",
+                margin_l=140,
+                margin_r=12,
+                margin_b=12,
+            )
+            fig.update_xaxes(tickformat=".0%", title="Tỷ lệ (%)")
+            fig.update_yaxes(title="Bang seller", automargin=True)
+            st.plotly_chart(
+                style_fig(
+                    fig,
+                    "Bang nào vừa giao trễ vừa bị review xấu trong lát cắt này?",
+                    "Khách Norte hoặc Nordeste · quý 1–2/2018 · hàng bulky · không theo bộ lọc sidebar",
+                ),
+                width="stretch",
+            )
     with side:
         _panel(
             "Ở lát cắt này, bang seller nào trễ và bị review xấu?",
@@ -434,13 +488,21 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
                     text=text.values,
                     texttemplate="%{text}",
                     hovertemplate="%{y} %{x}<br>%{z:.1%}<br>n %{customdata:,.0f}<extra></extra>",
-                    colorbar=dict(tickformat=".0%", title="Trễ"),
+                    colorbar=dict(tickformat=".0%", title="Bàn giao trễ (%)"),
                 )
             )
-            apply_theme(fig, max(360, 42 * len(categories) + 80))
-            fig.update_layout(margin=dict(l=210, r=16, t=24, b=16))
-            fig.update_yaxes(automargin=True)
-            st.plotly_chart(fig, width="stretch")
+            add_legend_swatch(fig, small_n_label(), "#d9d3c9")
+            fig.update_layout(height=max(380, 42 * len(categories) + 120), margin_l=210, margin_r=16, margin_b=16)
+            fig.update_xaxes(title="Quý")
+            fig.update_yaxes(title="Nhóm danh mục", automargin=True)
+            st.plotly_chart(
+                style_fig(
+                    fig,
+                    "Nhóm danh mục nào kéo bàn giao trễ theo quý?",
+                    f"Mọi năm gộp theo quý · ô trống khi {small_n_label()} · không theo bộ lọc sidebar",
+                ),
+                width="stretch",
+            )
     with side:
         _panel(
             "Nhóm danh mục nào kéo bàn giao trễ theo quý?",

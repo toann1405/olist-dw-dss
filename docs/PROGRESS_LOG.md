@@ -11,14 +11,22 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Phase 4 và Phase 5 dùng một app Streamlit. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40 |
-| Đang làm | Tab KPI "Xảy ra ở đâu" có bản đồ 27 bang. Home giữ mục nhật ký Home. R09 vẫn ◐. Checkbox PLAN chưa tick |
-| Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Không đo lại số dòng bảng điểm trong phiên này |
-| Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 11/11/2026 (bản đồ bang) |
+| Đang làm | Mọi biểu đồ Plotly đi qua `style_fig`. Bản đồ bang nằm trên tab "Xảy ra ở đâu". R09 vẫn ◐. Checkbox PLAN chưa tick |
+| Blocker | Không đo lại SQL trong phiên này |
+| Việc tiếp theo | Rà tiêu đề bị cắt trên cột hẹp của OLAP. Không đổi công thức KPI |
+| Cập nhật | 11/11/2026 (tiêu đề và chú giải biểu đồ) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Tiêu đề và chú giải trên mọi biểu đồ
+
+- **Đã làm:** Thêm `style_fig(fig, title, subtitle=None, legend=True)` trong `src/frontend/lib/ui.py`. Helper gọi `apply_theme` rồi ghi đè `margin.t`, đặt tiêu đề câu hỏi (cỡ 16, đậm, x = 0) và phụ đề kỳ/bộ lọc. Chú giải nằm ngang phía trên đồ thị. Trục phần trăm dùng `tickformat` `.0%` khi tiêu đề trục có `%`. Chữ "Mẫu nhỏ" đọc `MIN_N_DISPLAY`, không chép số 30. Bản đồ giữ `fitbounds`, bang xám khi mẫu nhỏ, colorbar có đơn vị. Không tick checkbox PLAN. Không đổi RTM.
+- **Grep `st.plotly_chart` dưới `src/frontend`:** `kpi.py` (3), `kpi_panels.py` (8, trong đó bản đồ gọi `style_fig` rồi truyền cùng `figure`), `olap.py` (5, roll-up qua `_hbar` đã gọi `style_fig`), `seller_risk.py` (7), `policy.py` (1). Home không có Plotly.
+- **Đã mở app** trên `http://localhost:8501`. Home không có biểu đồ. KPI, OLAP (năm tab), Seller risk và Policy đều hiện tiêu đề và chú giải. Ảnh nằm ở `C:\Users\Administrator\AppData\Local\Temp\cursor\screenshots\` (`home-clean.png`, `kpi-sparks-titled.png`, `kpi-trend-titled.png`, `kpi-map.png`, `kpi-seller.png`, `kpi-trust.png`, `olap-rollup.png`, `olap-drill.png`, `olap-slice.png`, `olap-dice.png`, `olap-pivot.png`, `risk-hist.png`, `policy-tornado.png`).
+- **Git:** `style_fig` và các biểu đồ trong `kpi_panels.py` đã vào commit bản đồ `42e6cdb` vì hai việc sửa cùng file. Commit phiên này chỉ các trang còn lại.
+- **Không làm:** không commit `.env` hay `data/raw`. Không đổi SPEC §10.
 
 ### 11/11/2026 — Bản đồ bang trên tab Xảy ra ở đâu
 
