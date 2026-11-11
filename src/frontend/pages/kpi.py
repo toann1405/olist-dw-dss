@@ -7,21 +7,25 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db, queries
+from lib.glossary import explain
+from lib.insights import build_insight_kpi
 from lib.ui import (
     LATE,
     NAVY,
-    REVIEW,
     apply_theme,
     filters,
     fmt_brl,
     fmt_int,
     fmt_pct,
     highlight_colors,
+    insight_box,
     kpi_card,
+    next_step,
     page_header,
     signed_pct,
     signed_points,
 )
+from src.dss.params import MIN_ORDERS
 
 
 def _num(value):
@@ -185,7 +189,11 @@ def _risk_table() -> None:
 
 def render(settings=None) -> None:
     del settings
-    page_header("Tổng quan KPI", "Sức khỏe sàn theo seller, trong bộ lọc đang chọn.", "kpi")
+    page_header(
+        "Sức khỏe marketplace đang thế nào?",
+        "Sáu chỉ số giữ nguyên công thức. Câu phía trên theo bộ lọc đang chọn.",
+        "Tổng quan KPI",
+    )
     year, region, state, category = filters()
     try:
         with st.spinner("Đang hỏi SQL Warehouse..."):
@@ -205,7 +213,13 @@ def render(settings=None) -> None:
             regions = db.query(*queries.kpi_late_by_region(year, state))
     except Exception as exc:
         db.show_warehouse_error(exc)
+        next_step("kpi")
         return
+    try:
+        story = db.query(*queries.story_by_region(year, region, state, category))
+        insight_box(build_insight_kpi(story, MIN_ORDERS))
+    except Exception as exc:
+        st.error(db.redact(exc))
 
     def _growth(now, before):
         if now is None or before in (None, 0):
@@ -221,17 +235,13 @@ def render(settings=None) -> None:
         points_review = signed_points(current["review_rate"], previous["review_rate"])
         points_cancel = signed_points(current["cancel_rate"], previous["cancel_rate"])
 
-    review_help = (
-        "Tử: đơn review ≤ 2 của seller. Mẫu: đơn có điểm, một seller, không cross_seller. "
-        f"n = {fmt_int(current['review_n'])}. Bộ lọc nhóm danh mục không tách measure này."
-    )
     specs = [
-        ("GMV", fmt_brl(current["gmv"]), money_delta, "SUM(price), không gồm cước, loại canceled và unavailable.", "normal"),
-        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, "Đơn phân biệt không canceled và không unavailable.", "normal"),
-        ("AOV", fmt_brl(current["aov"]), aov_delta, "GMV trong bộ lọc / số đơn phân biệt đó.", "normal"),
-        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, f"Item trễ / item có cờ khác null. n = {fmt_int(current['late_n'])}.", "inverse"),
-        ("Review xấu", fmt_pct(current["review_rate"]), points_review, review_help, "inverse"),
-        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, f"Đơn canceled hoặc unavailable / mọi đơn. n = {fmt_int(current['cancel_n'])}.", "inverse"),
+        ("GMV", fmt_brl(current["gmv"]), money_delta, explain("gmv"), "normal"),
+        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, explain("valid_orders"), "normal"),
+        ("AOV", fmt_brl(current["aov"]), aov_delta, explain("aov"), "normal"),
+        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, explain("late_ship"), "inverse"),
+        ("Review xấu", fmt_pct(current["review_rate"]), points_review, explain("negative_review"), "inverse"),
+        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, explain("cancel_rate"), "inverse"),
     ]
     for start in (0, 3):
         for column, (label, value, delta, help_text, color) in zip(st.columns(3), specs[start : start + 3]):
@@ -254,3 +264,4 @@ def render(settings=None) -> None:
             _risk_table()
         except Exception as exc:
             st.error(db.redact(exc))
+    next_step("kpi")

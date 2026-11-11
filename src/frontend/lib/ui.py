@@ -94,23 +94,33 @@ def signed_points(current, previous) -> str | None:
     return sign + body
 
 
-def page_header(title: str, subtitle: str, page_key: str) -> None:
-    text, action = st.columns([4, 1])
+def page_header(title_question: str, subtitle: str, tech_name: str) -> None:
+    text, action = st.columns([5, 1], vertical_alignment="center", gap="medium")
     with text:
-        st.markdown(
-            f"""
-            <div style="background:{NAVY};color:#f7f4ef;padding:16px 20px;border-radius:12px;">
-              <div style="font-size:26px;font-weight:650;letter-spacing:-0.02em;">{title}</div>
-              <div style="margin-top:4px;font-size:15px;opacity:0.9;">{subtitle}</div>
-              <div style="margin-top:8px;font-size:12px;opacity:0.72;">
-                Snapshot 2018-10-17 · dữ liệu 2016–2018
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"### {title_question}")
+        st.caption(tech_name)
+        if subtitle:
+            st.write(subtitle)
     with action:
-        db.refresh_button(page_key)
+        db.refresh_button(tech_name)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+
+def insight_box(text: str) -> None:
+    st.info(text)
+
+
+def next_step(current: str) -> None:
+    order = ("home", "kpi", "olap", "risk", "policy")
+    if current not in order:
+        return
+    pages = st.session_state.get("nav_pages", {})
+    target_key = order[(order.index(current) + 1) % len(order)]
+    target = pages.get(target_key)
+    if target is None:
+        return
+    if st.button("Bước tiếp theo →", key=f"next_{current}"):
+        st.switch_page(target)
 
 
 def kpi_card(label: str, value: str, delta: str | None = None, help_text: str | None = None, delta_color: str = "normal") -> None:

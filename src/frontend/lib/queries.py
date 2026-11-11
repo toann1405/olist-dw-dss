@@ -128,3 +128,81 @@ def insert_decision(values: tuple) -> tuple[str, tuple]:
     if len(values) != 22:
         raise ValueError("decision_log insert expects 22 values")
     return load("insert_decision.sql"), tuple(values)
+
+
+def _bind(sql_text: str) -> str:
+    """Substitute catalog names and the parameter marker. Values stay in the tuple."""
+    cfg = db.settings()
+    return (
+        sql_text.replace("{catalog}", cfg["catalog"])
+        .replace("{gold}", cfg["gold"])
+        .replace("{dss}", cfg["dss"])
+        .replace("{p}", db.marker())
+    )
+
+
+_ACTIVE_SELLERS = """
+SELECT COUNT(DISTINCT seller_key) AS active_sellers
+FROM {catalog}.{gold}.fact_seller_monthly
+WHERE seller_key <> -1
+  AND n_orders_valid >= 1
+"""
+
+_STORY_BY_REGION = """
+WITH items AS (
+  SELECT
+    i.order_id,
+    i.price,
+    o.bad_experience_flag,
+    st.order_status,
+    s.region_name
+  FROM {catalog}.{gold}.fact_order_item AS i
+  INNER JOIN {catalog}.{gold}.fact_order AS o
+    ON i.order_id = o.order_id
+  INNER JOIN {catalog}.{gold}.dim_order_status AS st
+    ON o.order_status_key = st.order_status_key
+  INNER JOIN {catalog}.{gold}.dim_seller AS s
+    ON i.seller_key = s.seller_key
+  INNER JOIN {catalog}.{gold}.dim_date AS d
+    ON i.purchase_date_key = d.date_key
+  LEFT JOIN {catalog}.{gold}.dim_product AS p
+    ON i.product_key = p.product_key
+  WHERE i.seller_key <> -1
+    AND s.seller_key <> -1
+    AND d.date_key <> -1
+    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR s.region_name = {p})
+    AND ({p} IS NULL OR s.state_code = {p})
+    AND ({p} IS NULL OR p.category_group = {p})
+)
+SELECT
+  CASE
+    WHEN GROUPING(region_name) = 1 THEN '__total__'
+    ELSE COALESCE(region_name, '(không map được vùng)')
+  END AS region_name,
+  GROUPING(region_name) AS is_total,
+  SUM(
+    CASE
+      WHEN order_status IS NULL OR order_status NOT IN ('canceled', 'unavailable')
+        THEN price
+    END
+  ) AS gmv,
+  COUNT(DISTINCT CASE WHEN bad_experience_flag = 1 THEN order_id END) AS bad_orders,
+  COUNT(DISTINCT CASE WHEN bad_experience_flag IS NOT NULL THEN order_id END) AS eligible_orders
+FROM items
+GROUP BY GROUPING SETS ((region_name), ())
+"""
+
+
+def active_sellers() -> tuple[str, tuple]:
+    return _bind(_ACTIVE_SELLERS), ()
+
+
+def story_by_region(
+    year: int | None,
+    region: str | None,
+    state: str | None,
+    category: str | None,
+) -> tuple[str, tuple]:
+    params = (year, year, region, region, state, state, category, category)
+    return _bind(_STORY_BY_REGION), params

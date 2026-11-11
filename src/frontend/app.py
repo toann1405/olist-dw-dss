@@ -32,7 +32,7 @@ def render_sidebar() -> None:
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("Dashboard và DSS trên Gold")
+    st.sidebar.caption("Đọc theo thứ tự 1 → 4")
     try:
         years = _labels(db.query(*queries.years()), "year")
         years = [ALL] + [str(int(float(value))) for value in years if value != ALL]
@@ -57,11 +57,31 @@ def main() -> None:
     st.set_page_config(layout="wide", page_title="Olist Seller Performance", page_icon=":material/storefront:")
     render_sidebar()
     pages = {
-        "home": st.Page(home.render, title="Home", icon=":material/home:", url_path="home", default=True),
-        "kpi": st.Page(kpi.render, title="Tổng quan KPI", icon=":material/monitoring:", url_path="kpi"),
-        "olap": st.Page(olap.render, title="OLAP Explorer", icon=":material/account_tree:", url_path="olap"),
-        "risk": st.Page(seller_risk.render, title="Seller risk", icon=":material/warning:", url_path="risk"),
-        "policy": st.Page(policy.render, title="Policy scenario", icon=":material/rule:", url_path="policy"),
+        "home": st.Page(home.render, title="0 · Giới thiệu", icon=":material/home:", url_path="home", default=True),
+        "kpi": st.Page(
+            kpi.render,
+            title="1 · Sức khỏe marketplace đang thế nào?",
+            icon=":material/monitoring:",
+            url_path="kpi",
+        ),
+        "olap": st.Page(
+            olap.render,
+            title="2 · GMV và trải nghiệm xấu đến từ đâu?",
+            icon=":material/account_tree:",
+            url_path="olap",
+        ),
+        "risk": st.Page(
+            seller_risk.render,
+            title="3 · Seller nào đáng lo nhất?",
+            icon=":material/warning:",
+            url_path="risk",
+        ),
+        "policy": st.Page(
+            policy.render,
+            title="4 · Chọn chính sách nào?",
+            icon=":material/rule:",
+            url_path="policy",
+        ),
     }
     st.session_state["nav_pages"] = pages
     if hasattr(st, "navigation"):

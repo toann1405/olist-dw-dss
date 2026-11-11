@@ -7,7 +7,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db, queries
-from lib.ui import LATE, NEUTRAL, REVIEW, apply_theme, filters, fmt_int, fmt_pct, kpi_card, page_header
+from lib.glossary import explain
+from lib.insights import build_insight_olap
+from lib.ui import LATE, REVIEW, apply_theme, filters, fmt_int, fmt_pct, insight_box, kpi_card, next_step, page_header
+from src.dss.params import MIN_ORDERS
 
 DICE_MIN_N = 30
 
@@ -109,10 +112,10 @@ def _kpi_strip() -> None:
     aov = _ratio(orders["gmv_from_items"], orders["valid_orders"])
     columns = st.columns(4)
     values = [
-        ("GMV", fmt_brl_local(gmv), "SUM(price), không gồm cước, loại canceled và unavailable."),
-        ("AOV", fmt_brl_local(aov), "GMV / số đơn phân biệt còn hiệu lực."),
-        ("Bàn giao trễ", fmt_pct(late), f"n = {fmt_int(monthly['late_ship_eligible'])} item có cờ."),
-        ("Review xấu", fmt_pct(review), f"n = {fmt_int(monthly['negative_review_eligible'])} đơn seller."),
+        ("GMV", fmt_brl_local(gmv), explain("gmv")),
+        ("AOV", fmt_brl_local(aov), explain("aov")),
+        ("Bàn giao trễ", fmt_pct(late), explain("late_ship")),
+        ("Review xấu", fmt_pct(review), explain("negative_review")),
     ]
     for column, (label, value, help_text) in zip(columns, values):
         with column:
@@ -387,7 +390,17 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
 
 def render(settings=None) -> None:
     del settings
-    page_header("OLAP Explorer", "Năm phép trên Gold. Mỗi tab là một câu hỏi nghiệp vụ.", "olap")
+    page_header(
+        "GMV và trải nghiệm xấu đến từ đâu?",
+        "Năm phép giữ nguyên tên và câu SQL. Câu phía trên theo bộ lọc đang chọn.",
+        "OLAP Explorer",
+    )
+    year, region, state, category = filters()
+    try:
+        story = db.query(*queries.story_by_region(year, region, state, category))
+        insight_box(build_insight_olap(story, MIN_ORDERS))
+    except Exception as exc:
+        st.error(db.redact(exc))
     _kpi_strip()
     with st.spinner("Đang hỏi SQL Warehouse..."):
         rollup, rollup_error = _load(lambda: db.query(*queries.rollup()))
@@ -421,3 +434,4 @@ def render(settings=None) -> None:
             st.error(db.redact(pivot_error))
         else:
             _tab_pivot(pivot)
+    next_step("olap")

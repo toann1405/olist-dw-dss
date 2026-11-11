@@ -14,11 +14,22 @@
 | Đang làm | App local đã đọc Gold qua SQL Warehouse. Bảng điểm DSS trên warehouse chỉ có 1 dòng, `n_orders_valid` = 1 |
 | Blocker | Job DSS chưa có snapshot đủ seller cho `min_orders` = 5. Checkbox PLAN và RTM chưa tick |
 | Việc tiếp theo | Chạy `src/dss/dss_job.py` trên workspace để ghi đủ `dss.seller_risk_score`, rồi mở lại trang Seller risk và Policy |
-| Cập nhật | 10/11/2026 (UI Streamlit: theme, Home, KPI card, OLAP tabs) |
+| Cập nhật | 11/11/2026 (Streamlit kể chuyện: glossary, insight, điều hướng) |
 
 ---
 
 ## Nhật ký
+
+### 11/11/2026 — Streamlit: kể chuyện cho business
+
+- **Đã làm:** điều hướng 0–4 theo câu hỏi. `lib/glossary.py` là một nguồn định nghĩa. Insight trang 1–4 sinh từ dữ liệu (`lib/insights.py`), chỉ so nhóm có n ≥ `min_orders` (5). Query mới `story_by_region` và `active_sellers` dùng tham số, không f-string. Sáu KPI giữ SQL và công thức cũ. Không tick PLAN hay RTM.
+- **Đã chạy:** `python -m pytest src/tests/test_insights.py` — 8 passed. Bộ lọc tất cả, sáu KPI: GMV 13494400.74, đơn hợp lệ 98199, AOV 137.418922188617, bàn giao trễ 0.10069651741293532, review xấu 0.13692249984370766, cancel 0.004733140088784384. Khớp số đã ghi 10/11. App hiện GMV R$ 13,49 tr, trải nghiệm xấu 16,8%, 3.053 seller. Insight tất cả: Norte 26,9% (n=26). Năm 2018: 17,4%, Norte 20,0% (n=5); tổng GMV 7341182.41, tử 9315, mẫu 53514. Trang Seller risk: "Chưa đủ dữ liệu để kết luận" vì bảng điểm không có seller với `min_orders` 5. Policy mở được, tháng chấm 2018-09, insight P1 trên snapshot hiện có (một seller).
+- **Không làm:** không đổi grain, không sửa ETL, không commit `.env`.
+
+### 11/11/2026 — Xóa file Power BI
+
+- **Đã làm:** xóa `src/frontend/dashboard.pbix`, `dashboard.pbip`, `dashboard.Report/`, `dashboard.SemanticModel/`, và hai thư mục backup `_backup_pbip_20261110_114343`, `_backup_pbip_20261110_120846`. App Streamlit giữ nguyên. Không tick checkbox PLAN hay cột TT của RTM. Quyết định SPEC §10 (Power BI là future work) không đổi.
+- **Không làm:** không xóa `src/frontend/olist_seller_performance.lvdash.json` (file Lakeview / AI/BI, không phải Power BI). Không sửa ETL. Không commit.
 
 ### 10/11/2026 — UI Streamlit: theme, Home, KPI card, tab OLAP
 
