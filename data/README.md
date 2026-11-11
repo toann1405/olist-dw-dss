@@ -1,6 +1,6 @@
 # Data — Olist Brazilian E-Commerce
 
-> **Status (10/10/2026): downloaded on 10/10/2026.** The 9 Olist CSVs are in `data/raw/` (none missing, none extra versus the expected list). Marketing Funnel is in `data/external/`. Counts below come from `python src/notebooks/00_verify_and_sample.py` on that date. Detail: `docs/PROGRESS_LOG.md`.
+> **Status (10/10/2026): downloaded on 10/10/2026.** The 9 Olist CSVs are in `data/raw/` (none missing, none extra versus the expected list). Marketing Funnel is in `data/external/`. Counts below come from `python src/notebooks/00_verify_and_sample.py` on that date. Gold on the warehouse was queried 11/11/2026: 99,441 orders, purchase window 2016-09-04 → 2018-10-17 (`docs/PROGRESS_LOG.md`). Upload path: `/Volumes/olist_catalog/bronze/raw/` (`olist/`, `funnel/`, `ref/`).
 
 ## 1. Sources and license
 

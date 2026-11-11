@@ -3,7 +3,7 @@
 | Mục | Giá trị |
 |---|---|
 | Ngày | 10/10/2026 (tuần 7); cổng G1–G6 đo trên Volume 15/10/2026 |
-| Trạng thái | **T1 chốt (15/10/2026).** G1–G5 pass; G6 record 380/3.095 (12,3%). |
+| Trạng thái | **T1 chốt (15/10/2026).** G1–G5 pass; G6 record 380/3.095 (12,3%). Frontend hiện hành: một app Streamlit (10/11/2026). Power BI là future work. |
 | Kết luận | **T1 Seller Performance** |
 
 Ký hiệu: **[ĐỀ]** có trong file đề · **[SUY LUẬN]** do nhóm suy ra · **[GIẢ ĐỊNH]** chưa kiểm chứng, kiểm tra ở Phase 1.

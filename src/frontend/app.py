@@ -28,6 +28,10 @@ def _keep(key: str, options: list[str]) -> None:
 
 
 def render_sidebar() -> None:
+    pending_state = st.session_state.pop("pending_filter_state", None)
+    if pending_state:
+        st.session_state["filter_region"] = ALL
+        st.session_state["filter_state"] = str(pending_state)
     st.sidebar.markdown(
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
@@ -72,28 +76,28 @@ def main() -> None:
     st.set_page_config(layout="wide", page_title="Olist Seller Performance", page_icon=":material/storefront:")
     render_sidebar()
     pages = {
-        "home": st.Page(home.render, title="0 · Giới thiệu", icon=":material/home:", url_path="home", default=True),
+        "home": st.Page(home.render, title="Giới thiệu", icon=":material/home:", url_path="home", default=True),
         "kpi": st.Page(
             kpi.render,
-            title="1 · Sức khỏe marketplace đang thế nào?",
+            title="Sức khỏe marketplace đang thế nào?",
             icon=":material/monitoring:",
             url_path="kpi",
         ),
         "olap": st.Page(
             olap.render,
-            title="2 · GMV và trải nghiệm xấu đến từ đâu?",
+            title="GMV và trải nghiệm xấu đến từ đâu?",
             icon=":material/account_tree:",
             url_path="olap",
         ),
         "risk": st.Page(
             seller_risk.render,
-            title="3 · Seller nào đáng lo nhất?",
+            title="Seller nào đáng lo nhất?",
             icon=":material/warning:",
             url_path="risk",
         ),
         "policy": st.Page(
             policy.render,
-            title="4 · Chọn chính sách nào?",
+            title="Chọn chính sách nào?",
             icon=":material/rule:",
             url_path="policy",
         ),

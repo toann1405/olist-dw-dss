@@ -14,7 +14,8 @@ from pages import kpi_panels
 from lib.ui import (
     LATE,
     NAVY,
-    apply_theme,
+    NEUTRAL,
+    add_legend_swatch,
     filters,
     fmt_brl,
     fmt_int,
@@ -24,8 +25,10 @@ from lib.ui import (
     kpi_card,
     next_step,
     page_header,
+    scope_subtitle,
     signed_pct,
     signed_points,
+    style_fig,
 )
 from src.dss.params import MIN_ORDERS
 
@@ -99,7 +102,7 @@ def _combo(frame: pd.DataFrame) -> None:
     fig.add_bar(
         x=data["year_month"],
         y=data["gmv"],
-        name="GMV",
+        name="GMV (R$)",
         marker_color=NAVY,
         customdata=list(zip(data["late_ship_eligible"].fillna(0), data["gmv"].map(fmt_brl))),
         hovertemplate="Tháng %{x}<br>GMV %{customdata[1]}<br>n bàn giao %{customdata[0]:,.0f}<extra></extra>",
@@ -107,7 +110,7 @@ def _combo(frame: pd.DataFrame) -> None:
     fig.add_scatter(
         x=data["year_month"],
         y=data["late_rate"],
-        name="Bàn giao trễ",
+        name="Bàn giao trễ (%)",
         mode="lines+markers",
         marker_color=LATE,
         line=dict(color=LATE, width=2),
@@ -116,13 +119,24 @@ def _combo(frame: pd.DataFrame) -> None:
         hovertemplate="Tháng %{x}<br>Bàn giao trễ %{y:.1%}<br>n %{customdata:,.0f}<extra></extra>",
     )
     fig.update_layout(
-        yaxis=dict(title="GMV", tickprefix="R$ ", tickformat=",.0f"),
-        yaxis2=dict(title="Bàn giao trễ", overlaying="y", side="right", tickformat=".0%", showgrid=False, range=[0, 0.25]),
+        height=420,
+        yaxis=dict(title="GMV (R$)", tickprefix="R$ ", tickformat=",.0f"),
+        yaxis2=dict(
+            title="Bàn giao trễ (%)",
+            overlaying="y",
+            side="right",
+            tickformat=".0%",
+            showgrid=False,
+            range=[0, 0.25],
+        ),
         hovermode="x unified",
         barmode="overlay",
     )
-    apply_theme(fig, height=420)
-    st.plotly_chart(fig, width="stretch")
+    fig.update_xaxes(title="Tháng")
+    st.plotly_chart(
+        style_fig(fig, "GMV và tỷ lệ bàn giao trễ theo tháng đi cùng nhau thế nào?", scope_subtitle()),
+        width="stretch",
+    )
 
 
 def _category_bars(frame: pd.DataFrame) -> None:
@@ -135,15 +149,22 @@ def _category_bars(frame: pd.DataFrame) -> None:
             x=data["gmv"],
             y=data["category_group"],
             orientation="h",
+            name="GMV (R$)",
+            showlegend=False,
             marker_color=highlight_colors(data["gmv"].tolist(), NAVY),
             customdata=list(zip(data["n_items"], data["gmv"].map(fmt_brl))),
             hovertemplate="%{y}<br>%{customdata[1]}<br>n item %{customdata[0]:,.0f}<extra></extra>",
         )
     )
-    apply_theme(fig, height=max(280, 36 * len(data) + 40))
-    fig.update_layout(margin=dict(l=150, r=16, t=24, b=16))
-    fig.update_xaxes(tickprefix="R$ ", tickformat=",.0f")
-    st.plotly_chart(fig, width="stretch")
+    add_legend_swatch(fig, "Cao nhất", NAVY)
+    add_legend_swatch(fig, "Các nhóm còn lại", NEUTRAL)
+    fig.update_layout(height=max(280, 36 * len(data) + 80), margin_l=150, margin_r=16, margin_b=16)
+    fig.update_xaxes(title="GMV (R$)", tickprefix="R$ ", tickformat=",.0f")
+    fig.update_yaxes(title="Nhóm danh mục", automargin=True)
+    st.plotly_chart(
+        style_fig(fig, "Nhóm danh mục nào mang lại nhiều GMV nhất?", scope_subtitle()),
+        width="stretch",
+    )
 
 
 def _region_bars(frame: pd.DataFrame) -> None:
@@ -157,14 +178,26 @@ def _region_bars(frame: pd.DataFrame) -> None:
             x=data["late_rate"],
             y=data["region_name"],
             orientation="h",
+            name="Bàn giao trễ (%)",
+            showlegend=False,
             marker_color=highlight_colors(data["late_rate"].tolist(), LATE),
             customdata=data["late_ship_eligible"],
             hovertemplate="%{y}<br>%{x:.1%}<br>n %{customdata:,.0f}<extra></extra>",
         )
     )
-    apply_theme(fig, height=max(240, 42 * len(data) + 40))
-    fig.update_xaxes(tickformat=".0%")
-    st.plotly_chart(fig, width="stretch")
+    add_legend_swatch(fig, "Cao nhất", LATE)
+    add_legend_swatch(fig, "Các nhóm còn lại", NEUTRAL)
+    fig.update_layout(height=max(240, 42 * len(data) + 80), margin_l=140, margin_b=16)
+    fig.update_xaxes(title="Bàn giao trễ (%)", tickformat=".0%")
+    fig.update_yaxes(title="Vùng seller", automargin=True)
+    st.plotly_chart(
+        style_fig(
+            fig,
+            "Vùng seller nào bàn giao trễ cao nhất?",
+            scope_subtitle(include_region=False, extra="mọi vùng"),
+        ),
+        width="stretch",
+    )
 
 
 def _risk_table() -> None:
