@@ -14,6 +14,7 @@ from lib.ui import (
     NEUTRAL,
     REVIEW,
     add_legend_swatch,
+    button_dropdown,
     filters,
     fmt_int,
     fmt_pct,
@@ -173,7 +174,7 @@ def fmt_brl_local(value):
 def _tab_rollup(frame: pd.DataFrame) -> None:
     chart_col, side = st.columns([2, 1])
     with side:
-        level = st.selectbox("Mức", ("region", "state", "city"), key="olap_level")
+        level = button_dropdown("Mức", ("region", "state", "city"), "olap_level")
     part = _place_label(frame[frame["rollup_level"] == level].copy(), level)
     part["late_ship_rate"] = pd.to_numeric(part["late_ship_rate"], errors="coerce")
     part["eligible_items"] = pd.to_numeric(part["eligible_items"], errors="coerce")
@@ -231,7 +232,7 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
 def _tab_drill(frame: pd.DataFrame) -> None:
     chart_col, side = st.columns([2, 1])
     with side:
-        level = st.selectbox("Mức", ("Năm", "Quý", "Tháng", "Ngày"), key="drill_level")
+        level = button_dropdown("Mức", ("Năm", "Quý", "Tháng", "Ngày"), "drill_level")
     columns = {
         "Năm": ["year"],
         "Quý": ["year", "quarter"],
@@ -308,7 +309,12 @@ def _tab_slice(groups: pd.DataFrame) -> None:
         preferred = category if category in names else "electronics_it_telephony"
         if preferred not in names:
             preferred = names[0]
-        chosen = st.selectbox("Nhóm danh mục", names, index=names.index(preferred), key="slice_group")
+        chosen = button_dropdown(
+            "Nhóm danh mục",
+            names,
+            "slice_group",
+            index=names.index(preferred),
+        )
         minimum = st.slider("Số đơn tối thiểu để vẽ", min_value=1, max_value=50, value=5, key="slice_min")
     try:
         frame = db.query(*queries.slice_category(chosen))

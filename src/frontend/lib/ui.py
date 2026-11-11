@@ -122,7 +122,7 @@ def badge_predicted() -> None:
 
 def badge_actual() -> None:
     st.markdown(
-        "<span style='background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:999px;'>"
+        "<span style='background:#e4eeed;color:##e4eeed;padding:2px 8px;border-radius:999px;'>"
         "Số liệu thực tế đã xảy ra</span>",
         unsafe_allow_html=True,
     )
@@ -216,6 +216,53 @@ def chip(label: str, value: str) -> None:
     with st.container(border=True):
         st.caption(label)
         st.markdown(f"**{value}**")
+
+
+def button_dropdown(
+    label: str,
+    options,
+    key: str,
+    *,
+    disabled: bool = False,
+    format_func=None,
+    index: int | None = None,
+    container=None,
+):
+    """A button that opens a list of choices. Replaces st.selectbox."""
+    host = container if container is not None else st
+    choices = list(options)
+    if not choices:
+        host.caption(label)
+        return None
+    name = format_func if format_func is not None else (lambda value: str(value))
+    if key not in st.session_state:
+        start = 0 if index is None else int(index)
+        if start < 0 or start >= len(choices):
+            start = 0
+        st.session_state[key] = choices[start]
+    if st.session_state.get(key) not in choices:
+        start = 0 if index is None else int(index)
+        if start < 0 or start >= len(choices):
+            start = 0
+        st.session_state[key] = choices[start]
+    current = st.session_state[key]
+    shown = f"{name(current)} ▾"
+    host.caption(label)
+    if disabled:
+        host.button(shown, key=f"{key}__locked", disabled=True, width="stretch")
+        return current
+    with host.popover(shown, width="stretch"):
+        for position, option in enumerate(choices):
+            kind = "primary" if option == current else "secondary"
+            if host.button(
+                name(option),
+                key=f"{key}__opt_{position}",
+                type=kind,
+                width="stretch",
+            ):
+                st.session_state[key] = option
+                st.rerun()
+    return st.session_state[key]
 
 
 def filters() -> tuple[int | None, str | None, str | None, str | None]:

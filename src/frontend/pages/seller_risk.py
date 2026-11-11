@@ -16,6 +16,7 @@ from lib.ui import (
     add_legend_swatch,
     badge_actual,
     badge_predicted,
+    button_dropdown,
     chart_note,
     fmt_brl,
     fmt_pct,
@@ -134,8 +135,10 @@ def _list_tab(eligible: pd.DataFrame) -> None:
     regions = ["Tất cả"] + sorted(work["region_name"].dropna().astype(str).unique())
     tiers = ["Tất cả"] + [str(item) for item in sorted(work["tier"].unique())]
     one, two, three, four = st.columns(4)
-    region = one.selectbox("Vùng", regions, key="risk_region")
-    tier = two.selectbox("Hạng", tiers, key="risk_tier")
+    with one:
+        region = button_dropdown("Vùng", regions, "risk_region")
+    with two:
+        tier = button_dropdown("Hạng", tiers, "risk_tier")
     top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, key="risk_top")
     needle = four.text_input("Tìm seller", key="risk_search")
     if region != "Tất cả":

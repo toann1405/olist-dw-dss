@@ -27,6 +27,7 @@ from lib.ui import (
     fmt_brl,
     fmt_int,
     fmt_pct,
+    button_dropdown,
     kpi_card,
     point_opacity,
     scope_subtitle,
@@ -218,9 +219,10 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         "review_rate": "Review xấu (theo seller)",
         "cancel_rate": "Cancel rate",
     }
-    choice = st.selectbox(
+    choice = button_dropdown(
         "Đường tỷ lệ",
         ("bad_rate", "late_delivery_rate", "late_ship_rate", "review_rate", "cancel_rate"),
+        "trend_rate",
         format_func=lambda name: labels[name],
     )
     count_column = {
@@ -640,9 +642,9 @@ def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) ->
     del regions, platform_late
     level_col, metric_col = st.columns(2)
     with level_col:
-        level = st.selectbox("Mức địa lý", ("Vùng", "Bang"), key="where_level")
+        level = button_dropdown("Mức địa lý", ("Vùng", "Bang"), "where_level")
     with metric_col:
-        label = st.selectbox("Chỉ số", [item[0] for item in _WHERE_METRICS], key="where_metric")
+        label = button_dropdown("Chỉ số", [item[0] for item in _WHERE_METRICS], "where_metric")
     geography = st.radio(
         "Địa lý trên bản đồ",
         ("Bang seller", "Bang khách"),
