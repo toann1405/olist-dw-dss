@@ -47,15 +47,16 @@ ETL job order: **setup → bronze → silver → gold dims → gold facts → fa
 
 ## Streamlit app
 
-One local app (`src/frontend/app.py`) is both the dashboard and the DSS UI. Five pages:
+One local app (`src/frontend/app.py`) is both the dashboard and the DSS UI. Six pages. Home is the entry. Page 5 is for the review board.
 
 | # | Page title | Role |
 |---|---|---|
-| 0 | Giới thiệu | Home: problem, scale, how to read numbers |
-| 1 | Sức khỏe marketplace đang thế nào? | Actual KPIs |
-| 2 | GMV và trải nghiệm xấu đến từ đâu? | Five OLAP operations + Brazil map |
-| 3 | Seller nào đáng lo nhất? | M1 scores for 2018-08 |
-| 4 | Chọn chính sách nào? | M2 what-if, goal seek, tornado, `decision_log` |
+| 0 | Giới thiệu | Home: three KPIs, X/N, links, one freshness line |
+| 1 | Sức khỏe marketplace | Actual KPIs |
+| 2 | GMV và trải nghiệm xấu từ đâu | Five OLAP operations + Brazil map |
+| 3 | Seller nào đáng lo | M1 scores for 2018-08 |
+| 4 | Chọn chính sách nào | M2 decision card, goal seek, tornado, `decision_log` |
+| 5 | Dữ liệu & phương pháp | Lineage, definitions, limits, M1/M2 assumptions |
 
 ![Home](docs/images/app_home.png)
 

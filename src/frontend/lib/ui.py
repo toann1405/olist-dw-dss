@@ -96,40 +96,60 @@ def signed_points(current, previous) -> str | None:
     return sign + body
 
 
-def page_header(title_question: str, subtitle: str, tech_name: str) -> None:
-    text, action = st.columns([5, 1], vertical_alignment="center", gap="medium")
+def page_header(title: str, conclusion: str | None, kind: str | None) -> None:
+    """Question, one data conclusion, and a single Thực tế or Dự báo badge."""
+    text, mark, action = st.columns([5, 1.1, 1], vertical_alignment="center", gap="medium")
     with text:
-        st.markdown(f"### {title_question}")
-        st.caption(tech_name)
-        if subtitle:
-            st.write(subtitle)
+        st.markdown(f"### {title}")
+    with mark:
+        if kind == "actual":
+            badge_actual()
+        elif kind == "predicted":
+            badge_predicted()
     with action:
-        db.refresh_button(tech_name)
+        db.refresh_button(title)
+    if conclusion:
+        st.markdown(f"**{conclusion}**")
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
 MIN_N_DISPLAY = 30
 
 
-def badge_predicted() -> None:
+def _badge(text: str, background: str, color: str) -> None:
     st.markdown(
-        "<span style='background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:999px;'>"
-        "Dự báo của mô hình — tháng tới</span>",
+        f"<span style='background:{background};color:{color};padding:2px 8px;border-radius:999px;'>{text}</span>",
         unsafe_allow_html=True,
     )
-    st.caption("Số này là ước tính, không phải đã xảy ra.")
+
+
+def badge_predicted() -> None:
+    _badge("Dự báo", "#ede9fe", "#6d28d9")
 
 
 def badge_actual() -> None:
-    st.markdown(
-        "<span style='background:#e4eeed;color:##e4eeed;padding:2px 8px;border-radius:999px;'>"
-        "Số liệu thực tế đã xảy ra</span>",
-        unsafe_allow_html=True,
-    )
+    _badge("Thực tế", "#e4eeed", NAVY)
+
+
+def chart_card(fig, how_to_read: str | None = None, formula: str | None = None, **kwargs):
+    """Draw one chart. The figure is passed through unchanged."""
+    kwargs.setdefault("width", "stretch")
+    event = st.plotly_chart(fig, **kwargs)
+    _chart_aside(how_to_read, formula)
+    return event
+
+
+def _chart_aside(how_to_read: str | None, formula: str | None) -> None:
+    if how_to_read:
+        with st.popover("ℹ️ Cách đọc"):
+            st.write(how_to_read)
+    if formula:
+        with st.expander("Cách tính"):
+            st.write(formula)
 
 
 def chart_note(shows: str, how: str) -> None:
-    st.caption(f"Biểu đồ này cho thấy {shows} Cách đọc: {how}")
+    _chart_aside(f"{shows} {how}", None)
 
 
 def filter_badge(kind: str, question: str | None = None) -> None:
@@ -194,7 +214,7 @@ def insight_box(text: str) -> None:
 
 
 def next_step(current: str) -> None:
-    order = ("home", "kpi", "olap", "risk", "policy")
+    order = ("home", "kpi", "olap", "risk", "policy", "method")
     if current not in order:
         return
     pages = st.session_state.get("nav_pages", {})

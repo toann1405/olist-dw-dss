@@ -234,7 +234,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 ## Phase 4 — OLAP và dashboard · 29/10 → 06/11
 
-**Đổi phạm vi 10/11/2026:** một app Streamlit cho cả dashboard và DSS. ~~Power BI là dashboard Phase 4~~ (đổi 10/11: future work). ~~Ba màn hình Power BI + Streamlit DSS riêng~~ (đổi 10–11/11: năm trang trong `src/frontend/app.py`). Checkbox dưới đây **không tick** nếu DoD chưa đủ (R09 vẫn ◐).
+**Đổi phạm vi 10/11/2026:** một app Streamlit cho cả dashboard và DSS. ~~Power BI là dashboard Phase 4~~ (đổi 10/11: future work). ~~Ba màn hình Power BI + Streamlit DSS riêng~~ (đổi 10–11/11: năm trang trong `src/frontend/app.py`; đổi 11/11: sáu trang, thêm *Dữ liệu & phương pháp*). Checkbox dưới đây **không tick** nếu DoD chưa đủ (R09 vẫn ◐).
 
 **Mục tiêu:** 5 phép OLAP trên **Gold trong Databricks** trước. Frontend gắn vào Gold đó; không dựng OLAP trên sample local trước.
 
