@@ -24,9 +24,19 @@ NUMERIC_FEATURES = (
     "seller_age_days",
 )
 CATEGORY_FEATURES = ("category_group", "region_name")
+FEATURE_LABELS = {
+    "late_ship_rate_3m": "Tỷ lệ giao trễ 3 tháng",
+    "avg_review": "Điểm review trung bình",
+    "n_orders_valid": "Số đơn hợp lệ",
+    "avg_distance_km": "Khoảng cách giao trung bình (km)",
+    "seller_age_days": "Tuổi seller (ngày)",
+    "category_group": "Nhóm hàng",
+    "region_name": "Vùng",
+}
 MIN_ITEMS = 10
 MIN_ACTIVE_MONTHS = 6
 TEST_MONTHS = 2
+CALIBRATION_BINS = 10
 
 
 def next_month_key(month_key: int) -> int:
@@ -105,7 +115,91 @@ def _expand(matrix: pd.DataFrame, bad: np.ndarray, eligible: np.ndarray) -> tupl
     return matrix.to_numpy(dtype=float)[index], outcome
 
 
-def _baseline_scores(latest: pd.DataFrame, reason: str, scored_at: datetime) -> tuple[pd.DataFrame, dict]:
+def feature_label(column: str) -> str:
+    """Vietnamese chart label. Model columns stay the training names."""
+    if column in FEATURE_LABELS:
+        return FEATURE_LABELS[column]
+    for key in ("category_group", "region_name"):
+        prefix = f"{key}_"
+        if column.startswith(prefix):
+            return f"{FEATURE_LABELS[key]}: {column[len(prefix):]}"
+    return column
+
+
+def _empty_diagnostics() -> tuple[pd.DataFrame, pd.DataFrame]:
+    calibration = pd.DataFrame(columns=["bin", "mean_pred", "observed_rate", "n"])
+    contrib = pd.DataFrame(columns=["seller_id", "feature", "value", "contribution"])
+    return calibration, contrib
+
+
+def _with_diagnostics(scores: pd.DataFrame, metrics: dict) -> tuple[pd.DataFrame, dict, pd.DataFrame, pd.DataFrame]:
+    metrics.setdefault("base_rate", None)
+    metrics.setdefault("test_months", [])
+    metrics.setdefault("intercept", None)
+    calibration, contrib = _empty_diagnostics()
+    return scores, metrics, calibration, contrib
+
+
+def _calibration(probability: np.ndarray, outcome: np.ndarray) -> pd.DataFrame:
+    """Deciles of test-order probability. n counts orders, not seller-months."""
+    columns = ["bin", "mean_pred", "observed_rate", "n"]
+    if probability.size == 0:
+        return pd.DataFrame(columns=columns)
+    try:
+        codes = pd.qcut(probability, CALIBRATION_BINS, duplicates="drop", labels=False)
+    except ValueError:
+        codes = np.zeros(probability.size, dtype=int)
+    frame = pd.DataFrame(
+        {
+            "bin": pd.Series(codes).fillna(0).astype(int) + 1,
+            "pred": probability.astype(float),
+            "y": outcome.astype(float),
+        }
+    )
+    grouped = frame.groupby("bin", as_index=False).agg(
+        mean_pred=("pred", "mean"),
+        observed_rate=("y", "mean"),
+        n=("y", "size"),
+    )
+    grouped["bin"] = grouped["bin"].astype(int)
+    grouped["n"] = grouped["n"].astype(int)
+    return grouped.sort_values("bin").loc[:, columns].reset_index(drop=True)
+
+
+def _contributions(
+    latest: pd.DataFrame,
+    score_x: pd.DataFrame,
+    model: LogisticRegression,
+    train_matrix: np.ndarray,
+    columns: list[str],
+) -> tuple[pd.DataFrame, float]:
+    """coef * (x - train mean). Intercept absorbs coef · mean so the sum matches the logit."""
+    means = train_matrix.mean(axis=0)
+    coef = np.asarray(model.coef_, dtype=float).ravel()
+    intercept = float(np.asarray(model.intercept_, dtype=float).ravel()[0])
+    adjusted = intercept + float(np.dot(coef, means))
+    values = score_x.to_numpy(dtype=float)
+    centered = values - means
+    effects = centered * coef
+    seller_ids = latest["seller_id"].astype(str).to_numpy()
+    labels = [feature_label(column) for column in columns]
+    rows = []
+    for row_index, seller_id in enumerate(seller_ids):
+        for column_index, label in enumerate(labels):
+            rows.append(
+                {
+                    "seller_id": seller_id,
+                    "feature": label,
+                    "value": float(values[row_index, column_index]),
+                    "contribution": float(effects[row_index, column_index]),
+                }
+            )
+    return pd.DataFrame(rows), adjusted
+
+
+def _baseline_scores(
+    latest: pd.DataFrame, reason: str, scored_at: datetime
+) -> tuple[pd.DataFrame, dict, pd.DataFrame, pd.DataFrame]:
     eligible = pd.to_numeric(latest["bad_experience_eligible"], errors="coerce").fillna(0)
     bad = pd.to_numeric(latest["bad_experience_count"], errors="coerce").fillna(0)
     rate = np.where(eligible > 0, bad / eligible, np.nan)
@@ -117,10 +211,13 @@ def _baseline_scores(latest: pd.DataFrame, reason: str, scored_at: datetime) -> 
         "brier": None,
         "n_train_orders": 0,
         "n_test_orders": 0,
+        "base_rate": None,
+        "test_months": [],
+        "intercept": None,
         "trained_through_month": None,
         "as_of_month": scores["as_of_month"].iloc[0] if len(scores) else None,
     }
-    return scores, metrics
+    return _with_diagnostics(scores, metrics)
 
 
 def _score_frame(
@@ -149,8 +246,14 @@ def _score_frame(
     return out
 
 
-def train_and_score(features: pd.DataFrame, as_of_month: str | None = None) -> tuple[pd.DataFrame, dict]:
-    """Fit on history up to as_of_month and score every seller in that month."""
+def train_and_score(
+    features: pd.DataFrame, as_of_month: str | None = None
+) -> tuple[pd.DataFrame, dict, pd.DataFrame, pd.DataFrame]:
+    """Fit on history up to as_of_month and score every seller in that month.
+
+    Also returns test-order calibration and per-seller contributions for the scored month.
+    The baseline branch returns empty frames for those two tables.
+    """
     from src.dss.params import AS_OF_MONTH
 
     scored_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -168,7 +271,7 @@ def train_and_score(features: pd.DataFrame, as_of_month: str | None = None) -> t
             "trained_through_month": None,
             "as_of_month": None,
         }
-        return pd.DataFrame(), metrics
+        return _with_diagnostics(pd.DataFrame(), metrics)
 
     latest = features[features["year_month"].astype(str) == chosen].copy()
     if latest.empty:
@@ -182,7 +285,7 @@ def train_and_score(features: pd.DataFrame, as_of_month: str | None = None) -> t
             "trained_through_month": None,
             "as_of_month": chosen,
         }
-        return pd.DataFrame(), metrics
+        return _with_diagnostics(pd.DataFrame(), metrics)
     labeled = _labeled(features)
     population = _train_population(features)
     labeled = labeled[labeled["seller_key"].isin(population)].copy()
@@ -244,5 +347,10 @@ def train_and_score(features: pd.DataFrame, as_of_month: str | None = None) -> t
         "n_test_orders": int(test_y.size),
         "trained_through_month": train_months[-1],
         "as_of_month": scored["as_of_month"].iloc[0] if len(scored) else None,
+        "base_rate": float(np.mean(test_y)) if test_y.size else None,
+        "test_months": sorted(test_months),
     }
-    return scored, metrics
+    calibration = _calibration(probability, test_y)
+    contrib, intercept = _contributions(latest, score_x, model, train_matrix, columns)
+    metrics["intercept"] = intercept
+    return scored, metrics, calibration, contrib

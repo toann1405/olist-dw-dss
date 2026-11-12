@@ -11,14 +11,30 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: SQL Ad hoc nhiều dòng, tham số đọc được, lọc Tất cả không vào WHERE. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | Branch `fix/seller-risk-page`: M1 trả calibration và đóng góp yếu tố; tab Độ tin cậy có 3 thẻ. Job DSS chưa chạy lại trên Databricks. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (SQL Ad hoc dễ đọc) |
+| Việc tiếp theo | Chạy lại job DSS để tab Độ tin cậy có số của warehouse. Chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (ghi đánh giá M1) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Ghi đánh giá M1 cho tab Độ tin cậy
+
+- **Đã làm:** `train_and_score` trả thêm calibration (decile xác suất trên đơn test: `bin`, `mean_pred`, `observed_rate`, `n`) và đóng góp từng seller ở tháng chấm (`seller_id`, `feature`, `value`, `contribution`). `feature` ghi nhãn tiếng Việt từ `FEATURE_LABELS`; khóa huấn luyện không đổi. Nhánh baseline trả hai DataFrame rỗng. Job DSS `overwrite` `model_eval` (auc, brier, n_train_orders, n_test_orders, base_rate, kèm `test_month` = yyyyMM), `model_calibration` và `seller_risk_contrib`, `as_of_month` là tháng chấm. Tab Độ tin cậy đổi bảng metric thành 3 thẻ AUC, Brier, Tháng test. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** `python -m pytest src/tests -q` → 38 passed in 17.39s. Khung giả: không quá 10 bin, tổng `n` bằng số đơn test, tổng contribution cộng intercept khớp logit.
+- **Chưa làm:** không chạy job DSS trong phiên này, nên bảng Delta và tab live chưa có số mới.
+
+### 12/11/2026 — Trang Cảnh báo seller khớp M2
+
+- **Đã làm:** `min_orders` đọc từ session rồi `simulate(..., PolicyParams(min_orders=...))`. Thẻ và caption P2 lấy `n_sellers_flagged`, `gmv_affected_pct`, `meets_x` từ scenario; đơn xấu chưa can thiệp là `baseline_bad`. Help bốn thẻ từ params. Bộ lọc Danh sách dùng `st.selectbox`. `TIER_NAME` chuyển vào `recommend.py`. Pareto theo `baseline_bad`, scatter ngưỡng `THETA_1` nét `dot`. Caption Độ tin cậy đổi câu review nhiều seller. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 36 passed in 13.68s. Test 3 seller: flagged 2, hạng 1 và 2 mỗi loại một, GMV thẻ = `simulate(...).gmv_affected_pct`. Đã mở `http://localhost:8502/risk`: 342 / 1.278; gắn cờ 7 (Theo dõi 7); GMV 0,3% Trần 10% Đạt; baseline 685,2 chiếm 1,9%; P2 còn 682,0 (giảm 0,5%). Bốn thẻ có dấu ?. Vùng/Hạng là selectbox. Caption Độ tin cậy: «Đơn có nhiều seller không được tính review cho từng seller.»
+
+### 12/11/2026 — Câu kết luận trang Cảnh báo seller
+
+- **Đã làm:** Câu dưới «Seller nào đáng lo nhất?» lấy tháng sau tháng chấm, số seller vượt ngưỡng P2 trên số seller đủ điều kiện, và phần đơn xấu dự kiến (`expected_bad` của P2) của nhóm đó. Hết câu chỉ ba mã seller. Không đổi mô hình, ngưỡng, hay SQL. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** Hàm câu trên khung mẫu in «Tháng 2018-09 dự kiến có 2/4 seller… gom khoảng 18,0%…». Đã mở `http://localhost:8502/risk`: «Tháng 2018-09 dự kiến có 7/342 seller vượt ngưỡng rủi ro (chính sách P2), gom khoảng 1,4% đơn xấu dự kiến; xem danh sách bên dưới để chọn seller cần xử lý.» Tháng chấm 2018-08, 342/1.278 seller, thẻ đơn xấu dự kiến 682,0.
 
 ### 12/11/2026 — SQL Ad hoc dễ đọc
 

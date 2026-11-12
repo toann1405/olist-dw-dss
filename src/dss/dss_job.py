@@ -1,9 +1,10 @@
 # Databricks notebook source
-"""Score sellers from Gold and write the two DSS snapshot tables.
+"""Score sellers from Gold and write the DSS snapshot tables.
 
 Reads gold.* only, through dss.v_seller_features. Overwrites
-dss.seller_risk_score and dss.policy_scenario for the latest month.
-Creates dss.decision_log if needed and does not delete its rows.
+dss.seller_risk_score, dss.policy_scenario, and the M1 eval tables
+for the scoring month. Creates dss.decision_log if needed and does
+not delete its rows.
 """
 
 # COMMAND ----------
@@ -165,7 +166,7 @@ spark.sql(
       metric STRING NOT NULL,
       value DOUBLE
     ) USING DELTA
-    COMMENT 'Test-month metrics for the M1 fit. Not filled by a rerun in this change.'
+    COMMENT 'Test-month metrics for the M1 fit. One row per metric for the scoring month.'
     """
 )
 spark.sql(
@@ -186,7 +187,7 @@ spark.sql(
 features = spark.table(f"{catalog}.{dss}.v_seller_features").toPandas()
 if features.empty:
     raise RuntimeError("v_seller_features returned no rows. The monthly Gold fact is empty.")
-scores, metrics = train_and_score(features, AS_OF_MONTH)
+scores, metrics, calibration, contrib = train_and_score(features, AS_OF_MONTH)
 if scores.empty:
     raise RuntimeError("Scoring returned no sellers.")
 params = PolicyParams()
@@ -200,6 +201,8 @@ print(f"reason={metrics['reason']}")
 print(f"auc={metrics['auc']}")
 print(f"brier={metrics['brier']}")
 print(f"trained_through_month={metrics['trained_through_month']}")
+print(f"base_rate={metrics.get('base_rate')}")
+print(f"test_months={metrics.get('test_months')}")
 print(f"as_of_month={as_of_month}")
 print(f"sellers={len(scores)}")
 for row in scenario_rows:
@@ -332,11 +335,74 @@ def overwrite(table: str, frame, columns: list[str], schema) -> None:
     print(f"wrote {table}: {len(records)} rows")
 
 
+eval_schema = StructType(
+    [
+        StructField("as_of_month", StringType(), False),
+        StructField("metric", StringType(), False),
+        StructField("value", DoubleType(), True),
+    ]
+)
+calibration_schema = StructType(
+    [
+        StructField("as_of_month", StringType(), False),
+        StructField("bin", IntegerType(), False),
+        StructField("mean_pred", DoubleType(), True),
+        StructField("observed_rate", DoubleType(), True),
+        StructField("n", IntegerType(), True),
+    ]
+)
+contrib_schema = StructType(
+    [
+        StructField("as_of_month", StringType(), False),
+        StructField("seller_id", StringType(), False),
+        StructField("feature", StringType(), False),
+        StructField("value", DoubleType(), True),
+        StructField("contribution", DoubleType(), True),
+    ]
+)
+eval_columns = ["as_of_month", "metric", "value"]
+calibration_columns = ["as_of_month", "bin", "mean_pred", "observed_rate", "n"]
+contrib_columns = ["as_of_month", "seller_id", "feature", "value", "contribution"]
+
+
+def _month_number(year_month: str) -> float:
+    year, month = str(year_month).split("-")
+    return float(int(year) * 100 + int(month))
+
+
+eval_rows = [
+    {"as_of_month": as_of_month, "metric": name, "value": metrics.get(name)}
+    for name in ("auc", "brier", "n_train_orders", "n_test_orders", "base_rate")
+]
+for month in metrics.get("test_months") or []:
+    eval_rows.append(
+        {"as_of_month": as_of_month, "metric": "test_month", "value": _month_number(month)}
+    )
+eval_frame = pd.DataFrame(eval_rows, columns=eval_columns)
+
+calibration_frame = calibration.copy()
+calibration_frame.insert(0, "as_of_month", as_of_month)
+contrib_frame = contrib.copy()
+contrib_frame.insert(0, "as_of_month", as_of_month)
+
 overwrite(f"{catalog}.{dss}.seller_risk_score", scores, score_columns, score_schema)
 overwrite(
     f"{catalog}.{dss}.policy_scenario",
     pd.DataFrame(scenario_rows),
     scenario_columns,
     scenario_schema,
+)
+overwrite(f"{catalog}.{dss}.model_eval", eval_frame, eval_columns, eval_schema)
+overwrite(
+    f"{catalog}.{dss}.model_calibration",
+    calibration_frame,
+    calibration_columns,
+    calibration_schema,
+)
+overwrite(
+    f"{catalog}.{dss}.seller_risk_contrib",
+    contrib_frame,
+    contrib_columns,
+    contrib_schema,
 )
 print("decision_log was not modified")
