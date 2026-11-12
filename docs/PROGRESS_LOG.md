@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: legend không còn nhãn mẫu nhỏ. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: tab Ad hoc tự lắp measure × dimension. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (bỏ nhãn mẫu nhỏ) |
+| Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (tab Ad hoc) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Tab Ad hoc trên OLAP
+
+- **Đã làm:** Tab thứ 6 `Tự khám phá (Ad hoc)` trên `fix/olap-page`. `src/frontend/lib/adhoc.py` có `MEASURES`, `DIMENSIONS` và `build_query`. Tỷ lệ là `SUM(tử)/SUM(mẫu)` đúng công thức trong `lib/queries.py` và roll-up item. Giá trị lọc đi theo tham số. `GROUP BY`, `ORDER BY`, `LIMIT 500`. GMV không gắn nhóm danh mục vì fact tháng không có product. Năm tab cũ, công thức KPI và `src/dss` không đổi. Không tick PLAN. R09 vẫn ◐. Chưa mở PR.
+- **Đã chạy:** `python -m pytest src/tests -q` → 30 passed in 44.19s. GMV theo Vùng cộng lại `13494400.74`. Tỷ lệ bàn giao trễ Norte làm tròn 19,2%. Đã mở `http://localhost:8501/olap`: GMV × Vùng (Sudeste R$ 10,57 tr), tỷ lệ bàn giao trễ × Vùng (Nordeste 14,4%, n=1.670), GMV × Tháng (2017-11 R$ 1,00 tr). Có Tải CSV và Xem SQL.
 
 ### 12/11/2026 — Bỏ nhãn mẫu nhỏ khỏi legend
 
