@@ -14,13 +14,10 @@ from lib.ui import (
     MIN_N_DISPLAY,
     NAVY,
     add_legend_swatch,
-    badge_actual,
-    badge_predicted,
     button_dropdown,
     chart_note,
     fmt_brl,
     fmt_pct,
-    insight_box,
     kpi_card,
     next_step,
     page_header,
@@ -68,34 +65,13 @@ def _attach(scores: pd.DataFrame) -> pd.DataFrame:
     return out, result
 
 
-def _insight(frame: pd.DataFrame) -> str:
+def _flag_sentence(frame: pd.DataFrame) -> str:
     if frame.empty:
         return "Chưa đủ dữ liệu để kết luận."
-    warned = frame[frame["tier"] >= 2]
-    total_gmv = float(pd.to_numeric(frame["gmv"], errors="coerce").fillna(0).sum())
-    warned_gmv = float(pd.to_numeric(warned["gmv"], errors="coerce").fillna(0).sum()) if not warned.empty else 0.0
-    gmv_share = None if total_gmv <= 0 else warned_gmv / total_gmv
-    if warned.empty:
-        first = f"{fmt_count(0)} seller vượt ngưỡng cảnh báo, chiếm {fmt_pct(gmv_share)} GMV."
-    else:
-        region = "không rõ"
-        if warned["region_name"].notna().any():
-            totals = warned.groupby(warned["region_name"].fillna("không rõ"))["expected_bad"].sum()
-            region = str(totals.sort_values(ascending=False).index[0])
-        first = (
-            f"{fmt_count(len(warned))} seller vượt ngưỡng cảnh báo, chiếm {fmt_pct(gmv_share)} GMV, "
-            f"tập trung ở vùng {region}."
-        )
-    ranked = frame.sort_values("p_bad", ascending=False).head(int(N))
-    total_bad = float(pd.to_numeric(frame["expected_bad"], errors="coerce").fillna(0).sum())
-    top_bad = float(pd.to_numeric(ranked["expected_bad"], errors="coerce").fillna(0).sum())
-    top_gmv = float(pd.to_numeric(ranked["gmv"], errors="coerce").fillna(0).sum())
-    bad_share = None if total_bad <= 0 else top_bad / total_bad
-    top_gmv_share = None if total_gmv <= 0 else top_gmv / total_gmv
-    second = (
-        f"Top {fmt_limit(N)} seller rủi ro nhất chiếm {fmt_pct(top_gmv_share)} GMV và {fmt_pct(bad_share)} đơn xấu dự kiến."
-    )
-    return first + " " + second
+    flagged = frame[frame["flagged"].astype(bool)] if "flagged" in frame.columns else frame.iloc[0:0]
+    top = frame.sort_values("p_bad", ascending=False).head(3)
+    names = ", ".join(top["seller_id"].astype(str).str.slice(0, 8))
+    return f"{fmt_count(len(flagged))} seller bị gắn cờ tháng tới, top 3 là {names}."
 
 
 def _summary(frame: pd.DataFrame, scored: pd.DataFrame) -> None:
@@ -197,7 +173,6 @@ def _distribution(frame: pd.DataFrame) -> None:
     if frame.empty:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
-    badge_predicted()
     figure = go.Figure(
         go.Histogram(
             x=pd.to_numeric(frame["p_bad"], errors="coerce"),
@@ -292,7 +267,6 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
     row = match.iloc[0]
     share = percentile_above(frame["p_bad"].tolist(), row["p_bad"])
     st.subheader("① Seller này là ai")
-    badge_actual()
     st.write(
         f"{_known(row.get('region_name'))} / {_known(row.get('state_code'))} / {_known(row.get('city_name'))}."
     )
@@ -344,56 +318,54 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
         active_months = int((pd.to_numeric(history["n_orders_valid"], errors="coerce").fillna(0) > 0).sum())
     st.write(f"Số tháng có đơn: {fmt_count(active_months)}.")
 
-    st.subheader("② Đã làm thế nào")
-    badge_actual()
     platform_late = None if platform is None else _rate(platform.get("late_ship_count"), platform.get("late_ship_eligible"))
-    columns = st.columns(4)
-    for column, (label, value) in zip(columns, [
-        ("GMV", fmt_brl(row["gmv"])),
-        ("Số đơn hợp lệ", fmt_count(row["n_orders_valid"])),
-        ("Bàn giao trễ", fmt_ratio(row["late_ship_rate"])),
-        ("Review TB", fmt_number(row["avg_review"])),
-    ]):
-        with column:
-            kpi_card(label, value)
-    if platform_late is not None and row.get("late_ship_rate") is not None and not pd.isna(row["late_ship_rate"]):
-        st.caption(f"Bàn giao trễ so với sàn: {fmt_pct(float(row['late_ship_rate']) - platform_late)} điểm.")
-    platform_review = None if platform is None else _rate(platform.get("negative_review_count"), platform.get("negative_review_eligible"))
-    for chip in reason_chips(row.get("late_ship_rate"), row.get("avg_review"), platform_late, platform_review):
-        st.markdown(f"`{chip}`")
-    if active_months < 3:
-        st.info("Chưa đủ lịch sử để vẽ xu hướng.")
-    else:
-        history["late_rate"] = [_rate(a, b) for a, b in zip(history["late_ship_count"], history["late_ship_eligible"])]
-        figure = go.Figure()
-        figure.add_scatter(
-            x=history["year_month"],
-            y=history["late_rate"],
-            name="Seller này",
-            mode="lines+markers",
-            line=dict(color=NAVY),
-        )
-        if platform_late is not None:
-            figure.add_hline(y=platform_late, line_dash="dash", line_color=NAVY, annotation_text="Trung bình toàn sàn")
-            add_legend_swatch(figure, "Trung bình toàn sàn", NAVY, dash="dash")
-        figure.update_layout(height=300)
-        figure.update_xaxes(title="Tháng")
-        figure.update_yaxes(tickformat=".0%", title="Bàn giao trễ (%)")
-        st.plotly_chart(
-            style_fig(
-                figure,
-                "Bàn giao trễ của seller này so với sàn theo từng tháng?",
-                f"Tháng chấm {AS_OF_MONTH} · seller {str(seller_id)[:8]}",
-            ),
-            width="stretch",
-        )
-        chart_note(
-            "bàn giao trễ của seller này qua từng tháng.",
-            "điểm nằm trên đường đứt là tháng tệ hơn mặt bằng sàn.",
-        )
+    with st.expander("② Đã làm thế nào"):
+        columns = st.columns(4)
+        for column, (label, value) in zip(columns, [
+            ("GMV", fmt_brl(row["gmv"])),
+            ("Số đơn hợp lệ", fmt_count(row["n_orders_valid"])),
+            ("Bàn giao trễ", fmt_ratio(row["late_ship_rate"])),
+            ("Review TB", fmt_number(row["avg_review"])),
+        ]):
+            with column:
+                kpi_card(label, value)
+        if platform_late is not None and row.get("late_ship_rate") is not None and not pd.isna(row["late_ship_rate"]):
+            st.caption(f"Bàn giao trễ so với sàn: {fmt_pct(float(row['late_ship_rate']) - platform_late)} điểm.")
+        platform_review = None if platform is None else _rate(platform.get("negative_review_count"), platform.get("negative_review_eligible"))
+        for chip in reason_chips(row.get("late_ship_rate"), row.get("avg_review"), platform_late, platform_review):
+            st.markdown(f"`{chip}`")
+        if active_months < 3:
+            st.info("Chưa đủ lịch sử để vẽ xu hướng.")
+        else:
+            history["late_rate"] = [_rate(a, b) for a, b in zip(history["late_ship_count"], history["late_ship_eligible"])]
+            figure = go.Figure()
+            figure.add_scatter(
+                x=history["year_month"],
+                y=history["late_rate"],
+                name="Seller này",
+                mode="lines+markers",
+                line=dict(color=NAVY),
+            )
+            if platform_late is not None:
+                figure.add_hline(y=platform_late, line_dash="dash", line_color=NAVY, annotation_text="Trung bình toàn sàn")
+                add_legend_swatch(figure, "Trung bình toàn sàn", NAVY, dash="dash")
+            figure.update_layout(height=300)
+            figure.update_xaxes(title="Tháng")
+            figure.update_yaxes(tickformat=".0%", title="Bàn giao trễ (%)")
+            st.plotly_chart(
+                style_fig(
+                    figure,
+                    "Bàn giao trễ của seller này so với sàn theo từng tháng?",
+                    f"Tháng chấm {AS_OF_MONTH} · seller {str(seller_id)[:8]}",
+                ),
+                width="stretch",
+            )
+            chart_note(
+                "bàn giao trễ của seller này qua từng tháng.",
+                "điểm nằm trên đường đứt là tháng tệ hơn mặt bằng sàn.",
+            )
 
     st.subheader("③ Mô hình dự báo gì và nên làm gì")
-    badge_predicted()
     higher = fmt_pct(share) if share is not None else "—"
     st.write(
         f"Dự báo ~{fmt_pct(row['p_bad'])} đơn tháng tới là đơn xấu, cao hơn {higher} seller khác "
@@ -491,49 +463,45 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
 
 def render(settings=None) -> None:
     del settings
-    page_header(
-        "Seller nào đáng lo nhất?",
-        "Trang chấm seller của tháng đủ dữ liệu, không lấy tháng lịch cuối. Bộ lọc bên cạnh không đổi danh sách này.",
-        "Seller risk – M1",
-    )
     try:
         with st.spinner("Đang tải dữ liệu…"):
             raw = db.query(*queries.risk_board())
     except Exception as exc:
+        page_header("Seller nào đáng lo nhất?", "Chưa tải được dữ liệu để kết luận.", "predicted")
         db.show_warehouse_error(exc)
         next_step("risk")
         return
     if raw.empty:
-        st.info("Chưa có điểm rủi ro cho kỳ này, hãy liên hệ nhóm dữ liệu.")
+        page_header("Seller nào đáng lo nhất?", "Chưa có điểm rủi ro cho kỳ này.", "predicted")
         next_step("risk")
         return
     raw = raw[raw["as_of_month"].astype(str) == AS_OF_MONTH].copy()
     if raw.empty:
-        st.info("Kỳ này chưa đủ dữ liệu để chấm.")
-        st.caption(f"Tháng chấm {AS_OF_MONTH}.")
+        page_header("Seller nào đáng lo nhất?", "Kỳ này chưa đủ dữ liệu để chấm.", "predicted")
         next_step("risk")
         return
     scored, scenario = _attach(raw)
     as_of = AS_OF_MONTH
     scored_at = str(scored["scored_at"].iloc[0]).split(".")[0] if "scored_at" in scored.columns else "—"
-    min_orders = st.number_input(
+    if "risk_min_orders" not in st.session_state:
+        st.session_state["risk_min_orders"] = int(MIN_ORDERS)
+    min_orders = int(st.session_state["risk_min_orders"])
+    eligible = scored[pd.to_numeric(scored["n_orders_valid"], errors="coerce").fillna(0) >= int(min_orders)].copy()
+    page_header("Seller nào đáng lo nhất?", _flag_sentence(eligible), "predicted")
+    st.number_input(
         "Số đơn tối thiểu để được chấm",
         min_value=0,
-        value=int(MIN_ORDERS),
         step=1,
         help=explain("risk_score"),
+        key="risk_min_orders",
     )
-    eligible = scored[pd.to_numeric(scored["n_orders_valid"], errors="coerce").fillna(0) >= int(min_orders)].copy()
     st.caption(
         f"Tháng chấm {as_of}. Job chạy {scored_at}. "
         f"{fmt_count(len(eligible))} seller đủ điều kiện / {fmt_count(len(scored))} seller tổng."
     )
     if eligible.empty:
-        st.info("Kỳ này chưa đủ dữ liệu để chấm.")
         next_step("risk")
         return
-    badge_predicted()
-    insight_box(_insight(eligible))
     _summary(eligible, eligible)
     st.caption(f"Đơn xấu dự kiến theo P2, cùng công thức trang chính sách: {fmt_number(scenario.expected_bad_orders)}.")
     tabs = st.tabs(["Danh sách", "Phân bố", "Chi tiết seller", "Độ tin cậy"])
