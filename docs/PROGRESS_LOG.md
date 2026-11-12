@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: delta thẻ KPI và sparkline theo tháng, đã merge `origin/main`. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: panel đọc phép OLAP và nhãn tiếng Việt. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Phần còn lại của trang KPI trên cùng branch, chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (merge main) |
+| Việc tiếp theo | Phần còn lại của trang KPI và OLAP, chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (panel OLAP) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Panel OLAP và nhãn tiếng Việt
+
+- **Đã làm:** Branch `fix/olap-page` từ `fix/kpi-page`, chưa mở PR. Năm tab bỏ popover "Cách đọc". Dưới dòng cao nhất là 1–2 câu về phép OLAP và cách đọc chart. Câu hỏi chỉ còn ở title chart. Roll-up: nhãn Vùng/Bang/Thành phố, dòng cao nhất chỉ nhóm n ≥ `MIN_N_DISPLAY`, nhóm dưới ngưỡng vẫn vẽ nhưng mờ, margin top chart cố định. Slice và Pivot dùng chung bảng dịch nhóm danh mục, bỏ Unknown ở dropdown slice. Sidebar bỏ số thứ tự tên trang và caption "Đọc 1 → 4…". Không đổi loại chart, SQL, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 1.97s. Đã mở `http://localhost:8501/olap`. Năm tab không có popover "Cách đọc" và không lỗi. Roll-up hiện Vùng/Bang/Thành phố; khoảng từ nút Biểu đồ tới title chart là 0 px ở cả ba mức. Slice liệt kê tên nhóm tiếng Việt, không có Unknown. Pivot hiện "Dịch vụ và nhóm khác Q4 cao nhất". Menu không còn số thứ tự và caption "Đọc 1 → 4…".
 
 ### 12/11/2026 — Delta thẻ KPI và sparkline theo tháng
 
