@@ -494,7 +494,47 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
         st.info("Chưa có kết quả đánh giá cho kỳ này.")
         return
     if not metrics.empty:
-        st.dataframe(metrics, width="stretch", hide_index=True)
+        def _metric_number(name: str) -> str:
+            rows = metrics.loc[metrics["metric"].astype(str) == name, "value"]
+            if rows.empty:
+                return "—"
+            value = rows.iloc[0]
+            if value is None or pd.isna(value):
+                return "—"
+            text = f"{float(value):,.3f}"
+            return text.replace(",", "X").replace(".", ",").replace("X", ".")
+
+        def _test_month_label() -> str:
+            rows = metrics.loc[metrics["metric"].astype(str) == "test_month", "value"].dropna()
+            labels = []
+            for value in rows:
+                key = int(round(float(value)))
+                year, month = divmod(key, 100)
+                if 1 <= month <= 12:
+                    labels.append(f"{year:04d}-{month:02d}")
+            if not labels:
+                return "—"
+            return ", ".join(sorted(set(labels)))
+
+        cards = st.columns(3)
+        with cards[0]:
+            kpi_card(
+                "AUC",
+                _metric_number("auc"),
+                help="Xác suất mô hình xếp một seller xấu cao hơn một seller tốt; 0,5 là đoán bừa, 1 là hoàn hảo.",
+            )
+        with cards[1]:
+            kpi_card(
+                "Brier",
+                _metric_number("brier"),
+                help="Sai số bình phương trung bình của xác suất; càng thấp càng tốt, so với Brier của việc đoán bằng tỷ lệ trung bình.",
+            )
+        with cards[2]:
+            kpi_card(
+                "Tháng test",
+                _test_month_label(),
+                help="Các tháng dùng để đánh giá.",
+            )
     if not calibration.empty:
         figure = go.Figure()
         figure.add_scatter(

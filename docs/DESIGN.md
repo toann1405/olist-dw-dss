@@ -746,7 +746,7 @@ Không ghi sẵn các hiệu số chưa đo (số dòng review theo grain mới,
 
 ### 6.6 Schema `dss` (Phase 5)
 
-Nguồn duy nhất của view là `gold.*`. Job DSS tạo view và các bảng dưới đây, rồi ghi đè điểm và kịch bản của tháng chấm **`AS_OF_MONTH` = `2018-08`** (`src/dss/params.py`). ~~Tháng `month_key` lớn nhất trên `fact_seller_monthly`~~ (đổi 11/11: 2018-09/10 thưa nên không dùng `MAX(month)`). Job không xóa `dss.decision_log`. Streamlit chỉ `INSERT` bảng đó. Ngoài hai bảng kết quả, job còn `CREATE TABLE IF NOT EXISTS` `seller_risk_contrib`, `model_eval`, `model_calibration`.
+Nguồn duy nhất của view là `gold.*`. Job DSS tạo view và các bảng dưới đây, rồi ghi đè điểm, kịch bản, và ba bảng đánh giá M1 của tháng chấm **`AS_OF_MONTH` = `2018-08`** (`src/dss/params.py`). ~~Tháng `month_key` lớn nhất trên `fact_seller_monthly`~~ (đổi 11/11: 2018-09/10 thưa nên không dùng `MAX(month)`). Job không xóa `dss.decision_log`. Streamlit chỉ `INSERT` bảng đó. `seller_risk_contrib`, `model_eval`, `model_calibration` được `overwrite` cùng lần chạy với điểm và kịch bản.
 
 `late_ship_rate_3m` là trung bình `late_ship_rate` của dòng seller-tháng hiện tại và hai dòng seller-tháng liền trước trên fact (bỏ rate null). Fact không có dòng seller-tháng rỗng, nên cửa sổ không điền tháng lịch bị thiếu. `category_group` là nhóm có nhiều item nhất trong tháng; hòa thì lấy tên nhỏ hơn theo thứ tự từ điển. `avg_distance_km` là `AVG(distance_km)` của item, bỏ null. `seller_age_days` null khi `won_date` null.
 
@@ -827,6 +827,38 @@ Tham số P0/P1/P2 không nằm trên Gold. Quy ước số (ngưỡng θ, `e_k`
 | `gmv_affected_pct` | DOUBLE | có | |
 | `n_sellers_flagged` | INT | không | |
 | `note` | STRING | có | Ghi chú người dùng. Có thể null |
+
+`dss.model_eval` — một dòng mỗi metric của lần chấm. `as_of_month` là tháng chấm, không phải tháng test.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `as_of_month` | STRING | không | Tháng chấm |
+| `metric` | STRING | không | `auc`, `brier`, `n_train_orders`, `n_test_orders`, `base_rate`. Thêm một dòng `test_month` cho mỗi tháng test |
+| `value` | DOUBLE | có | Số của metric. `test_month` lưu `yyyyMM` (ví dụ 201806 là tháng 2018-06). Null khi baseline không có metric |
+
+`base_rate` là tỷ lệ đơn xấu trên tập test (mỗi đơn một dòng sau khi bung `label_eligible`). `n_test_orders` đếm cùng các đơn đó.
+
+`dss.model_calibration` — một dòng mỗi bin xác suất trên tập test. `n` là số đơn, không phải số seller-tháng.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `as_of_month` | STRING | không | Tháng chấm |
+| `bin` | INT | không | Thứ tự decile sau `qcut` (`duplicates="drop"`), bắt đầu từ 1. Tối đa 10 bin |
+| `mean_pred` | DOUBLE | có | Trung bình xác suất trong bin |
+| `observed_rate` | DOUBLE | có | Tỷ lệ đơn xấu quan sát trong bin |
+| `n` | INT | có | Số đơn trong bin. Tổng `n` = `n_test_orders` |
+
+`dss.seller_risk_contrib` — một dòng mỗi seller của tháng chấm và mỗi cột mô hình. `feature` là nhãn tiếng Việt (`FEATURE_LABELS` trong `src/dss/train.py`). Khóa huấn luyện giữ nguyên.
+
+| Cột | Kiểu | Null | Quy tắc |
+|---|---|---|---|
+| `as_of_month` | STRING | không | Tháng chấm |
+| `seller_id` | STRING | không | Seller được chấm |
+| `feature` | STRING | không | Nhãn hiển thị |
+| `value` | DOUBLE | có | Giá trị đầu vào sau khi điền median, chưa trừ trung bình train |
+| `contribution` | DOUBLE | có | `coef_j * (x_ij - mean_j)` với `mean_j` là trung bình đơn trên ma trận train đã bung. Tổng contribution cộng intercept đã chỉnh (intercept + coef · mean) bằng logit của `predict_proba` |
+
+Baseline (`baseline_rate`) ghi metric null và hai bảng calibration / contribution rỗng.
 
 ---
 

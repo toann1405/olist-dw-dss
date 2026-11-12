@@ -11,14 +11,20 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | Branch `fix/seller-risk-page`: số liệu trang Cảnh báo seller lấy từ M2. R09 vẫn ◐. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | Branch `fix/seller-risk-page`: M1 trả calibration và đóng góp yếu tố; tab Độ tin cậy có 3 thẻ. Job DSS chưa chạy lại trên Databricks. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (seller risk khớp M2) |
+| Việc tiếp theo | Chạy lại job DSS để tab Độ tin cậy có số của warehouse. Chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (ghi đánh giá M1) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Ghi đánh giá M1 cho tab Độ tin cậy
+
+- **Đã làm:** `train_and_score` trả thêm calibration (decile xác suất trên đơn test: `bin`, `mean_pred`, `observed_rate`, `n`) và đóng góp từng seller ở tháng chấm (`seller_id`, `feature`, `value`, `contribution`). `feature` ghi nhãn tiếng Việt từ `FEATURE_LABELS`; khóa huấn luyện không đổi. Nhánh baseline trả hai DataFrame rỗng. Job DSS `overwrite` `model_eval` (auc, brier, n_train_orders, n_test_orders, base_rate, kèm `test_month` = yyyyMM), `model_calibration` và `seller_risk_contrib`, `as_of_month` là tháng chấm. Tab Độ tin cậy đổi bảng metric thành 3 thẻ AUC, Brier, Tháng test. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** `python -m pytest src/tests -q` → 38 passed in 17.39s. Khung giả: không quá 10 bin, tổng `n` bằng số đơn test, tổng contribution cộng intercept khớp logit.
+- **Chưa làm:** không chạy job DSS trong phiên này, nên bảng Delta và tab live chưa có số mới.
 
 ### 12/11/2026 — Trang Cảnh báo seller khớp M2
 
