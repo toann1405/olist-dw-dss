@@ -246,7 +246,7 @@ Thứ tự Job: setup → bronze → silver → gold dims → gold facts → `fa
 
 **Local → Cloud**
 
-- [ ] Streamlit, trang ~~Tổng quan KPI~~ **Sức khỏe marketplace đang thế nào?**: năm chỉ số ở plan app, lọc năm mua và vùng seller, đọc Gold qua SQL Warehouse (R09)
+- [ ] Streamlit, trang ~~Tổng quan KPI~~ **Sức khỏe marketplace đang thế nào?**: năm chỉ số ở plan app, lọc khoảng tháng và vùng seller, đọc Gold qua SQL Warehouse (R09)
 - [ ] Streamlit, trang ~~OLAP Explorer~~ **GMV và trải nghiệm xấu đến từ đâu?**: đủ 5 phép, mỗi phép một visual, SQL lấy từ `src/sql/olap_queries/` (R09, R24, R25)
 
 **Sản phẩm:** `src/sql/olap_queries/`, `src/frontend/` (app KPI và OLAP). View DSS nằm ở Phase 5. Power BI là future work.

@@ -11,15 +11,24 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Consumption layer chỉ đổi chữ và bố cục. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
-| Blocker | Phiên này không gửi lại SELECT 1 lên SQL Warehouse |
-| Việc tiếp theo | Báo cáo PDF, slide. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (bố cục consumption layer) |
+| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: delta thẻ KPI và sparkline theo tháng, đã merge `origin/main`. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Blocker | Không |
+| Việc tiếp theo | Phần còn lại của trang KPI trên cùng branch, chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (merge main) |
 
 ---
 
 ## Nhật ký
 
+### 12/11/2026 — Delta thẻ KPI và sparkline theo tháng
+
+- **Đã làm:** Trên `fix/kpi-page`, chưa mở PR. Delta sáu thẻ đầu dùng dấu `-` ASCII để mũi tên và màu đúng hướng. Ẩn delta khi kỳ trước có dưới `MIN_ORDERS` đơn hợp lệ hoặc chứa tháng thưa. Help mỗi thẻ ghi kỳ so sánh, đơn vị (`%` hoặc điểm %), và xanh là tốt lên. Trang tách "Tổng quan kỳ" (sáu thẻ có delta và thẻ đơn trải nghiệm xấu) với "Xu hướng theo tháng" bằng `st.divider()`. Mỗi thẻ phần B nằm cùng sparkline trong một khung. Sparkline bỏ subtitle và legend, trục X chỉ tháng đầu và tháng cuối, tiêu đề "Theo tháng", điểm tháng cuối có giá trị. Thêm sparkline AOV = `gmv / n_orders_valid` từ `seller_month_series`. Không đổi loại chart, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 1.63s. Kỳ 2015-07 → 2017-01 bị ẩn delta vì có tháng thưa; kỳ 2017-07 → 2018-01 đủ điều kiện. `signed_pct(-0.123)` ra `-12,3%`. Đã mở `http://localhost:8501/kpi` với 2017-02 → 2018-08: sáu thẻ không có delta, help ghi kỳ 2015-07 → 2017-01, phần B có caption một dòng và sparkline AOV, trục X hiện `2017-02` và `2018-08`.
+
+### 12/11/2026 — Một bộ chọn thời gian ở sidebar KPI
+
+- **Đã làm:** Bước 1 trên branch `fix/kpi-page`, chưa mở PR. Bỏ "Năm mua" và toggle "Chỉ giai đoạn đủ dữ liệu". Sidebar giữ Từ/Đến tháng, chỉ tháng có đơn, mặc định 2017-02 → 2018-08. Thêm preset Đủ dữ liệu / 2017 / 2018 / Toàn bộ. Query KPI đang lọc `year` chuyển sang khoảng tháng. Vùng, bang, nhóm hàng và funnel giữ. Delta so với khoảng liền trước cùng số tháng; không có đơn thì ẩn delta. Từ tháng sau Đến tháng thì `st.warning` và dừng trang KPI. Không đổi chart, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐. PLAN chỉ đổi chữ "lọc năm mua" thành "lọc khoảng tháng".
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 2.37s. Tháng có đơn: 2016-09 → 2018-10, 25 tháng (không có 2016-11). GMV không lọc và GMV 2016-09 → 2018-10 đều `13494400.74`, app hiện `R$ 13,49 tr`. Khoảng liền trước của Toàn bộ là 2014-07 → 2016-08, `gmv` null, đơn hợp lệ 0. Đã mở `http://localhost:8501/kpi`: preset Toàn bộ đặt 2016-09 → 2018-10, GMV `R$ 13,49 tr`, không hiện delta.
 ### 11/11/2026 — Bố cục consumption layer trên Streamlit
 
 - **Đã làm:** Theo spec đã chốt cùng ngày. `page_header(title, conclusion, kind)` và `chart_card` trong `src/frontend/lib/ui.py`. Nhãn Thực tế / Dự báo một lần ở đầu trang. Chú thích chart vào popover. Trang Chính sách mở bằng thẻ khuyến nghị và nút Chốt; lập luận M2 nằm trong tab. Home chỉ còn KPI, X/N, bốn lối vào và một dòng độ mới. Trang mới `pages/method.py` nhận bối cảnh, cách đọc, lineage, giới hạn và giả định M1/M2. Menu: bốn trang câu hỏi, rồi *Dữ liệu & phương pháp*. Không tick checkbox PLAN. R09 vẫn ◐. SPEC §10 giữ dòng năm trang và đánh dấu đã thay.

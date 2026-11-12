@@ -23,7 +23,8 @@ WITH items AS (
     AND p.product_key <> -1
     AND d.date_key <> -1
     AND (st.order_status IS NULL OR st.order_status NOT IN ('canceled', 'unavailable'))
-    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
     AND ({p} IS NULL OR s.region_name = {p})
     AND ({p} IS NULL OR s.state_code = {p})
 )

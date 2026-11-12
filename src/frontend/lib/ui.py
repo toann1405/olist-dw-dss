@@ -80,7 +80,7 @@ def signed_pct(change) -> str | None:
     number = float(change)
     if number == 0:
         return "0,0%"
-    sign = "+" if number > 0 else "−"
+    sign = "+" if number > 0 else "-"
     return sign + fmt_pct(abs(number))
 
 
@@ -91,7 +91,7 @@ def signed_points(current, previous) -> str | None:
     diff = float(current) - float(previous)
     if diff == 0:
         return "0,0 điểm"
-    sign = "+" if diff > 0 else "−"
+    sign = "+" if diff > 0 else "-"
     body = fmt_pct(abs(diff)).replace("%", " điểm")
     return sign + body
 
@@ -226,9 +226,21 @@ def next_step(current: str) -> None:
         st.switch_page(target)
 
 
-def kpi_card(label: str, value: str, delta: str | None = None, help_text: str | None = None, delta_color: str = "normal") -> None:
-    with st.container(border=True):
-        st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+def kpi_card(
+    label: str,
+    value: str,
+    delta: str | None = None,
+    help_text: str | None = None,
+    delta_color: str = "normal",
+    *,
+    border: bool = True,
+) -> None:
+    """One metric. border=False when the caller already wraps the card and its chart."""
+    if border:
+        with st.container(border=True):
+            st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+        return
+    st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
 
 
 def chip(label: str, value: str) -> None:
@@ -285,17 +297,21 @@ def button_dropdown(
     return st.session_state[key]
 
 
-def filters() -> tuple[int | None, str | None, str | None, str | None]:
-    """Sidebar choices. 'Tất cả' is None. Year is an int when set."""
-    year_label = st.session_state.get("filter_year", ALL)
+def filters() -> tuple[str | None, str | None, str | None, str | None, str | None]:
+    """Sidebar choices. 'Tất cả' is None. Months are YYYY-MM when set."""
+    from lib.stats import DENSE_FROM, DENSE_TO
+
+    month_from = st.session_state.get("filter_month_from", DENSE_FROM)
+    month_to = st.session_state.get("filter_month_to", DENSE_TO)
     region = st.session_state.get("filter_region", ALL)
     state = st.session_state.get("filter_state", ALL)
     category = st.session_state.get("filter_category", ALL)
-    year = None if year_label in (None, ALL) else int(year_label)
+    month_from = None if month_from in (None, ALL) else str(month_from)
+    month_to = None if month_to in (None, ALL) else str(month_to)
     region = None if region in (None, ALL) else str(region)
     state = None if state in (None, ALL) else str(state)
     category = None if category in (None, ALL) else str(category)
-    return year, region, state, category
+    return month_from, month_to, region, state, category
 
 
 def apply_theme(fig: go.Figure, height: int = 360) -> go.Figure:
@@ -360,27 +376,21 @@ def scope_subtitle(
     extra: str | None = None,
 ) -> str:
     """Period and filters actually in effect, for chart subtitles."""
-    year, region, state, category = filters()
+    month_from, month_to, region, state, category = filters()
     parts: list[str] = []
-    if include_year:
-        parts.append(f"Năm {year if year is not None else 'tất cả'}")
+    if include_year or include_months:
+        if month_from or month_to:
+            left = month_from or "đầu kỳ"
+            right = month_to or "cuối kỳ"
+            parts.append(f"tháng {left} → {right}")
+        else:
+            parts.append("mọi tháng")
     if include_region:
         parts.append(f"vùng {region or 'tất cả'}")
     if include_state:
         parts.append(f"bang {state or 'tất cả'}")
     if include_category and category:
         parts.append(f"nhóm {category}")
-    if include_months:
-        start = st.session_state.get("filter_month_from", ALL)
-        end = st.session_state.get("filter_month_to", ALL)
-        if st.session_state.get("kpi_dense"):
-            parts.append("chỉ giai đoạn đủ dữ liệu")
-        elif start not in (None, ALL) or end not in (None, ALL):
-            left = start if start not in (None, ALL) else "đầu kỳ"
-            right = end if end not in (None, ALL) else "cuối kỳ"
-            parts.append(f"tháng {left} → {right}")
-        else:
-            parts.append("mọi tháng")
     if include_funnel:
         funnel = st.session_state.get("filter_funnel", ALL)
         if funnel not in (None, ALL):

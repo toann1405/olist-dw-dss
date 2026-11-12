@@ -55,39 +55,60 @@ def _rate(top, bottom):
     return numerator / denominator
 
 
-_SPARK_TITLES = {
-    "gmv": "GMV theo tháng (R$)",
-    "n_orders_valid": "Số đơn hợp lệ theo tháng",
-    "active_sellers": "Số seller hoạt động theo tháng",
-    "late_delivery_rate": "Tỷ lệ giao trễ tới khách theo tháng",
-    "late_ship_rate": "Tỷ lệ bàn giao trễ theo tháng",
-    "review_rate": "Tỷ lệ review xấu theo tháng",
-    "cancel_rate": "Tỷ lệ hủy đơn theo tháng",
-    "avg_review": "Điểm review trung bình theo tháng",
-    "avg_handling_days": "Số ngày xử lý trung bình theo tháng",
-}
+def _spark_text(column: str, value) -> str:
+    if column in ("gmv", "aov"):
+        return fmt_brl(value)
+    if column in ("n_orders_valid", "active_sellers"):
+        return fmt_int(value)
+    if column in ("late_delivery_rate", "late_ship_rate", "review_rate", "cancel_rate"):
+        return fmt_pct(value)
+    return fmt_number(value)
 
 
 def _spark(frame: pd.DataFrame, value_column: str) -> None:
+    """One line. The page caption carries the period, so this chart has no subtitle."""
     if frame is None or frame.empty or value_column not in frame.columns:
         return
-    title = _SPARK_TITLES.get(value_column, "Giá trị theo tháng")
+    work = frame.dropna(subset=["year_month", value_column]).sort_values("year_month")
+    if work.empty:
+        return
+    work = work.copy()
+    work["year_month"] = work["year_month"].astype(str)
+    first = work["year_month"].iloc[0]
+    last = work["year_month"].iloc[-1]
+    last_value = work[value_column].iloc[-1]
+    ticks = [first] if first == last else [first, last]
     figure = go.Figure(
         go.Scatter(
-            x=frame["year_month"],
-            y=frame[value_column],
+            x=work["year_month"],
+            y=work[value_column],
             mode="lines",
-            name=title,
             line=dict(color=NAVY, width=2),
+            hovertemplate="%{x}<br>%{y}<extra></extra>",
+            showlegend=False,
         )
     )
-    figure.update_layout(height=240)
-    figure.update_xaxes(visible=False)
-    figure.update_yaxes(visible=False)
-    st.plotly_chart(
-        style_fig(figure, title, scope_subtitle(include_months=True, include_funnel=True)),
-        width="stretch",
+    figure.add_scatter(
+        x=[last],
+        y=[last_value],
+        mode="markers+text",
+        text=[_spark_text(value_column, last_value)],
+        textposition="top center",
+        marker=dict(color=NAVY, size=8),
+        hoverinfo="skip",
+        showlegend=False,
     )
+    figure.update_layout(height=240)
+    figure.update_yaxes(visible=False, showgrid=False)
+    styled = style_fig(figure, "Theo tháng", legend=False)
+    styled.update_xaxes(
+        type="category",
+        tickmode="array",
+        tickvals=ticks,
+        ticktext=ticks,
+        showgrid=False,
+    )
+    st.plotly_chart(styled, width="stretch")
 
 
 def _with_rates(frame: pd.DataFrame) -> pd.DataFrame:
@@ -100,6 +121,7 @@ def _with_rates(frame: pd.DataFrame) -> pd.DataFrame:
         "cancel_rate": ("cancel_count", "n_orders_placed"),
         "avg_review": ("review_score_sum", "review_count"),
         "avg_handling_days": ("handling_days_sum", "handling_days_count"),
+        "aov": ("gmv", "n_orders_valid"),
     }
     for name, (top, bottom) in pairs.items():
         if top in data.columns and bottom in data.columns:
@@ -169,19 +191,22 @@ def grouped_cards(current: dict, series: pd.DataFrame) -> None:
             return data
         return data[["year_month", column]].dropna()
 
+    def _pair(column, label, value, help_text, spark):
+        with column:
+            with st.container(border=True):
+                kpi_card(label, value, help_text=help_text, border=False)
+                _spark(tail(spark), spark)
+
     st.markdown("**Quy mô**")
     columns = st.columns(4)
     blocks = [
         ("GMV", fmt_brl(current["gmv"]), explain("gmv"), "gmv"),
         ("Số đơn", fmt_int(current["valid_orders"]), explain("valid_orders"), "n_orders_valid"),
-        ("AOV", fmt_brl(current["aov"]), explain("aov"), None),
+        ("AOV", fmt_brl(current["aov"]), explain("aov"), "aov"),
         ("Seller hoạt động tháng cuối đủ dữ liệu", fmt_int(None if latest is None else latest.get("active_sellers")), explain("active_sellers"), "active_sellers"),
     ]
-    for column, (label, value, help_text, spark) in zip(columns, blocks):
-        with column:
-            kpi_card(label, value, help_text=help_text)
-            if spark:
-                _spark(tail(spark), spark)
+    for column, block in zip(columns, blocks):
+        _pair(column, *block)
     handling = None if latest is None else latest.get("avg_handling_days")
     review = None if latest is None else latest.get("avg_review")
     delivery = None if latest is None else latest.get("late_delivery_rate")
@@ -193,18 +218,16 @@ def grouped_cards(current: dict, series: pd.DataFrame) -> None:
         ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), explain("negative_review"), "review_rate"),
         ("Cancel rate", fmt_pct(current["cancel_rate"]), explain("cancel_rate"), "cancel_rate"),
     ]
-    for column, (label, value, help_text, spark) in zip(columns, quality):
-        with column:
-            kpi_card(label, value, help_text=help_text)
-            _spark(tail(spark), spark)
+    for column, block in zip(columns, quality):
+        _pair(column, *block)
     st.markdown("**Vận hành**")
     columns = st.columns(2)
-    with columns[0]:
-        kpi_card("Điểm review trung bình", fmt_number(review), help_text=explain("negative_review"))
-        _spark(tail("avg_review"), "avg_review")
-    with columns[1]:
-        kpi_card("Số ngày xử lý trung bình", fmt_number(handling), help_text="handling_days_sum / handling_days_count.")
-        _spark(tail("avg_handling_days"), "avg_handling_days")
+    operations = [
+        ("Điểm review trung bình", fmt_number(review), explain("negative_review"), "avg_review"),
+        ("Số ngày xử lý trung bình", fmt_number(handling), "handling_days_sum / handling_days_count.", "avg_handling_days"),
+    ]
+    for column, block in zip(columns, operations):
+        _pair(column, *block)
 
 
 def trend_tab(series: pd.DataFrame, platform_bad) -> None:
@@ -654,10 +677,10 @@ def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) ->
     )
     spec = next(item for item in _WHERE_METRICS if item[0] == label)
     _label, numerator, denominator, is_rate = spec
-    year, region, state, _category = filters()
+    month_from, month_to, region, state, _category = filters()
     side = "seller" if geography == "Bang seller" else "customer"
     try:
-        fetched = db.query(*queries.kpi_where_by_state(year, region, state, side))
+        fetched = db.query(*queries.kpi_where_by_state(month_from, month_to, region, state, side))
     except Exception as exc:
         st.error(db.redact(exc))
         _category_scatter(categories)

@@ -138,10 +138,10 @@ def _hbar(
 
 
 def _kpi_strip() -> None:
-    year, region, state, _category = filters()
+    month_from, month_to, region, state, _category = filters()
     try:
-        monthly = db.query(*queries.kpi_seller_month(year, region, state)).iloc[0]
-        orders = db.query(*queries.kpi_orders(year, region, state)).iloc[0]
+        monthly = db.query(*queries.kpi_seller_month(month_from, month_to, region, state)).iloc[0]
+        orders = db.query(*queries.kpi_orders(month_from, month_to, region, state)).iloc[0]
     except Exception as exc:
         st.error(db.redact(exc))
         return
@@ -156,7 +156,7 @@ def _kpi_strip() -> None:
         ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
     try:
-        quality = db.query(*queries.market_quality(year, region, state))
+        quality = db.query(*queries.market_quality(month_from, month_to, region, state))
         if not quality.empty and quality.iloc[0]["bad_eligible"]:
             bad = float(quality.iloc[0]["bad_orders"]) / float(quality.iloc[0]["bad_eligible"])
             values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
@@ -304,7 +304,7 @@ def _tab_drill(frame: pd.DataFrame) -> None:
 def _tab_slice(groups: pd.DataFrame) -> None:
     names = groups["category_group"].dropna().astype(str).tolist()
     chart_col, side = st.columns([2, 1])
-    _year, _region, _state, category = filters()
+    _month_from, _month_to, _region, _state, category = filters()
     with side:
         if not names:
             st.info("Không có nhóm danh mục.")

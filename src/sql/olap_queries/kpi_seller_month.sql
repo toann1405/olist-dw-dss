@@ -1,5 +1,5 @@
 -- operator: kpi
--- question: GMV, late handoff, and the seller negative-review rate for one purchase year and seller region
+-- question: GMV, late handoff, and the seller negative-review rate for one purchase-month range and seller region
 -- requirement: R09
 -- tables: gold.fact_seller_monthly, gold.dim_month, gold.dim_seller
 -- rates from numerator and denominator
@@ -26,6 +26,7 @@ INNER JOIN {catalog}.{gold}.dim_seller AS s
 WHERE f.seller_key <> -1
   AND m.month_key <> -1
   AND s.seller_key <> -1
-  AND ({p} IS NULL OR m.year = {p})
+  AND ({p} IS NULL OR m.year_month >= {p})
+  AND ({p} IS NULL OR m.year_month <= {p})
   AND ({p} IS NULL OR s.region_name = {p})
   AND ({p} IS NULL OR s.state_code = {p})

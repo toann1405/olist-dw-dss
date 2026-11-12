@@ -1,5 +1,5 @@
 -- operator: kpi
--- question: AOV and cancel rate from distinct orders for one purchase year and seller region
+-- question: AOV and cancel rate from distinct orders for one purchase-month range and seller region
 -- requirement: R09
 -- tables: gold.fact_order_item, gold.fact_order, gold.dim_order_status, gold.dim_seller, gold.dim_date
 -- rates from numerator and denominator
@@ -21,7 +21,8 @@ WITH touched AS (
   WHERE i.seller_key <> -1
     AND s.seller_key <> -1
     AND d.date_key <> -1
-    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
     AND ({p} IS NULL OR s.region_name = {p})
     AND ({p} IS NULL OR s.state_code = {p})
 )

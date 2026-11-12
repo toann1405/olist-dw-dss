@@ -24,7 +24,8 @@ WITH items AS (
     AND s.seller_key <> -1
     AND p.product_key <> -1
     AND d.date_key <> -1
-    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
     AND ({p} IS NULL OR s.region_name = {p})
     AND ({p} IS NULL OR s.state_code = {p})
     AND p.category_group = {p}

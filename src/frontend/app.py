@@ -14,6 +14,7 @@ for path in (str(ROOT), str(FRONT)):
 import streamlit as st
 
 from lib import db, queries
+from lib.stats import DENSE_FROM, DENSE_TO
 from lib.ui import ALL, NAVY
 from pages import home, kpi, method, olap, policy, seller_risk
 
@@ -25,6 +26,25 @@ def _labels(frame, column: str) -> list[str]:
 def _keep(key: str, options: list[str]) -> None:
     if st.session_state.get(key) not in options:
         st.session_state[key] = ALL
+
+
+def _select_months(start: str, end: str) -> None:
+    st.session_state["filter_month_from"] = start
+    st.session_state["filter_month_to"] = end
+
+
+def _month_presets(months: list[str]) -> dict[str, tuple[str, str]]:
+    """Named ranges. A year preset uses the first and last month that has orders."""
+    presets: dict[str, tuple[str, str]] = {}
+    if DENSE_FROM in months and DENSE_TO in months:
+        presets["Đủ dữ liệu"] = (DENSE_FROM, DENSE_TO)
+    for year in ("2017", "2018"):
+        chosen = [item for item in months if item.startswith(f"{year}-")]
+        if chosen:
+            presets[year] = (chosen[0], chosen[-1])
+    if months:
+        presets["Toàn bộ"] = (months[0], months[-1])
+    return presets
 
 
 def _dropdown(label: str, options: list[str], key: str, disabled: bool) -> None:
@@ -54,12 +74,40 @@ def render_sidebar() -> None:
     if filters_off:
         st.sidebar.caption("Trang này không dùng bộ lọc.")
     try:
-        years = _labels(db.query(*queries.years()), "year")
-        years = [ALL] + [str(int(float(value))) for value in years if value != ALL]
         regions = _labels(db.query(*queries.regions()), "region_name")
-        _keep("filter_year", years)
         _keep("filter_region", regions)
-        _dropdown("Năm mua", years, "filter_year", filters_off)
+        months = db.query(*queries.months())["year_month"].dropna().astype(str).tolist()
+        presets = _month_presets(months)
+        default = presets.get("Đủ dữ liệu") or presets.get("Toàn bộ")
+        if default:
+            if st.session_state.get("filter_month_from") not in months:
+                st.session_state["filter_month_from"] = default[0]
+            if st.session_state.get("filter_month_to") not in months:
+                st.session_state["filter_month_to"] = default[1]
+        st.sidebar.caption("Khoảng thời gian")
+        grid = (st.sidebar.columns(2), st.sidebar.columns(2))
+        slots = (grid[0][0], grid[0][1], grid[1][0], grid[1][1])
+        for slot, name in zip(slots, ("Đủ dữ liệu", "2017", "2018", "Toàn bộ")):
+            bounds = presets.get(name)
+            active = (
+                bounds is not None
+                and st.session_state.get("filter_month_from") == bounds[0]
+                and st.session_state.get("filter_month_to") == bounds[1]
+            )
+            button_args = {}
+            if bounds is not None:
+                button_args["on_click"] = _select_months
+                button_args["args"] = bounds
+            slot.button(
+                name,
+                key=f"preset_{name}",
+                disabled=filters_off or bounds is None,
+                type="primary" if active else "secondary",
+                width="stretch",
+                **button_args,
+            )
+        _dropdown("Từ tháng", months, "filter_month_from", filters_off)
+        _dropdown("Đến tháng", months, "filter_month_to", filters_off)
         _dropdown("Vùng seller", regions, "filter_region", filters_off)
         region = None if st.session_state["filter_region"] == ALL else st.session_state["filter_region"]
         states = _labels(db.query(*queries.states(region)), "state_code")
@@ -68,11 +116,6 @@ def render_sidebar() -> None:
         _keep("filter_category", categories)
         _dropdown("Bang seller", states, "filter_state", filters_off)
         _dropdown("Nhóm danh mục", categories, "filter_category", filters_off)
-        months = _labels(db.query(*queries.months()), "year_month")
-        _keep("filter_month_from", months)
-        _keep("filter_month_to", months)
-        _dropdown("Từ tháng", months, "filter_month_from", filters_off)
-        _dropdown("Đến tháng", months, "filter_month_to", filters_off)
         funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
         _keep("filter_funnel", funnel_options)
         _dropdown("Funnel", funnel_options, "filter_funnel", filters_off)

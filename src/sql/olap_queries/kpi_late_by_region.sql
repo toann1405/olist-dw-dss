@@ -15,7 +15,8 @@ WHERE f.seller_key <> -1
   AND m.month_key <> -1
   AND s.seller_key <> -1
   AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
-  AND ({p} IS NULL OR m.year = {p})
+  AND ({p} IS NULL OR m.year_month >= {p})
+  AND ({p} IS NULL OR m.year_month <= {p})
   AND ({p} IS NULL OR s.state_code = {p})
 GROUP BY s.region_name
 ORDER BY region_name

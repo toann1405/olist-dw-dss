@@ -7,9 +7,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db, queries
-from lib.glossary import DATA_AS_OF, explain
+from lib.glossary import explain
 from lib.insights import build_insight_kpi
-from lib.stats import DENSE_FROM, DENSE_TO
+from lib.stats import SPARSE_MONTHS
 from pages import kpi_panels
 from lib.ui import (
     LATE,
@@ -85,10 +85,75 @@ def _pack_category(row: pd.Series, review: dict) -> dict:
     }
 
 
-def _load_base(year, region, state) -> dict:
-    monthly = _row(db.query(*queries.kpi_seller_month(year, region, state)))
-    orders = _row(db.query(*queries.kpi_orders(year, region, state)))
+def _load_base(month_from, month_to, region, state) -> dict:
+    monthly = _row(db.query(*queries.kpi_seller_month(month_from, month_to, region, state)))
+    orders = _row(db.query(*queries.kpi_orders(month_from, month_to, region, state)))
     return _pack(monthly, orders)
+
+
+def _previous_window(start: str, end: str) -> tuple[str, str]:
+    """The calendar window of the same length that ends the month before start."""
+
+    def index(token: str) -> int:
+        year, month = token.split("-", 1)
+        return int(year) * 12 + int(month) - 1
+
+    def label(value: int) -> str:
+        year, month = divmod(value, 12)
+        return f"{year:04d}-{month + 1:02d}"
+
+    span = index(end) - index(start) + 1
+    previous_end = index(start) - 1
+    return label(previous_end - span + 1), label(previous_end)
+
+
+def _months_between(start: str, end: str) -> list[str]:
+    """Inclusive calendar months from start through end. Tokens are YYYY-MM."""
+
+    def index(token: str) -> int:
+        year, month = token.split("-", 1)
+        return int(year) * 12 + int(month) - 1
+
+    def label(value: int) -> str:
+        year, month = divmod(value, 12)
+        return f"{year:04d}-{month + 1:02d}"
+
+    start_i = index(start)
+    end_i = index(end)
+    if end_i < start_i:
+        return []
+    return [label(value) for value in range(start_i, end_i + 1)]
+
+
+def _delta_ready(previous: dict | None, prev_from: str | None, prev_to: str | None) -> bool:
+    """Show a delta only when the previous window is large enough and has no thin month."""
+    if previous is None or not prev_from or not prev_to:
+        return False
+    orders = _num(previous.get("valid_orders"))
+    if orders is None or orders < MIN_ORDERS:
+        return False
+    return not any(month in SPARSE_MONTHS for month in _months_between(prev_from, prev_to))
+
+
+def _card_help(term: str, unit: str, prev_from, prev_to, shown: bool) -> str:
+    text = explain(term)
+    if prev_from and prev_to:
+        text += f" Kỳ so sánh: {prev_from} → {prev_to}."
+    text += f" Đơn vị mức thay đổi: {unit}. Xanh là tốt lên."
+    if not shown:
+        text += (
+            " Không hiện mức thay đổi vì kỳ trước không có đủ đơn"
+            f" (dưới {MIN_ORDERS}) hoặc có tháng dữ liệu thưa."
+        )
+    return text
+
+
+def _has_activity(pack: dict) -> bool:
+    for key in ("gmv", "valid_orders", "cancel_n", "late_n", "review_n"):
+        value = pack.get(key)
+        if value not in (None, 0):
+            return True
+    return False
 
 
 def _combo(frame: pd.DataFrame) -> None:
@@ -267,35 +332,40 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
 
 def render(settings=None) -> None:
     del settings
-    year, region, state, category = filters()
-    dense = bool(st.session_state.get("kpi_dense", False))
+    month_from, month_to, region, state, category = filters()
+    if month_from and month_to and month_from > month_to:
+        st.warning("Từ tháng đang sau Đến tháng. Chọn lại khoảng thời gian ở sidebar.")
+        return
     funnel_label = st.session_state.get("filter_funnel", "Tất cả")
     funnel = {"Có closed deal": 1, "Không có closed deal": 0}.get(funnel_label)
-    month_from = st.session_state.get("filter_month_from", "Tất cả")
-    month_to = st.session_state.get("filter_month_to", "Tất cả")
-    start = None if month_from in (None, "Tất cả") else str(month_from)
-    end = None if month_to in (None, "Tất cả") else str(month_to)
-    if dense:
-        start = DENSE_FROM if start is None else max(start, DENSE_FROM)
-        end = DENSE_TO if end is None else min(end, DENSE_TO)
+    start, end = month_from, month_to
     try:
         with st.spinner("Đang tải dữ liệu…"):
-            current = _load_base(year, region, state)
+            current = _load_base(start, end, region, state)
             previous = None
-            if year is not None:
-                previous = _load_base(year - 1, region, state)
+            prev_from = prev_to = None
+            if start and end:
+                prev_from, prev_to = _previous_window(start, end)
+                prior = _load_base(prev_from, prev_to, region, state)
+                if _has_activity(prior):
+                    previous = prior
             if category is not None:
-                scoped = _row(db.query(*queries.kpi_for_category(year, region, state, category)))
-                prior_review = current
+                scoped = _row(db.query(*queries.kpi_for_category(start, end, region, state, category)))
                 current = _pack_category(scoped, current)
-                if year is not None:
-                    prior_scoped = _row(db.query(*queries.kpi_for_category(year - 1, region, state, category)))
-                    previous = _pack_category(prior_scoped, previous or prior_review)
-            months = db.query(*queries.kpi_by_month(year, region, state))
-            categories = db.query(*queries.kpi_top_categories(year, region, state))
-            regions = db.query(*queries.kpi_late_by_region(year, state))
-            story = db.query(*queries.story_by_region(year, region, state, category))
-            series = db.query(*queries.seller_month_series(year, region, state, funnel, start, end))
+                if previous is not None:
+                    prior_scoped = _row(
+                        db.query(*queries.kpi_for_category(prev_from, prev_to, region, state, category))
+                    )
+                    scoped_orders = _num(prior_scoped.get("placed_orders"))
+                    scoped_gmv = _num(prior_scoped.get("gmv"))
+                    if scoped_orders in (None, 0) and scoped_gmv in (None, 0):
+                        previous = None
+                    else:
+                        previous = _pack_category(prior_scoped, previous)
+            categories = db.query(*queries.kpi_top_categories(start, end, region, state))
+            regions = db.query(*queries.kpi_late_by_region(start, end, state))
+            story = db.query(*queries.story_by_region(start, end, region, state, category))
+            series = db.query(*queries.seller_month_series(region, state, funnel, start, end))
     except Exception as exc:
         page_header("Sức khỏe marketplace đang thế nào?", "Chưa tải được dữ liệu để kết luận.", "actual")
         db.show_warehouse_error(exc)
@@ -306,11 +376,9 @@ def render(settings=None) -> None:
         _kpi_conclusion(series, story),
         "actual",
     )
-    st.toggle("Chỉ giai đoạn đủ dữ liệu (2017-02 → 2018-08)", key="kpi_dense")
     st.caption(
-        f"Năm {year or 'tất cả'} · vùng {region or 'tất cả'} · bang {state or 'tất cả'} · "
-        f"chốt {DATA_AS_OF}"
-        + (f" · tháng {start} → {end}" if start or end else "")
+        f"Tháng {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · vùng {region or 'tất cả'} · "
+        f"bang {state or 'tất cả'}"
         + (f" · {funnel_label}" if funnel is not None else "")
     )
 
@@ -319,8 +387,9 @@ def render(settings=None) -> None:
             return None
         return (now - before) / abs(before)
 
+    show_delta = _delta_ready(previous, prev_from, prev_to)
     money_delta = points_late = points_review = points_cancel = orders_delta = aov_delta = None
-    if previous is not None:
+    if show_delta:
         money_delta = signed_pct(_growth(current["gmv"], previous["gmv"]))
         orders_delta = signed_pct(_growth(current["valid_orders"], previous["valid_orders"]))
         aov_delta = signed_pct(_growth(current["aov"], previous["aov"]))
@@ -329,31 +398,29 @@ def render(settings=None) -> None:
         points_cancel = signed_points(current["cancel_rate"], previous["cancel_rate"])
 
     specs = [
-        ("GMV", fmt_brl(current["gmv"]), money_delta, explain("gmv"), "normal"),
-        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, explain("valid_orders"), "normal"),
-        ("AOV", fmt_brl(current["aov"]), aov_delta, explain("aov"), "normal"),
-        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, explain("late_ship"), "inverse"),
-        ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), points_review, explain("negative_review"), "inverse"),
-        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, explain("cancel_rate"), "inverse"),
+        ("GMV", fmt_brl(current["gmv"]), money_delta, _card_help("gmv", "%", prev_from, prev_to, show_delta), "normal"),
+        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, _card_help("valid_orders", "%", prev_from, prev_to, show_delta), "normal"),
+        ("AOV", fmt_brl(current["aov"]), aov_delta, _card_help("aov", "%", prev_from, prev_to, show_delta), "normal"),
+        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, _card_help("late_ship", "điểm %", prev_from, prev_to, show_delta), "inverse"),
+        ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), points_review, _card_help("negative_review", "điểm %", prev_from, prev_to, show_delta), "inverse"),
+        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, _card_help("cancel_rate", "điểm %", prev_from, prev_to, show_delta), "inverse"),
     ]
+    st.markdown("### Tổng quan kỳ")
     for offset in (0, 3):
         for column, (label, value, delta, help_text, color) in zip(st.columns(3), specs[offset : offset + 3]):
             with column:
                 kpi_card(label, value, delta=delta, help_text=help_text, delta_color=color)
-    st.caption("Sáu số trên giữ công thức cũ theo năm, vùng, bang và nhóm danh mục.")
 
     quality = scatter = sellers = funnel_frame = snapshot = None
     try:
         with st.spinner("Đang tải dữ liệu…"):
-            quality = db.query(*queries.market_quality(year, region, state))
-            scatter = db.query(*queries.category_scatter(year, region, state))
-            sellers = db.query(*queries.seller_pareto(year, region, state, funnel, start, end, 1))
-            funnel_frame = db.query(*queries.funnel_compare(year, region, state, start, end))
+            quality = db.query(*queries.market_quality(start, end, region, state))
+            scatter = db.query(*queries.category_scatter(start, end, region, state))
+            sellers = db.query(*queries.seller_pareto(region, state, funnel, start, end, 1))
+            funnel_frame = db.query(*queries.funnel_compare(region, state, start, end))
             snapshot = db.query(*queries.policy_snapshot())
     except Exception as exc:
         st.error(db.redact(exc))
-    if snapshot is not None:
-        kpi_panels.constraint_strip(snapshot)
     if quality is not None and not quality.empty:
         row = quality.iloc[0]
         rate = None if not row["bad_eligible"] else float(row["bad_orders"]) / float(row["bad_eligible"])
@@ -368,6 +435,14 @@ def render(settings=None) -> None:
             }]),
             previous_rate,
         )
+    if snapshot is not None:
+        kpi_panels.constraint_strip(snapshot)
+    st.divider()
+    st.markdown("### Xu hướng theo tháng")
+    st.caption(
+        f"Theo tháng · {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · "
+        f"vùng {region or 'tất cả'} · bang {state or 'tất cả'}"
+    )
     if series is not None:
         kpi_panels.grouped_cards(current, series)
         platform_bad = None
