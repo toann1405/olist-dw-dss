@@ -620,7 +620,7 @@ def _tab_adhoc() -> None:
         if name != "Unknown"
     ]
     chart_slot = st.container()
-    form_col, sql_col = st.columns([1.5,2.5])
+    form_col, sql_col = st.columns([1.2,2.8])
     with form_col:
         _adhoc_form(months, regions, groups)
     saved = st.session_state.get("adhoc_params")
