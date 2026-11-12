@@ -59,16 +59,11 @@ def _view(key: str) -> str:
 
 
 def _panel(question: str, lines: list[str], frame: pd.DataFrame | None = None, source: str = "", key: str = "") -> None:
-    del question
-    punch = lines[0] if lines else "Chưa đủ dữ liệu để kết luận."
-    st.markdown(f"**{punch}**")
-    notes = list(lines[1:])
-    if source:
-        notes.append(source)
-    if notes:
-        with st.popover("ℹ️ Cách đọc"):
-            for line in notes:
-                st.write(line)
+    st.markdown(f"**Câu hỏi.** {question}")
+    text = " ".join(lines[:2]) if lines else "Chưa đủ dữ liệu để kết luận."
+    st.info(text)
+    for line in lines[2:]:
+        st.write(line)
     if frame is not None and key and st.toggle("Xem bảng", key=key):
         st.dataframe(frame, width="stretch", hide_index=True)
         st.download_button(
@@ -77,6 +72,8 @@ def _panel(question: str, lines: list[str], frame: pd.DataFrame | None = None, s
             file_name=f"{key}.csv",
             mime="text/csv",
         )
+    if source:
+        st.caption(source)
 
 
 def _review_by_level(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -532,34 +529,20 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
         )
 
 
-def _olap_conclusion(frame: pd.DataFrame | None) -> str:
-    if frame is None or frame.empty or "rollup_level" not in frame.columns:
-        return "Chưa đủ dữ liệu để kết luận."
-    part = frame[frame["rollup_level"] == "region"].copy()
-    part["late_ship_rate"] = pd.to_numeric(part["late_ship_rate"], errors="coerce")
-    part = part.dropna(subset=["late_ship_rate"])
-    if part.empty:
-        return "Chưa đủ dữ liệu để kết luận."
-    row = part.sort_values(["late_ship_rate"], ascending=False).iloc[0]
-    name = row["region_name"] if "region_name" in row.index else "không rõ"
-    return f"Vùng {name} có tỷ lệ bàn giao trễ cao nhất ({fmt_pct(row['late_ship_rate'])})."
-
-
 def render(settings=None) -> None:
     del settings
+    page_header(
+        "GMV và trải nghiệm xấu đến từ đâu?",
+        "Năm tab hỏi Gold qua SQL Warehouse bằng năm câu đã soạn sẵn. Bộ lọc bên cạnh không đổi các biểu đồ này.",
+        "OLAP Explorer",
+    )
+    _kpi_strip()
     with st.spinner("Đang tải dữ liệu…"):
         rollup, rollup_error = _load(lambda: db.query(*queries.rollup()))
         drill, drill_error = _load(lambda: db.query(*queries.drilldown()))
         groups, groups_error = _load(queries.category_groups)
         dice, dice_error = _load(lambda: db.query(*queries.dice()))
         pivot, pivot_error = _load(lambda: db.query(*queries.pivot_counts()))
-    page_header(
-        "GMV và trải nghiệm xấu đến từ đâu?",
-        _olap_conclusion(rollup),
-        "actual",
-    )
-    st.caption("Năm phép này không theo bộ lọc sidebar.")
-    _kpi_strip()
     tabs = st.tabs([
         "Vùng hay cục bộ? (Roll-up)",
         "Tháng nào nổi? (Drill-down)",
