@@ -15,7 +15,7 @@ import streamlit as st
 
 from lib import db, queries
 from lib.stats import DENSE_FROM, DENSE_TO
-from lib.ui import ALL, NAVY
+from lib.ui import ALL, NAVY, default_filters, filters
 from pages import home, kpi, method, olap, policy, seller_risk
 
 
@@ -47,12 +47,49 @@ def _month_presets(months: list[str]) -> dict[str, tuple[str, str]]:
     return presets
 
 
-def _dropdown(label: str, options: list[str], key: str, disabled: bool) -> None:
+def _dropdown(host, label: str, options: list[str], key: str, disabled: bool) -> None:
     """Native select. The sidebar used to open each filter as a button list."""
     if not options:
-        st.sidebar.caption(label)
+        host.caption(label)
         return
-    st.sidebar.selectbox(label, options, key=key, disabled=disabled)
+    host.selectbox(label, options, key=key, disabled=disabled)
+
+
+def _blank(value) -> str | None:
+    if value in (None, ALL):
+        return None
+    return str(value)
+
+
+def _applied_from_widgets() -> dict:
+    return {
+        "month_from": _blank(st.session_state.get("filter_month_from")),
+        "month_to": _blank(st.session_state.get("filter_month_to")),
+        "region": _blank(st.session_state.get("filter_region")),
+        "state": _blank(st.session_state.get("filter_state")),
+        "category": _blank(st.session_state.get("filter_category")),
+        "funnel": _blank(st.session_state.get("filter_funnel")),
+    }
+
+
+def _reset_filters() -> None:
+    fresh = default_filters()
+    st.session_state["applied_filters"] = fresh
+    st.session_state["filter_month_from"] = fresh["month_from"]
+    st.session_state["filter_month_to"] = fresh["month_to"]
+    st.session_state["filter_region"] = ALL
+    st.session_state["filter_state"] = ALL
+    st.session_state["filter_category"] = ALL
+    st.session_state["filter_funnel"] = ALL
+
+
+def _applied_caption(chosen: dict) -> str:
+    funnel = chosen.get("funnel") or "tất cả"
+    return (
+        f"Đang áp dụng: {chosen.get('month_from') or 'đầu'} → {chosen.get('month_to') or 'cuối'} · "
+        f"vùng {chosen.get('region') or 'tất cả'} · bang {chosen.get('state') or 'tất cả'} · "
+        f"nhóm {chosen.get('category') or 'tất cả'} · funnel {funnel}"
+    )
 
 
 def render_sidebar() -> None:
@@ -60,11 +97,14 @@ def render_sidebar() -> None:
     if pending_state:
         st.session_state["filter_region"] = ALL
         st.session_state["filter_state"] = str(pending_state)
+        applied = dict(filters())
+        applied["region"] = None
+        applied["state"] = str(pending_state)
+        st.session_state["applied_filters"] = applied
     st.sidebar.markdown(
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("Đọc 1 → 4 mỗi tháng. Trang cuối là phương pháp.")
     filters_off = False
     try:
         path = str(st.context.url).rstrip("/")
@@ -106,19 +146,35 @@ def render_sidebar() -> None:
                 width="stretch",
                 **button_args,
             )
-        _dropdown("Từ tháng", months, "filter_month_from", filters_off)
-        _dropdown("Đến tháng", months, "filter_month_to", filters_off)
-        _dropdown("Vùng seller", regions, "filter_region", filters_off)
-        region = None if st.session_state["filter_region"] == ALL else st.session_state["filter_region"]
-        states = _labels(db.query(*queries.states(region)), "state_code")
-        categories = _labels(queries.category_groups(), "category_group")
-        _keep("filter_state", states)
-        _keep("filter_category", categories)
-        _dropdown("Bang seller", states, "filter_state", filters_off)
-        _dropdown("Nhóm danh mục", categories, "filter_category", filters_off)
-        funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
-        _keep("filter_funnel", funnel_options)
-        _dropdown("Funnel", funnel_options, "filter_funnel", filters_off)
+        with st.sidebar.form("global_filters"):
+            _dropdown(st, "Từ tháng", months, "filter_month_from", filters_off)
+            _dropdown(st, "Đến tháng", months, "filter_month_to", filters_off)
+            _dropdown(st, "Vùng seller", regions, "filter_region", filters_off)
+            region = _blank(st.session_state.get("filter_region", ALL))
+            states = _labels(db.query(*queries.states(region)), "state_code")
+            categories = _labels(queries.category_groups(), "category_group")
+            _keep("filter_state", states)
+            _keep("filter_category", categories)
+            _dropdown(st, "Bang seller", states, "filter_state", filters_off)
+            _dropdown(st, "Nhóm danh mục", categories, "filter_category", filters_off)
+            funnel_options = ["Tất cả", "Có closed deal", "Không có closed deal"]
+            _keep("filter_funnel", funnel_options)
+            _dropdown(st, "Funnel", funnel_options, "filter_funnel", filters_off)
+            submitted = st.form_submit_button(
+                "Áp dụng",
+                type="primary",
+                use_container_width=True,
+                disabled=filters_off,
+            )
+        if submitted:
+            st.session_state["applied_filters"] = _applied_from_widgets()
+        st.sidebar.button(
+            "Đặt lại",
+            on_click=_reset_filters,
+            use_container_width=True,
+            disabled=filters_off,
+        )
+        st.sidebar.caption(_applied_caption(filters()))
     except Exception as exc:
         st.sidebar.error(db.redact(exc))
 
@@ -130,31 +186,31 @@ def main() -> None:
         "home": st.Page(home.render, title="Giới thiệu", icon=":material/home:", url_path="home", default=True),
         "kpi": st.Page(
             kpi.render,
-            title="1. Sức khỏe marketplace",
+            title="Sức khỏe marketplace",
             icon=":material/monitoring:",
             url_path="kpi",
         ),
         "olap": st.Page(
             olap.render,
-            title="2. GMV và trải nghiệm xấu từ đâu",
+            title="GMV và trải nghiệm xấu từ đâu",
             icon=":material/account_tree:",
             url_path="olap",
         ),
         "risk": st.Page(
             seller_risk.render,
-            title="3. Seller nào đáng lo",
+            title="Seller nào đáng lo",
             icon=":material/warning:",
             url_path="risk",
         ),
         "policy": st.Page(
             policy.render,
-            title="4. Chọn chính sách nào",
+            title="Chọn chính sách nào",
             icon=":material/rule:",
             url_path="policy",
         ),
         "method": st.Page(
             method.render,
-            title="5. Dữ liệu & phương pháp",
+            title="Dữ liệu & phương pháp",
             icon=":material/menu_book:",
             url_path="method",
         ),
@@ -162,10 +218,14 @@ def main() -> None:
     st.session_state["nav_pages"] = pages
     if hasattr(st, "navigation"):
         st.navigation(
-            {
-                "Hàng tháng": [pages["home"], pages["kpi"], pages["olap"], pages["risk"], pages["policy"]],
-                "Tham khảo": [pages["method"]],
-            }
+            [
+                pages["home"],
+                pages["kpi"],
+                pages["olap"],
+                pages["risk"],
+                pages["policy"],
+                pages["method"],
+            ]
         ).run()
         return
     choice = st.sidebar.radio("Trang", ("home", "kpi", "olap", "risk", "policy", "method"))

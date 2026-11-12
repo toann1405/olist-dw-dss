@@ -332,11 +332,16 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
 
 def render(settings=None) -> None:
     del settings
-    month_from, month_to, region, state, category = filters()
+    chosen = filters()
+    month_from = chosen.get("month_from")
+    month_to = chosen.get("month_to")
+    region = chosen.get("region")
+    state = chosen.get("state")
+    category = chosen.get("category")
     if month_from and month_to and month_from > month_to:
         st.warning("Từ tháng đang sau Đến tháng. Chọn lại khoảng thời gian ở sidebar.")
         return
-    funnel_label = st.session_state.get("filter_funnel", "Tất cả")
+    funnel_label = chosen.get("funnel") or "Tất cả"
     funnel = {"Có closed deal": 1, "Không có closed deal": 0}.get(funnel_label)
     start, end = month_from, month_to
     try:

@@ -11,14 +11,49 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: delta thẻ KPI và sparkline theo tháng, đã merge `origin/main`. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: SQL Ad hoc nhiều dòng, tham số đọc được, lọc Tất cả không vào WHERE. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Phần còn lại của trang KPI trên cùng branch, chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (merge main) |
+| Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (SQL Ad hoc dễ đọc) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — SQL Ad hoc dễ đọc
+
+- **Đã làm:** `build_query` không thêm điều kiện người dùng khi lọc là Tất cả (`None`), nên hết dạng `(? IS NULL OR ...)`. Giữ sentinel `seller_key <> -1` (và khóa `-1` của tháng/ngày) vì bỏ chúng có thể đổi tổng. Câu chạy vẫn gắn `?` và tuple tham số, không ghép chữ người dùng vào SQL thực thi. Hộp SQL gọi `readable_sql`: `sqlparse` xuống dòng, từ khóa viết hoa, chuỗi trong nháy đơn; chuỗi đó không được chạy. Thêm `sqlparse` vào `src/frontend/requirements.txt`. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** `python -m pytest src/tests -q` → 35 passed in 17.15s. GMV theo Vùng vẫn `13494400.74`. Norte bàn giao trễ vẫn 19,2%. Đã mở `http://localhost:8501/olap`, tab Tự khám phá: Tất cả thì SQL không có `IS NULL OR`, WHERE còn sentinel; Vùng = Sul có `s.region_name = 'Sul'`.
+
+### 12/11/2026 — Caption cách đọc dưới biểu đồ
+
+- **Đã làm:** `chart_card` và `chart_note` bỏ popover "Cách đọc". Nếu có câu đọc thì `st.caption` ngay dưới chart, trên dòng "Ẩn … nhóm" hoặc "Điểm mờ". Câu rỗng thì không render. Mỗi câu rút còn một câu: bản đồ, cột địa lý, scatter nhóm hàng, các chart Seller risk và tornado chính sách. Bản đồ bang: cao 640, title neo đáy vào mép trên của plot, margin trên 88, domain geo đầy vùng vẽ. Không đổi số liệu. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 31 passed in 9.52s. Đã mở `http://localhost:8501/kpi`, tab Xảy ra ở đâu: không còn nút "Cách đọc". Caption dưới bản đồ là "Màu càng đậm, tỷ lệ càng cao; bang xám là bang có dưới 30 đơn." Khoảng từ đáy title tới bản đồ 26px, bản đồ cao 470px. Câu cột vùng đứng trên dòng "Ẩn 1 nhóm…".
+
+### 12/11/2026 — Query khi bấm nút
+
+- **Đã làm:** Sidebar bọc trong `st.form("global_filters")`. Nút Áp dụng ghi `applied_filters`; `filters()` chỉ trả dict đã áp dụng. Nút Đặt lại về 2017-02 → 2018-08. Tab Ad hoc bọc trong `st.form("adhoc_form")`, nút Chạy truy vấn mới gọi `run_query`. Đổi Cột/Đường/Bảng không query lại. `run_query` cache 600 giây theo tuple tham số đã sort. Không đổi công thức và năm tab OLAP cũ. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 31 passed in 38.73s. Cùng tham số chỉ gọi warehouse một lần. Đã mở `http://localhost:8501/olap`: trước khi bấm chỉ có câu "Chọn chỉ số, chiều rồi bấm Chạy truy vấn". Bấm một lần, GMV theo Vùng, Sudeste cao nhất R$ 10,57 tr.
+
+### 12/11/2026 — Tab Ad hoc trên OLAP
+
+- **Đã làm:** Tab thứ 6 `Tự khám phá (Ad hoc)` trên `fix/olap-page`. `src/frontend/lib/adhoc.py` có `MEASURES`, `DIMENSIONS` và `build_query`. Tỷ lệ là `SUM(tử)/SUM(mẫu)` đúng công thức trong `lib/queries.py` và roll-up item. Giá trị lọc đi theo tham số. `GROUP BY`, `ORDER BY`, `LIMIT 500`. GMV không gắn nhóm danh mục vì fact tháng không có product. Năm tab cũ, công thức KPI và `src/dss` không đổi. Không tick PLAN. R09 vẫn ◐. Chưa mở PR.
+- **Đã chạy:** `python -m pytest src/tests -q` → 30 passed in 44.19s. GMV theo Vùng cộng lại `13494400.74`. Tỷ lệ bàn giao trễ Norte làm tròn 19,2%. Đã mở `http://localhost:8501/olap`: GMV × Vùng (Sudeste R$ 10,57 tr), tỷ lệ bàn giao trễ × Vùng (Nordeste 14,4%, n=1.670), GMV × Tháng (2017-11 R$ 1,00 tr). Có Tải CSV và Xem SQL.
+
+### 12/11/2026 — Bỏ nhãn mẫu nhỏ khỏi legend
+
+- **Đã làm:** Xóa mọi `add_legend_swatch` gọi `small_n_label()` trên KPI và OLAP, rồi xóa hàm đó trong `lib/ui.py`. Giữ `MIN_N_DISPLAY`. Chart xếp hạng (roll-up, slice, dice, cột top N, cột ad hoc) không vẽ nhóm có n dưới ngưỡng và có caption đếm số nhóm ẩn. Trend và scatter vẫn làm mờ điểm mẫu nhỏ, thêm câu "Điểm mờ: dưới 30 mẫu", không có mục legend. Heatmap pivot đổi phụ đề thành "ô trống khi dưới 30 mẫu", ô trống giữ nguyên. Cột bảng seller risk đổi thành "Ít đơn (<30)". Dòng "cao nhất" chỉ xét n ≥ `MIN_N_DISPLAY`. Không đổi loại chart, SQL, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 30 passed in 37.70s. Đã mở `http://localhost:8501/kpi`, `/olap` và `/risk`. Legend không còn chữ "Mẫu nhỏ". KPI có caption điểm mờ và "Ẩn 1 nhóm có dưới 30 mẫu". OLAP roll-up "Ẩn 1 nhóm…", drill "Điểm mờ: dưới 30 mẫu", slice "Ẩn 201 nhóm…", dice "Ẩn 10 nhóm…", pivot có phụ đề ô trống. Bảng risk có cột "Ít đơn (<30)".
+
+### 12/11/2026 — Title chart roll-up bị cắt
+
+- **Đã làm:** Title roll-up không còn ghim `y=1` theo mép container, vì câu hỏi bị cắt ở cả Vùng, Bang và Thành phố. Title neo vào mép trên của plot, margin trên cố định, chú giải nằm dưới dòng phụ. Cùng một cách cho cả ba mức. Chưa commit.
+- **Đã mở:** `http://localhost:8501/olap`, mức Vùng: câu "Bàn giao trễ là chuyện cả vùng hay một nơi?" và dòng "Mức Vùng…" hiện đủ, chú giải không đè câu hỏi.
+
+### 12/11/2026 — Panel OLAP và nhãn tiếng Việt
+
+- **Đã làm:** Branch `fix/olap-page` từ `fix/kpi-page`, chưa mở PR. Năm tab bỏ popover "Cách đọc". Dưới dòng cao nhất là 1–2 câu về phép OLAP và cách đọc chart. Câu hỏi chỉ còn ở title chart. Roll-up: nhãn Vùng/Bang/Thành phố, dòng cao nhất chỉ nhóm n ≥ `MIN_N_DISPLAY`, nhóm dưới ngưỡng vẫn vẽ nhưng mờ, margin top chart cố định. Slice và Pivot dùng chung bảng dịch nhóm danh mục, bỏ Unknown ở dropdown slice. Sidebar bỏ số thứ tự tên trang và caption "Đọc 1 → 4…". Không đổi loại chart, SQL, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 1.97s. Đã mở `http://localhost:8501/olap`. Năm tab không có popover "Cách đọc" và không lỗi. Roll-up hiện Vùng/Bang/Thành phố; khoảng từ nút Biểu đồ tới title chart là 0 px ở cả ba mức. Slice liệt kê tên nhóm tiếng Việt, không có Unknown. Pivot hiện "Dịch vụ và nhóm khác Q4 cao nhất". Menu không còn số thứ tự và caption "Đọc 1 → 4…".
 
 ### 12/11/2026 — Delta thẻ KPI và sparkline theo tháng
 

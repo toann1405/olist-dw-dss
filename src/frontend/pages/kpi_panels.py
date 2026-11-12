@@ -31,7 +31,6 @@ from lib.ui import (
     kpi_card,
     point_opacity,
     scope_subtitle,
-    small_n_label,
     style_fig,
 )
 from src.dss.params import MIN_ORDERS, N, X
@@ -299,7 +298,6 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         customdata=data[count_column],
         hovertemplate="%{x}<br>%{y:.1%}<br>n %{customdata:,.0f}<extra></extra>",
     )
-    add_legend_swatch(figure, small_n_label(), LATE, opacity=0.3)
     figure.update_layout(
         height=440,
         yaxis=dict(title="GMV (R$)"),
@@ -317,7 +315,7 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         ),
         width="stretch",
     )
-    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ là {small_n_label()}.")
+    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {MIN_N_DISPLAY} mẫu.")
     peak = data[data[count_column] >= MIN_N_DISPLAY].dropna(subset=[choice]).sort_values(choice, ascending=False).head(1)
     if not peak.empty:
         row = peak.iloc[0]
@@ -489,7 +487,7 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
             colorbar=dict(
                 title=f"{label} (%)" if is_rate else f"{label} (R$)",
                 tickformat=".0%" if is_rate else ",.0f",
-                len=0.7,
+                len=0.9,
             ),
             customdata=_hover_rows(colored, label, is_rate),
             hovertemplate=hover,
@@ -510,13 +508,18 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
             hovertemplate=hover,
             name="",
         ))
-    figure.update_layout(height=520)
+    figure.update_layout(height=640)
     badge_actual()
     style_fig(
         figure,
         f"{label} đang cao ở bang nào?",
         scope_subtitle(extra=level),
         legend=False,
+    )
+    figure.update_layout(
+        height=640,
+        margin=dict(t=88, b=0, l=0, r=4),
+        title=dict(y=1, yanchor="bottom", yref="paper"),
     )
     figure.update_geos(
         fitbounds="locations",
@@ -529,7 +532,8 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
         showlakes=False,
         showocean=False,
         projection_type="mercator",
-        domain=dict(x=[0.0, 0.86], y=[0.0, 0.78]),
+        projection_scale=1.2,
+        domain=dict(x=[0.0, 0.82], y=[0.0, 1.0]),
     )
     figure.update_xaxes(visible=False)
     figure.update_yaxes(visible=False)
@@ -546,16 +550,23 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
     if picked and picked != current:
         st.session_state["pending_filter_state"] = picked
         st.rerun()
-    chart_note(
-        "chỉ số theo từng bang của Brazil, cùng tử số và mẫu số với biểu đồ cột.",
-        "màu càng đậm thì chỉ số càng cao. Ở mức Bang, màu và n là của bang. Ở mức Vùng, các bang cùng vùng dùng chung số của vùng. Bang xám là mẫu nhỏ. Bấm một bang để lọc Bang seller.",
-    )
+    if is_rate:
+        chart_note("Màu càng đậm, tỷ lệ càng cao; bang xám là bang có dưới 30 đơn.")
+    else:
+        chart_note("Màu càng đậm, GMV càng cao; bang xám là bang có dưới 30 đơn.")
 
 
 def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> None:
     data = frame[frame["n"] > 0].dropna(subset=["value"]).sort_values("value", ascending=True)
     if data.empty:
         st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
+        return
+    counts = pd.to_numeric(data["n"], errors="coerce").fillna(0)
+    hidden = int((counts < MIN_N_DISPLAY).sum())
+    data = data.loc[counts >= MIN_N_DISPLAY]
+    if data.empty:
+        st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
+        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
         return
     color = LATE if is_rate else NAVY
     errors = []
@@ -574,13 +585,12 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         orientation="h",
         name=label,
         showlegend=False,
-        marker=dict(color=color, opacity=point_opacity(data["n"])),
+        marker=dict(color=color),
         error_x=dict(type="data", array=errors) if is_rate else None,
         customdata=list(zip(data["n"], data["gmv"])),
         hovertemplate=hover,
     ))
     add_legend_swatch(figure, label, color)
-    add_legend_swatch(figure, small_n_label(), color, opacity=0.3)
     if is_rate:
         add_vertical_platform_reference(figure, _rate(data["numerator"].sum(), data["n"].sum()))
     axis = f"{label} (%)" if is_rate else "GMV (R$)"
@@ -597,6 +607,14 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         width="stretch",
         key="where_bar",
     )
+    if is_rate:
+        chart_note(
+            f"Thanh vượt đường đứt là {place.lower()} tệ hơn trung bình sàn; "
+            "thanh sai số dài nghĩa là ít đơn, kém chắc chắn."
+        )
+    else:
+        chart_note(f"Thanh dài hơn là {place.lower()} có GMV cao hơn.")
+    st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
 
 
 def _category_scatter(categories: pd.DataFrame) -> None:
@@ -641,7 +659,6 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         x=[None], y=[None], mode="markers", name="Nhiều đơn",
         marker=dict(size=22, color=NAVY), hoverinfo="skip",
     )
-    add_legend_swatch(figure, small_n_label(), NAVY, opacity=0.3)
     add_platform_reference(figure, platform)
     figure.update_layout(height=_PAIR_HEIGHT)
     figure.update_xaxes(title="GMV (R$)")
@@ -655,10 +672,8 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         width="stretch",
         key="where_scatter",
     )
-    chart_note(
-        "GMV và tỷ lệ đơn trải nghiệm xấu của từng nhóm hàng.",
-        "trục ngang là GMV (R$), trục dọc là tỷ lệ đơn xấu. Kích thước chấm là số đơn. Nhãn là 5 nhóm GMV cao nhất và nhóm cao hơn trung bình sàn.",
-    )
+    chart_note("Góc trên-phải là nhóm hàng vừa bán nhiều vừa nhiều đơn xấu, cần ưu tiên xử lý.")
+    st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
 
 
 def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) -> None:
@@ -677,7 +692,12 @@ def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) ->
     )
     spec = next(item for item in _WHERE_METRICS if item[0] == label)
     _label, numerator, denominator, is_rate = spec
-    month_from, month_to, region, state, _category = filters()
+    chosen = filters()
+    month_from = chosen.get("month_from")
+    month_to = chosen.get("month_to")
+    region = chosen.get("region")
+    state = chosen.get("state")
+    _category = chosen.get("category")
     side = "seller" if geography == "Bang seller" else "customer"
     try:
         fetched = db.query(*queries.kpi_where_by_state(month_from, month_to, region, state, side))
@@ -768,7 +788,6 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             mode="markers",
             marker=dict(size=8, color=NAVY, opacity=point_opacity(kept["eligible_orders"])),
         ))
-        add_legend_swatch(figure, small_n_label(), NAVY, opacity=0.3)
         figure.update_layout(height=360)
         figure.update_xaxes(title="Số đơn")
         figure.update_yaxes(title="Đơn trải nghiệm xấu (%)", tickformat=".0%")
@@ -780,6 +799,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             ),
             width="stretch",
         )
+        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
     if funnel is not None and not funnel.empty:
         for row in funnel.itertuples(index=False):
             label = "Có closed deal" if int(row.has_closed_deal) == 1 else "Không có closed deal"

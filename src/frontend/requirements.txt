@@ -3,3 +3,4 @@ databricks-sql-connector
 pandas
 numpy
 plotly
+sqlparse
