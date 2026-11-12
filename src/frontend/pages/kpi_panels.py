@@ -654,10 +654,10 @@ def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) ->
     )
     spec = next(item for item in _WHERE_METRICS if item[0] == label)
     _label, numerator, denominator, is_rate = spec
-    year, region, state, _category = filters()
+    month_from, month_to, region, state, _category = filters()
     side = "seller" if geography == "Bang seller" else "customer"
     try:
-        fetched = db.query(*queries.kpi_where_by_state(year, region, state, side))
+        fetched = db.query(*queries.kpi_where_by_state(month_from, month_to, region, state, side))
     except Exception as exc:
         st.error(db.redact(exc))
         _category_scatter(categories)

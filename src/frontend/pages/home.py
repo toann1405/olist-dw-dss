@@ -73,8 +73,8 @@ def _day(value) -> str:
 
 
 def _marketplace() -> tuple[float | None, float | None, float | None]:
-    monthly = db.query(*queries.kpi_seller_month(None, None, None)).iloc[0]
-    story = db.query(*queries.story_by_region(None, None, None, None))
+    monthly = db.query(*queries.kpi_seller_month(None, None, None, None)).iloc[0]
+    story = db.query(*queries.story_by_region(None, None, None, None, None))
     total = story[story["is_total"].astype(int) == 1].iloc[0]
     sellers = db.query(*queries.active_sellers()).iloc[0]
     gmv = _num(monthly["gmv"])

@@ -35,38 +35,49 @@ def regions() -> tuple[str, tuple]:
     return load("kpi_regions.sql"), ()
 
 
-def _place(year: int | None, region: str | None, state: str | None) -> tuple:
-    return (year, year, region, region, state, state)
+def _place(
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None
+) -> tuple:
+    """Inclusive YYYY-MM bounds, then region and state. NULL skips that bound."""
+    return (month_from, month_from, month_to, month_to, region, region, state, state)
 
 
-def kpi_seller_month(year: int | None, region: str | None, state: str | None = None) -> tuple[str, tuple]:
-    return load("kpi_seller_month.sql"), _place(year, region, state)
+def kpi_seller_month(
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None = None
+) -> tuple[str, tuple]:
+    return load("kpi_seller_month.sql"), _place(month_from, month_to, region, state)
 
 
-def kpi_orders(year: int | None, region: str | None, state: str | None = None) -> tuple[str, tuple]:
-    return load("kpi_orders.sql"), _place(year, region, state)
+def kpi_orders(
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None = None
+) -> tuple[str, tuple]:
+    return load("kpi_orders.sql"), _place(month_from, month_to, region, state)
 
 
 def states(region: str | None) -> tuple[str, tuple]:
     return load("kpi_states.sql"), (region, region)
 
 
-def kpi_by_month(year: int | None, region: str | None, state: str | None) -> tuple[str, tuple]:
-    return load("kpi_by_month.sql"), _place(year, region, state)
+def kpi_by_month(
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None
+) -> tuple[str, tuple]:
+    return load("kpi_by_month.sql"), _place(month_from, month_to, region, state)
 
 
-def kpi_top_categories(year: int | None, region: str | None, state: str | None) -> tuple[str, tuple]:
-    return load("kpi_top_categories.sql"), _place(year, region, state)
+def kpi_top_categories(
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None
+) -> tuple[str, tuple]:
+    return load("kpi_top_categories.sql"), _place(month_from, month_to, region, state)
 
 
-def kpi_late_by_region(year: int | None, state: str | None) -> tuple[str, tuple]:
-    return load("kpi_late_by_region.sql"), (year, year, state, state)
+def kpi_late_by_region(month_from: str | None, month_to: str | None, state: str | None) -> tuple[str, tuple]:
+    return load("kpi_late_by_region.sql"), (month_from, month_from, month_to, month_to, state, state)
 
 
 def kpi_for_category(
-    year: int | None, region: str | None, state: str | None, category: str
+    month_from: str | None, month_to: str | None, region: str | None, state: str | None, category: str
 ) -> tuple[str, tuple]:
-    return load("kpi_for_category.sql"), (*_place(year, region, state), category)
+    return load("kpi_for_category.sql"), (*_place(month_from, month_to, region, state), category)
 
 
 def pivot_counts() -> tuple[str, tuple]:
@@ -196,7 +207,8 @@ WITH items AS (
   WHERE i.seller_key <> -1
     AND s.seller_key <> -1
     AND d.date_key <> -1
-    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
     AND ({p} IS NULL OR s.region_name = {p})
     AND ({p} IS NULL OR s.state_code = {p})
     AND ({p} IS NULL OR p.category_group = {p})
@@ -225,25 +237,31 @@ def active_sellers() -> tuple[str, tuple]:
 
 
 def months() -> tuple[str, tuple]:
+    """Purchase months that have at least one order. Empty calendar months stay out."""
     sql = """
-    SELECT year_month
-    FROM {catalog}.{gold}.dim_month
-    WHERE month_key <> -1
-      AND year_month <> 'Unknown'
-    ORDER BY year_month
+    SELECT m.year_month
+    FROM {catalog}.{gold}.fact_order AS o
+    INNER JOIN {catalog}.{gold}.dim_date AS d
+      ON o.purchase_date_key = d.date_key
+    INNER JOIN {catalog}.{gold}.dim_month AS m
+      ON d.month_key = m.month_key
+    WHERE d.date_key <> -1
+      AND m.month_key <> -1
+      AND m.year_month <> 'Unknown'
+    GROUP BY m.year_month
+    ORDER BY m.year_month
     """
     return _bind(sql), ()
 
 
-def _scope(year, region, state, funnel, month_from, month_to) -> tuple:
+def _scope(region, state, funnel, month_from, month_to) -> tuple:
     return (
-        year, year, region, region, state, state,
+        region, region, state, state,
         funnel, funnel, month_from, month_from, month_to, month_to,
     )
 
 
 _SCOPE_WHERE_MONTH = """
-  AND ({p} IS NULL OR m.year = {p})
   AND ({p} IS NULL OR s.region_name = {p})
   AND ({p} IS NULL OR s.state_code = {p})
   AND ({p} IS NULL OR s.has_closed_deal = {p})
@@ -252,7 +270,7 @@ _SCOPE_WHERE_MONTH = """
 """
 
 
-def seller_month_series(year, region, state, funnel, month_from, month_to) -> tuple[str, tuple]:
+def seller_month_series(region, state, funnel, month_from, month_to) -> tuple[str, tuple]:
     sql = f"""
     SELECT
       m.year_month,
@@ -285,10 +303,10 @@ def seller_month_series(year, region, state, funnel, month_from, month_to) -> tu
     GROUP BY m.year_month
     ORDER BY m.year_month
     """
-    return _bind(sql), _scope(year, region, state, funnel, month_from, month_to)
+    return _bind(sql), _scope(region, state, funnel, month_from, month_to)
 
 
-def seller_pareto(year, region, state, funnel, month_from, month_to, min_orders: int) -> tuple[str, tuple]:
+def seller_pareto(region, state, funnel, month_from, month_to, min_orders: int) -> tuple[str, tuple]:
     sql = f"""
     SELECT
       s.seller_id,
@@ -308,11 +326,11 @@ def seller_pareto(year, region, state, funnel, month_from, month_to, min_orders:
     GROUP BY s.seller_id
     HAVING SUM(f.n_orders_valid) >= {{p}}
     """
-    params = _scope(year, region, state, funnel, month_from, month_to) + (int(min_orders),)
+    params = _scope(region, state, funnel, month_from, month_to) + (int(min_orders),)
     return _bind(sql), params
 
 
-def funnel_compare(year, region, state, month_from, month_to) -> tuple[str, tuple]:
+def funnel_compare(region, state, month_from, month_to) -> tuple[str, tuple]:
     sql = """
     SELECT
       s.has_closed_deal,
@@ -327,18 +345,17 @@ def funnel_compare(year, region, state, month_from, month_to) -> tuple[str, tupl
     WHERE f.seller_key <> -1
       AND m.month_key <> -1
       AND s.seller_key <> -1
-      AND ({p} IS NULL OR m.year = {p})
       AND ({p} IS NULL OR s.region_name = {p})
       AND ({p} IS NULL OR s.state_code = {p})
       AND ({p} IS NULL OR m.year_month >= {p})
       AND ({p} IS NULL OR m.year_month <= {p})
     GROUP BY s.has_closed_deal
     """
-    params = (year, year, region, region, state, state, month_from, month_from, month_to, month_to)
+    params = (region, region, state, state, month_from, month_from, month_to, month_to)
     return _bind(sql), params
 
 
-def category_scatter(year, region, state) -> tuple[str, tuple]:
+def category_scatter(month_from, month_to, region, state) -> tuple[str, tuple]:
     sql = """
     SELECT
       COALESCE(p.category_group, 'Unknown') AS category_group,
@@ -363,15 +380,16 @@ def category_scatter(year, region, state) -> tuple[str, tuple]:
     WHERE i.seller_key <> -1
       AND s.seller_key <> -1
       AND d.date_key <> -1
-      AND ({p} IS NULL OR d.year = {p})
+      AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+      AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
       AND ({p} IS NULL OR s.region_name = {p})
       AND ({p} IS NULL OR s.state_code = {p})
     GROUP BY p.category_group
     """
-    return _bind(sql), (year, year, region, region, state, state)
+    return _bind(sql), (month_from, month_from, month_to, month_to, region, region, state, state)
 
 
-def market_quality(year, region, state) -> tuple[str, tuple]:
+def market_quality(month_from, month_to, region, state) -> tuple[str, tuple]:
     sql = """
     WITH touched AS (
       SELECT DISTINCT
@@ -391,7 +409,8 @@ def market_quality(year, region, state) -> tuple[str, tuple]:
       WHERE i.seller_key <> -1
         AND s.seller_key <> -1
         AND d.date_key <> -1
-        AND ({p} IS NULL OR d.year = {p})
+        AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+        AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
         AND ({p} IS NULL OR s.region_name = {p})
         AND ({p} IS NULL OR s.state_code = {p})
     )
@@ -409,16 +428,20 @@ def market_quality(year, region, state) -> tuple[str, tuple]:
       SUM(CASE WHEN late_flag IS NOT NULL THEN 1 ELSE 0 END) AS late_eligible
     FROM touched
     """
-    return _bind(sql), (year, year, region, region, state, state)
+    return _bind(sql), (month_from, month_from, month_to, month_to, region, region, state, state)
 
 
 def story_by_region(
-    year: int | None,
+    month_from: str | None,
+    month_to: str | None,
     region: str | None,
     state: str | None,
     category: str | None,
 ) -> tuple[str, tuple]:
-    params = (year, year, region, region, state, state, category, category)
+    params = (
+        month_from, month_from, month_to, month_to,
+        region, region, state, state, category, category,
+    )
     return _bind(_STORY_BY_REGION), params
 
 
@@ -631,7 +654,7 @@ def home_tables() -> tuple[str, tuple]:
 # as kpi_late_by_region (late ship) and seller_month_series (the other rates, GMV).
 # Customer geography rebuilds those counts from the order and item flags, grouped
 # by customer_state_code. Each order is counted once. Sidebar filters stay on the
-# seller: purchase year, seller region, seller state.
+# seller: purchase-month range, seller region, seller state.
 _WHERE_SELLER_STATE = """
 SELECT
   s.state_code AS state_code,
@@ -655,7 +678,8 @@ WHERE f.seller_key <> -1
   AND m.month_key <> -1
   AND s.seller_key <> -1
   AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
-  AND ({p} IS NULL OR m.year = {p})
+  AND ({p} IS NULL OR m.year_month >= {p})
+  AND ({p} IS NULL OR m.year_month <= {p})
   AND ({p} IS NULL OR s.region_name = {p})
   AND ({p} IS NULL OR s.state_code = {p})
 GROUP BY s.state_code
@@ -687,7 +711,8 @@ WITH items AS (
     AND s.seller_key <> -1
     AND d.date_key <> -1
     AND (s.region_name IS NULL OR s.region_name <> 'Unknown')
-    AND ({p} IS NULL OR d.year = {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) >= {p})
+    AND ({p} IS NULL OR format_string('%04d-%02d', d.year, d.month) <= {p})
     AND ({p} IS NULL OR s.region_name = {p})
     AND ({p} IS NULL OR s.state_code = {p})
 ),
@@ -784,7 +809,7 @@ LEFT JOIN (
 """
 
 
-def kpi_where_by_state(year, region, state, geography: str) -> tuple[str, tuple]:
+def kpi_where_by_state(month_from, month_to, region, state, geography: str) -> tuple[str, tuple]:
     """One row per state. geography is seller or customer. Values stay in the tuple."""
     if geography == "seller":
         sql = _WHERE_SELLER_STATE
@@ -792,4 +817,4 @@ def kpi_where_by_state(year, region, state, geography: str) -> tuple[str, tuple]
         sql = _WHERE_CUSTOMER_STATE
     else:
         raise ValueError("geography must be seller or customer")
-    return _bind(sql), (year, year, region, region, state, state)
+    return _bind(sql), (month_from, month_from, month_to, month_to, region, region, state, state)

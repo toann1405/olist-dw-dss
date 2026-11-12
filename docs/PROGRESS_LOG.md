@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Bộ lọc sidebar là selectbox. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
-| Blocker | Phiên này không gửi lại SELECT 1 lên SQL Warehouse |
-| Việc tiếp theo | Báo cáo PDF, slide. Không đổi công thức KPI |
-| Cập nhật | 11/11/2026 (dropdown bộ lọc sidebar) |
+| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: bước 1, một bộ chọn thời gian ở sidebar. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Blocker | Không |
+| Việc tiếp theo | Phần còn lại của trang KPI trên cùng branch, chưa mở PR. Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (bộ lọc khoảng tháng) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Một bộ chọn thời gian ở sidebar KPI
+
+- **Đã làm:** Bước 1 trên branch `fix/kpi-page`, chưa mở PR. Bỏ "Năm mua" và toggle "Chỉ giai đoạn đủ dữ liệu". Sidebar giữ Từ/Đến tháng, chỉ tháng có đơn, mặc định 2017-02 → 2018-08. Thêm preset Đủ dữ liệu / 2017 / 2018 / Toàn bộ. Query KPI đang lọc `year` chuyển sang khoảng tháng. Vùng, bang, nhóm hàng và funnel giữ. Delta so với khoảng liền trước cùng số tháng; không có đơn thì ẩn delta. Từ tháng sau Đến tháng thì `st.warning` và dừng trang KPI. Không đổi chart, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐. PLAN chỉ đổi chữ "lọc năm mua" thành "lọc khoảng tháng".
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 2.37s. Tháng có đơn: 2016-09 → 2018-10, 25 tháng (không có 2016-11). GMV không lọc và GMV 2016-09 → 2018-10 đều `13494400.74`, app hiện `R$ 13,49 tr`. Khoảng liền trước của Toàn bộ là 2014-07 → 2016-08, `gmv` null, đơn hợp lệ 0. Đã mở `http://localhost:8501/kpi`: preset Toàn bộ đặt 2016-09 → 2018-10, GMV `R$ 13,49 tr`, không hiện delta.
 
 ### 11/11/2026 — Bộ lọc sidebar trở lại dropdown
 
