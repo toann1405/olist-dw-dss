@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import streamlit as st
+
 from lib import db
 
 # (value SQL, fact, format). Rates are SUM(numerator) / SUM(denominator), the same
@@ -176,3 +178,32 @@ def build_query(measure: str, dims: list[str], filters: dict | None = None) -> t
         + " LIMIT 500"
     )
     return sql, tuple(params)
+
+
+def params_key(payload: dict) -> tuple:
+    """Stable cache key. Lists become tuples so Streamlit can hash the dict."""
+    items = []
+    for key in sorted(payload):
+        value = payload[key]
+        if isinstance(value, dict):
+            value = params_key(value)
+        elif isinstance(value, list):
+            value = tuple(value)
+        items.append((key, value))
+    return tuple(items)
+
+
+@st.cache_data(ttl=600)
+def run_query(key: tuple):
+    """Run one ad hoc query. The same key is served from cache for 10 minutes."""
+    payload = {}
+    for name, value in key:
+        if name == "filters":
+            payload[name] = dict(value)
+        elif name == "dims":
+            payload[name] = list(value)
+        else:
+            payload[name] = value
+    sql, params = build_query(payload["measure"], payload["dims"], payload.get("filters") or {})
+    frame = db.query(sql, params)
+    return frame, sql, params

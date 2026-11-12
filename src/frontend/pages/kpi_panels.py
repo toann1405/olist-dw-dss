@@ -682,7 +682,12 @@ def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) ->
     )
     spec = next(item for item in _WHERE_METRICS if item[0] == label)
     _label, numerator, denominator, is_rate = spec
-    month_from, month_to, region, state, _category = filters()
+    chosen = filters()
+    month_from = chosen.get("month_from")
+    month_to = chosen.get("month_to")
+    region = chosen.get("region")
+    state = chosen.get("state")
+    _category = chosen.get("category")
     side = "seller" if geography == "Bang seller" else "customer"
     try:
         fetched = db.query(*queries.kpi_where_by_state(month_from, month_to, region, state, side))

@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: tab Ad hoc tự lắp measure × dimension. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: sidebar và Ad hoc chỉ query khi bấm nút. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (tab Ad hoc) |
+| Cập nhật | 12/11/2026 (query khi bấm nút) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Query khi bấm nút
+
+- **Đã làm:** Sidebar bọc trong `st.form("global_filters")`. Nút Áp dụng ghi `applied_filters`; `filters()` chỉ trả dict đã áp dụng. Nút Đặt lại về 2017-02 → 2018-08. Tab Ad hoc bọc trong `st.form("adhoc_form")`, nút Chạy truy vấn mới gọi `run_query`. Đổi Cột/Đường/Bảng không query lại. `run_query` cache 600 giây theo tuple tham số đã sort. Không đổi công thức và năm tab OLAP cũ. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 31 passed in 38.73s. Cùng tham số chỉ gọi warehouse một lần. Đã mở `http://localhost:8501/olap`: trước khi bấm chỉ có câu "Chọn chỉ số, chiều rồi bấm Chạy truy vấn". Bấm một lần, GMV theo Vùng, Sudeste cao nhất R$ 10,57 tr.
 
 ### 12/11/2026 — Tab Ad hoc trên OLAP
 

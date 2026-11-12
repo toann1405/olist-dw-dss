@@ -297,21 +297,27 @@ def button_dropdown(
     return st.session_state[key]
 
 
-def filters() -> tuple[str | None, str | None, str | None, str | None, str | None]:
-    """Sidebar choices. 'Tất cả' is None. Months are YYYY-MM when set."""
+def default_filters() -> dict:
+    """Filters in effect before the user clicks Áp dụng."""
     from lib.stats import DENSE_FROM, DENSE_TO
 
-    month_from = st.session_state.get("filter_month_from", DENSE_FROM)
-    month_to = st.session_state.get("filter_month_to", DENSE_TO)
-    region = st.session_state.get("filter_region", ALL)
-    state = st.session_state.get("filter_state", ALL)
-    category = st.session_state.get("filter_category", ALL)
-    month_from = None if month_from in (None, ALL) else str(month_from)
-    month_to = None if month_to in (None, ALL) else str(month_to)
-    region = None if region in (None, ALL) else str(region)
-    state = None if state in (None, ALL) else str(state)
-    category = None if category in (None, ALL) else str(category)
-    return month_from, month_to, region, state, category
+    return {
+        "month_from": DENSE_FROM,
+        "month_to": DENSE_TO,
+        "region": None,
+        "state": None,
+        "category": None,
+        "funnel": None,
+    }
+
+
+def filters() -> dict:
+    """Applied sidebar filters. Widget edits do not count until Áp dụng."""
+    current = st.session_state.get("applied_filters")
+    if not isinstance(current, dict):
+        current = default_filters()
+        st.session_state["applied_filters"] = current
+    return current
 
 
 def apply_theme(fig: go.Figure, height: int = 360) -> go.Figure:
@@ -371,7 +377,12 @@ def scope_subtitle(
     extra: str | None = None,
 ) -> str:
     """Period and filters actually in effect, for chart subtitles."""
-    month_from, month_to, region, state, category = filters()
+    chosen = filters()
+    month_from = chosen.get("month_from")
+    month_to = chosen.get("month_to")
+    region = chosen.get("region")
+    state = chosen.get("state")
+    category = chosen.get("category")
     parts: list[str] = []
     if include_year or include_months:
         if month_from or month_to:
@@ -387,7 +398,7 @@ def scope_subtitle(
     if include_category and category:
         parts.append(f"nhóm {category}")
     if include_funnel:
-        funnel = st.session_state.get("filter_funnel", ALL)
+        funnel = chosen.get("funnel")
         if funnel not in (None, ALL):
             parts.append(str(funnel))
     if extra:

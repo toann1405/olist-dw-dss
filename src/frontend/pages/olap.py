@@ -168,7 +168,12 @@ def _hbar(
 
 
 def _kpi_strip() -> None:
-    month_from, month_to, region, state, _category = filters()
+    chosen = filters()
+    month_from = chosen.get("month_from")
+    month_to = chosen.get("month_to")
+    region = chosen.get("region")
+    state = chosen.get("state")
+    _category = chosen.get("category")
     try:
         monthly = db.query(*queries.kpi_seller_month(month_from, month_to, region, state)).iloc[0]
         orders = db.query(*queries.kpi_orders(month_from, month_to, region, state)).iloc[0]
@@ -340,7 +345,12 @@ def _tab_slice(groups: pd.DataFrame) -> None:
         if name != "Unknown"
     ]
     chart_col, side = st.columns([2, 1])
-    _month_from, _month_to, _region, _state, category = filters()
+    chosen = filters()
+    _month_from = chosen.get("month_from")
+    _month_to = chosen.get("month_to")
+    _region = chosen.get("region")
+    _state = chosen.get("state")
+    category = chosen.get("category")
     with side:
         if not names:
             st.info("Không có nhóm danh mục.")
@@ -595,56 +605,80 @@ def _adhoc_text(value, kind: str) -> str:
 
 
 def _tab_adhoc() -> None:
-    chart_col, side = st.columns([2, 1])
-    with side:
-        measure = button_dropdown("Chỉ số", tuple(adhoc.MEASURES), "adhoc_measure")
-        dim_1 = button_dropdown("Chiều 1", tuple(adhoc.DIMENSIONS), "adhoc_dim_1")
+    try:
+        month_frame = db.query(*queries.months())
+        region_frame = db.query(*queries.regions())
+        group_frame = queries.category_groups()
+    except Exception as exc:
+        st.error(db.redact(exc))
+        return
+    months = ["Tất cả"] + month_frame["year_month"].dropna().astype(str).tolist()
+    regions = ["Tất cả"] + region_frame["region_name"].dropna().astype(str).tolist()
+    groups = ["Tất cả"] + [
+        name
+        for name in group_frame["category_group"].dropna().astype(str).tolist()
+        if name != "Unknown"
+    ]
+    with st.form("adhoc_form"):
+        measure = st.selectbox("Chỉ số", tuple(adhoc.MEASURES), key="adhoc_measure")
+        dim_1 = st.selectbox("Chiều 1", tuple(adhoc.DIMENSIONS), key="adhoc_dim_1")
         second = ["(không)"] + [name for name in adhoc.DIMENSIONS if name != dim_1]
-        dim_2_label = button_dropdown("Chiều 2", second, "adhoc_dim_2")
-        try:
-            month_frame = db.query(*queries.months())
-            region_frame = db.query(*queries.regions())
-            group_frame = queries.category_groups()
-        except Exception as exc:
-            st.error(db.redact(exc))
-            return
-        months = ["Tất cả"] + month_frame["year_month"].dropna().astype(str).tolist()
-        regions = ["Tất cả"] + region_frame["region_name"].dropna().astype(str).tolist()
-        groups = ["Tất cả"] + [
-            name
-            for name in group_frame["category_group"].dropna().astype(str).tolist()
-            if name != "Unknown"
-        ]
-        month_from = button_dropdown("Từ tháng", months, "adhoc_from")
-        month_to = button_dropdown("Đến tháng", months, "adhoc_to")
-        region = button_dropdown("Vùng", regions, "adhoc_region")
-        category = button_dropdown(
+        if st.session_state.get("adhoc_dim_2") not in second:
+            st.session_state["adhoc_dim_2"] = "(không)"
+        dim_2_label = st.selectbox("Chiều 2", second, key="adhoc_dim_2")
+        month_from = st.selectbox("Từ tháng", months, key="adhoc_from")
+        month_to = st.selectbox("Đến tháng", months, key="adhoc_to")
+        region = st.selectbox("Vùng", regions, key="adhoc_region")
+        category = st.selectbox(
             "Nhóm danh mục",
             groups,
-            "adhoc_category",
+            key="adhoc_category",
             format_func=lambda name: "Tất cả" if name == "Tất cả" else _category_label(name),
         )
-    dims = [dim_1] if dim_2_label in (None, "(không)") else [dim_1, dim_2_label]
-    scope = {
-        "month_from": None if month_from in (None, "Tất cả") else month_from,
-        "month_to": None if month_to in (None, "Tất cả") else month_to,
-        "region": None if region in (None, "Tất cả") else region,
-        "category": None if category in (None, "Tất cả") else category,
-    }
-    try:
-        sql, params = adhoc.build_query(measure, dims, scope)
-    except ValueError:
-        with chart_col:
-            st.info("Chỉ số này không gắn được với chiều đã chọn.")
-        with side:
-            st.warning("Tổ hợp chỉ số và chiều không cùng một bảng fact.")
+        submitted = st.form_submit_button("Chạy truy vấn", type="primary")
+    if submitted:
+        start = None if month_from == "Tất cả" else month_from
+        end = None if month_to == "Tất cả" else month_to
+        if dim_2_label not in (None, "(không)") and dim_2_label == dim_1:
+            st.warning("Chiều 2 phải khác Chiều 1.")
+        elif start and end and start > end:
+            st.warning("Từ tháng đang sau Đến tháng.")
+        else:
+            dims = [dim_1] if dim_2_label in (None, "(không)") else [dim_1, dim_2_label]
+            payload = {
+                "measure": measure,
+                "dims": dims,
+                "filters": {
+                    "month_from": start,
+                    "month_to": end,
+                    "region": None if region == "Tất cả" else region,
+                    "category": None if category == "Tất cả" else category,
+                },
+            }
+            try:
+                frame, sql, params = adhoc.run_query(adhoc.params_key(payload))
+            except ValueError:
+                st.warning("Tổ hợp chỉ số và chiều không cùng một bảng fact.")
+            except Exception as exc:
+                st.error(db.redact(exc))
+            else:
+                st.session_state["adhoc_params"] = payload
+                st.session_state["adhoc_result"] = frame
+                st.session_state["adhoc_sql"] = sql
+                st.session_state["adhoc_sql_params"] = params
+    saved = st.session_state.get("adhoc_params")
+    if not saved:
+        st.info("Chọn chỉ số, chiều rồi bấm Chạy truy vấn.")
         return
-    try:
-        frame = db.query(sql, params)
-    except Exception as exc:
-        with chart_col:
-            st.error(db.redact(exc))
+    measure = saved["measure"]
+    dims = saved["dims"]
+    frame = st.session_state.get("adhoc_result")
+    sql = st.session_state.get("adhoc_sql") or ""
+    params = st.session_state.get("adhoc_sql_params") or ()
+    if frame is None:
+        st.info("Chọn chỉ số, chiều rồi bấm Chạy truy vấn.")
         return
+    chart_col, side = st.columns([2, 1])
     kind = adhoc.MEASURES[measure][2]
     work = frame.copy()
     for column in ("value", "n"):

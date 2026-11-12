@@ -45,6 +45,21 @@ def test_gmv_by_region_sums_to_the_full_marketplace():
     assert abs(total - 13494400.74) < 0.05
 
 
+def test_same_params_hit_the_warehouse_once(monkeypatch):
+    calls = {"n": 0}
+
+    def fake(sql, params=()):
+        calls["n"] += 1
+        return __import__("pandas").DataFrame({"dim_1": ["Sudeste"], "value": [1.0], "n": [10]})
+
+    adhoc.run_query.clear()
+    monkeypatch.setattr(adhoc.db, "query", fake)
+    key = adhoc.params_key({"measure": "GMV", "dims": ["Vùng"], "filters": {}})
+    adhoc.run_query(key)
+    adhoc.run_query(key)
+    assert calls["n"] == 1
+
+
 def test_late_ship_by_region_matches_the_rollup_tab():
     sql, params = adhoc.build_query("Tỷ lệ bàn giao trễ", ["Vùng"], {})
     frame = db.query_uncached(sql, params)
