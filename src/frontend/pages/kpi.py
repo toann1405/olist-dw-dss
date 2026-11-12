@@ -9,6 +9,7 @@ import streamlit as st
 from lib import db, queries
 from lib.glossary import DATA_AS_OF, explain
 from lib.insights import build_insight_kpi
+from lib.stats import SPARSE_MONTHS
 from pages import kpi_panels
 from lib.ui import (
     LATE,
@@ -105,6 +106,47 @@ def _previous_window(start: str, end: str) -> tuple[str, str]:
     span = index(end) - index(start) + 1
     previous_end = index(start) - 1
     return label(previous_end - span + 1), label(previous_end)
+
+
+def _months_between(start: str, end: str) -> list[str]:
+    """Inclusive calendar months from start through end. Tokens are YYYY-MM."""
+
+    def index(token: str) -> int:
+        year, month = token.split("-", 1)
+        return int(year) * 12 + int(month) - 1
+
+    def label(value: int) -> str:
+        year, month = divmod(value, 12)
+        return f"{year:04d}-{month + 1:02d}"
+
+    start_i = index(start)
+    end_i = index(end)
+    if end_i < start_i:
+        return []
+    return [label(value) for value in range(start_i, end_i + 1)]
+
+
+def _delta_ready(previous: dict | None, prev_from: str | None, prev_to: str | None) -> bool:
+    """Show a delta only when the previous window is large enough and has no thin month."""
+    if previous is None or not prev_from or not prev_to:
+        return False
+    orders = _num(previous.get("valid_orders"))
+    if orders is None or orders < MIN_ORDERS:
+        return False
+    return not any(month in SPARSE_MONTHS for month in _months_between(prev_from, prev_to))
+
+
+def _card_help(term: str, unit: str, prev_from, prev_to, shown: bool) -> str:
+    text = explain(term)
+    if prev_from and prev_to:
+        text += f" Kỳ so sánh: {prev_from} → {prev_to}."
+    text += f" Đơn vị mức thay đổi: {unit}. Xanh là tốt lên."
+    if not shown:
+        text += (
+            " Không hiện mức thay đổi vì kỳ trước không có đủ đơn"
+            f" (dưới {MIN_ORDERS}) hoặc có tháng dữ liệu thưa."
+        )
+    return text
 
 
 def _has_activity(pack: dict) -> bool:
@@ -304,8 +346,9 @@ def render(settings=None) -> None:
             return None
         return (now - before) / abs(before)
 
+    show_delta = _delta_ready(previous, prev_from, prev_to)
     money_delta = points_late = points_review = points_cancel = orders_delta = aov_delta = None
-    if previous is not None:
+    if show_delta:
         money_delta = signed_pct(_growth(current["gmv"], previous["gmv"]))
         orders_delta = signed_pct(_growth(current["valid_orders"], previous["valid_orders"]))
         aov_delta = signed_pct(_growth(current["aov"], previous["aov"]))
@@ -314,22 +357,18 @@ def render(settings=None) -> None:
         points_cancel = signed_points(current["cancel_rate"], previous["cancel_rate"])
 
     specs = [
-        ("GMV", fmt_brl(current["gmv"]), money_delta, explain("gmv"), "normal"),
-        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, explain("valid_orders"), "normal"),
-        ("AOV", fmt_brl(current["aov"]), aov_delta, explain("aov"), "normal"),
-        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, explain("late_ship"), "inverse"),
-        ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), points_review, explain("negative_review"), "inverse"),
-        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, explain("cancel_rate"), "inverse"),
+        ("GMV", fmt_brl(current["gmv"]), money_delta, _card_help("gmv", "%", prev_from, prev_to, show_delta), "normal"),
+        ("Số đơn", fmt_int(current["valid_orders"]), orders_delta, _card_help("valid_orders", "%", prev_from, prev_to, show_delta), "normal"),
+        ("AOV", fmt_brl(current["aov"]), aov_delta, _card_help("aov", "%", prev_from, prev_to, show_delta), "normal"),
+        ("Bàn giao trễ", fmt_pct(current["late_rate"]), points_late, _card_help("late_ship", "điểm %", prev_from, prev_to, show_delta), "inverse"),
+        ("Review xấu (theo seller)", fmt_pct(current["review_rate"]), points_review, _card_help("negative_review", "điểm %", prev_from, prev_to, show_delta), "inverse"),
+        ("Cancel rate", fmt_pct(current["cancel_rate"]), points_cancel, _card_help("cancel_rate", "điểm %", prev_from, prev_to, show_delta), "inverse"),
     ]
+    st.markdown("### Tổng quan kỳ")
     for offset in (0, 3):
         for column, (label, value, delta, help_text, color) in zip(st.columns(3), specs[offset : offset + 3]):
             with column:
                 kpi_card(label, value, delta=delta, help_text=help_text, delta_color=color)
-    if previous is None:
-        compare = "Khoảng liền trước không có đơn nên không hiện mức thay đổi."
-    else:
-        compare = f"Mức thay đổi so với {prev_from} → {prev_to}."
-    st.caption(f"Sáu số trên theo khoảng tháng, vùng, bang và nhóm danh mục. {compare}")
 
     series = quality = scatter = sellers = funnel_frame = snapshot = None
     try:
@@ -342,8 +381,6 @@ def render(settings=None) -> None:
             snapshot = db.query(*queries.policy_snapshot())
     except Exception as exc:
         st.error(db.redact(exc))
-    if snapshot is not None:
-        kpi_panels.constraint_strip(snapshot)
     if quality is not None and not quality.empty:
         row = quality.iloc[0]
         rate = None if not row["bad_eligible"] else float(row["bad_orders"]) / float(row["bad_eligible"])
@@ -358,6 +395,14 @@ def render(settings=None) -> None:
             }]),
             previous_rate,
         )
+    if snapshot is not None:
+        kpi_panels.constraint_strip(snapshot)
+    st.divider()
+    st.markdown("### Xu hướng theo tháng")
+    st.caption(
+        f"Theo tháng · {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · "
+        f"vùng {region or 'tất cả'} · bang {state or 'tất cả'}"
+    )
     if series is not None:
         kpi_panels.grouped_cards(current, series)
         platform_bad = None

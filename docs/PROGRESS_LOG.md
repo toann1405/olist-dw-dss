@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: tài liệu đã đồng bộ với một app Streamlit năm trang. Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: bước 1, một bộ chọn thời gian ở sidebar. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/kpi-page`: delta thẻ KPI và sparkline theo tháng. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Phần còn lại của trang KPI trên cùng branch, chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (bộ lọc khoảng tháng) |
+| Cập nhật | 12/11/2026 (delta và sparkline KPI) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Delta thẻ KPI và sparkline theo tháng
+
+- **Đã làm:** Trên `fix/kpi-page`, chưa mở PR. Delta sáu thẻ đầu dùng dấu `-` ASCII để mũi tên và màu đúng hướng. Ẩn delta khi kỳ trước có dưới `MIN_ORDERS` đơn hợp lệ hoặc chứa tháng thưa. Help mỗi thẻ ghi kỳ so sánh, đơn vị (`%` hoặc điểm %), và xanh là tốt lên. Trang tách "Tổng quan kỳ" (sáu thẻ có delta và thẻ đơn trải nghiệm xấu) với "Xu hướng theo tháng" bằng `st.divider()`. Mỗi thẻ phần B nằm cùng sparkline trong một khung. Sparkline bỏ subtitle và legend, trục X chỉ tháng đầu và tháng cuối, tiêu đề "Theo tháng", điểm tháng cuối có giá trị. Thêm sparkline AOV = `gmv / n_orders_valid` từ `seller_month_series`. Không đổi loại chart, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 26 passed in 1.63s. Kỳ 2015-07 → 2017-01 bị ẩn delta vì có tháng thưa; kỳ 2017-07 → 2018-01 đủ điều kiện. `signed_pct(-0.123)` ra `-12,3%`. Đã mở `http://localhost:8501/kpi` với 2017-02 → 2018-08: sáu thẻ không có delta, help ghi kỳ 2015-07 → 2017-01, phần B có caption một dòng và sparkline AOV, trục X hiện `2017-02` và `2018-08`.
 
 ### 12/11/2026 — Một bộ chọn thời gian ở sidebar KPI
 

@@ -80,7 +80,7 @@ def signed_pct(change) -> str | None:
     number = float(change)
     if number == 0:
         return "0,0%"
-    sign = "+" if number > 0 else "−"
+    sign = "+" if number > 0 else "-"
     return sign + fmt_pct(abs(number))
 
 
@@ -91,7 +91,7 @@ def signed_points(current, previous) -> str | None:
     diff = float(current) - float(previous)
     if diff == 0:
         return "0,0 điểm"
-    sign = "+" if diff > 0 else "−"
+    sign = "+" if diff > 0 else "-"
     body = fmt_pct(abs(diff)).replace("%", " điểm")
     return sign + body
 
@@ -206,9 +206,21 @@ def next_step(current: str) -> None:
         st.switch_page(target)
 
 
-def kpi_card(label: str, value: str, delta: str | None = None, help_text: str | None = None, delta_color: str = "normal") -> None:
-    with st.container(border=True):
-        st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+def kpi_card(
+    label: str,
+    value: str,
+    delta: str | None = None,
+    help_text: str | None = None,
+    delta_color: str = "normal",
+    *,
+    border: bool = True,
+) -> None:
+    """One metric. border=False when the caller already wraps the card and its chart."""
+    if border:
+        with st.container(border=True):
+            st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+        return
+    st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
 
 
 def chip(label: str, value: str) -> None:
