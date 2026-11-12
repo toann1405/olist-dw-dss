@@ -31,7 +31,6 @@ from lib.ui import (
     kpi_card,
     point_opacity,
     scope_subtitle,
-    small_n_label,
     style_fig,
 )
 from src.dss.params import MIN_ORDERS, N, X
@@ -299,7 +298,6 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         customdata=data[count_column],
         hovertemplate="%{x}<br>%{y:.1%}<br>n %{customdata:,.0f}<extra></extra>",
     )
-    add_legend_swatch(figure, small_n_label(), LATE, opacity=0.3)
     figure.update_layout(
         height=440,
         yaxis=dict(title="GMV (R$)"),
@@ -317,7 +315,7 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         ),
         width="stretch",
     )
-    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ là {small_n_label()}.")
+    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {MIN_N_DISPLAY} mẫu.")
     peak = data[data[count_column] >= MIN_N_DISPLAY].dropna(subset=[choice]).sort_values(choice, ascending=False).head(1)
     if not peak.empty:
         row = peak.iloc[0]
@@ -557,6 +555,13 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
     if data.empty:
         st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
         return
+    counts = pd.to_numeric(data["n"], errors="coerce").fillna(0)
+    hidden = int((counts < MIN_N_DISPLAY).sum())
+    data = data.loc[counts >= MIN_N_DISPLAY]
+    if data.empty:
+        st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
+        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+        return
     color = LATE if is_rate else NAVY
     errors = []
     if is_rate:
@@ -574,13 +579,12 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         orientation="h",
         name=label,
         showlegend=False,
-        marker=dict(color=color, opacity=point_opacity(data["n"])),
+        marker=dict(color=color),
         error_x=dict(type="data", array=errors) if is_rate else None,
         customdata=list(zip(data["n"], data["gmv"])),
         hovertemplate=hover,
     ))
     add_legend_swatch(figure, label, color)
-    add_legend_swatch(figure, small_n_label(), color, opacity=0.3)
     if is_rate:
         add_vertical_platform_reference(figure, _rate(data["numerator"].sum(), data["n"].sum()))
     axis = f"{label} (%)" if is_rate else "GMV (R$)"
@@ -597,6 +601,7 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         width="stretch",
         key="where_bar",
     )
+    st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
 
 
 def _category_scatter(categories: pd.DataFrame) -> None:
@@ -641,7 +646,6 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         x=[None], y=[None], mode="markers", name="Nhiều đơn",
         marker=dict(size=22, color=NAVY), hoverinfo="skip",
     )
-    add_legend_swatch(figure, small_n_label(), NAVY, opacity=0.3)
     add_platform_reference(figure, platform)
     figure.update_layout(height=_PAIR_HEIGHT)
     figure.update_xaxes(title="GMV (R$)")
@@ -655,6 +659,7 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         width="stretch",
         key="where_scatter",
     )
+    st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
     chart_note(
         "GMV và tỷ lệ đơn trải nghiệm xấu của từng nhóm hàng.",
         "trục ngang là GMV (R$), trục dọc là tỷ lệ đơn xấu. Kích thước chấm là số đơn. Nhãn là 5 nhóm GMV cao nhất và nhóm cao hơn trung bình sàn.",
@@ -768,7 +773,6 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             mode="markers",
             marker=dict(size=8, color=NAVY, opacity=point_opacity(kept["eligible_orders"])),
         ))
-        add_legend_swatch(figure, small_n_label(), NAVY, opacity=0.3)
         figure.update_layout(height=360)
         figure.update_xaxes(title="Số đơn")
         figure.update_yaxes(title="Đơn trải nghiệm xấu (%)", tickformat=".0%")
@@ -780,6 +784,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             ),
             width="stretch",
         )
+        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
     if funnel is not None and not funnel.empty:
         for row in funnel.itertuples(index=False):
             label = "Có closed deal" if int(row.has_closed_deal) == 1 else "Không có closed deal"

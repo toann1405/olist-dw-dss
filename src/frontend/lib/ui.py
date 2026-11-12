@@ -328,11 +328,6 @@ def highlight_colors(values: list[float], accent: str = LATE) -> list[str]:
     return [accent if value == peak else NEUTRAL for value in values]
 
 
-def small_n_label() -> str:
-    """Legend text for a faded mark. Reads MIN_N_DISPLAY so the cutoff is not copied."""
-    return f"Mẫu nhỏ (n < {MIN_N_DISPLAY})"
-
-
 def add_legend_swatch(
     fig: go.Figure,
     name: str,

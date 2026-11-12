@@ -142,7 +142,7 @@ def _list_tab(eligible: pd.DataFrame) -> None:
             "Review TB": show["avg_review"].map(fmt_number),
             "Vùng": show["region_name"],
             "Bang": show["state_code"],
-            "Mẫu nhỏ": show["small"].map(lambda flag: "⚠" if flag else ""),
+            f"Ít đơn (<{MIN_N_DISPLAY})": show["small"].map(lambda flag: "⚠" if flag else ""),
         }
     )
     event = st.dataframe(

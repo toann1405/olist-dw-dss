@@ -11,14 +11,24 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: panel đọc phép OLAP và nhãn tiếng Việt. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: legend không còn nhãn mẫu nhỏ. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
-| Việc tiếp theo | Phần còn lại của trang KPI và OLAP, chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (panel OLAP) |
+| Việc tiếp theo | Báo cáo PDF và slide vẫn còn |
+| Cập nhật | 12/11/2026 (bỏ nhãn mẫu nhỏ) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Bỏ nhãn mẫu nhỏ khỏi legend
+
+- **Đã làm:** Xóa mọi `add_legend_swatch` gọi `small_n_label()` trên KPI và OLAP, rồi xóa hàm đó trong `lib/ui.py`. Giữ `MIN_N_DISPLAY`. Chart xếp hạng (roll-up, slice, dice, cột top N, cột ad hoc) không vẽ nhóm có n dưới ngưỡng và có caption đếm số nhóm ẩn. Trend và scatter vẫn làm mờ điểm mẫu nhỏ, thêm câu "Điểm mờ: dưới 30 mẫu", không có mục legend. Heatmap pivot đổi phụ đề thành "ô trống khi dưới 30 mẫu", ô trống giữ nguyên. Cột bảng seller risk đổi thành "Ít đơn (<30)". Dòng "cao nhất" chỉ xét n ≥ `MIN_N_DISPLAY`. Không đổi loại chart, SQL, công thức KPI, `src/dss`. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 30 passed in 37.70s. Đã mở `http://localhost:8501/kpi`, `/olap` và `/risk`. Legend không còn chữ "Mẫu nhỏ". KPI có caption điểm mờ và "Ẩn 1 nhóm có dưới 30 mẫu". OLAP roll-up "Ẩn 1 nhóm…", drill "Điểm mờ: dưới 30 mẫu", slice "Ẩn 201 nhóm…", dice "Ẩn 10 nhóm…", pivot có phụ đề ô trống. Bảng risk có cột "Ít đơn (<30)".
+
+### 12/11/2026 — Title chart roll-up bị cắt
+
+- **Đã làm:** Title roll-up không còn ghim `y=1` theo mép container, vì câu hỏi bị cắt ở cả Vùng, Bang và Thành phố. Title neo vào mép trên của plot, margin trên cố định, chú giải nằm dưới dòng phụ. Cùng một cách cho cả ba mức. Chưa commit.
+- **Đã mở:** `http://localhost:8501/olap`, mức Vùng: câu "Bàn giao trễ là chuyện cả vùng hay một nơi?" và dòng "Mức Vùng…" hiện đủ, chú giải không đè câu hỏi.
 
 ### 12/11/2026 — Panel OLAP và nhãn tiếng Việt
 
