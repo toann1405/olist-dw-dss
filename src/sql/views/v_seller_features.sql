@@ -67,14 +67,6 @@ SELECT
     ORDER BY f.month_key
     ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
   ) AS late_ship_rate_3m,
-  SUM(f.bad_experience_count) OVER w3
-    / NULLIF(SUM(f.bad_experience_eligible) OVER w3, 0) AS bad_rate_3m,
-  f.n_orders_valid
-    / NULLIF(AVG(f.n_orders_valid) OVER w3, 0) AS orders_trend,
-  COUNT(*) OVER (
-    PARTITION BY f.seller_key ORDER BY f.month_key
-    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-  ) AS active_months_to_date,
   dist.avg_distance_km,
   cat.category_group,
   CASE
@@ -96,4 +88,3 @@ LEFT JOIN category_ranked AS cat
 WHERE f.seller_key <> -1
   AND s.seller_key <> -1
   AND m.month_key <> -1
-WINDOW w3 AS (PARTITION BY f.seller_key ORDER BY f.month_key ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)

@@ -13,20 +13,15 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, roc_auc_score
-from sklearn.preprocessing import StandardScaler
 
 from src.dss.params import RANDOM_STATE
 
 NUMERIC_FEATURES = (
-    "late_ship_rate",
     "late_ship_rate_3m",
     "avg_review",
     "n_orders_valid",
     "avg_distance_km",
-    "bad_rate_3m",
-    "orders_trend",
-    "active_months_to_date",
-    "log_gmv",
+    "seller_age_days",
 )
 CATEGORY_FEATURES = ("category_group", "region_name")
 FEATURE_LABELS = {
@@ -35,14 +30,11 @@ FEATURE_LABELS = {
     "n_orders_valid": "Số đơn hợp lệ",
     "avg_distance_km": "Khoảng cách giao trung bình (km)",
     "seller_age_days": "Tuổi seller (ngày)",
-    "bad_rate_3m": "Tỷ lệ đơn xấu 3 tháng",
-    "orders_trend": "Xu hướng số đơn",
-    "active_months_to_date": "Số tháng hoạt động",
     "category_group": "Nhóm hàng",
     "region_name": "Vùng",
 }
-MIN_ITEMS = 5
-MIN_ACTIVE_MONTHS = 3
+MIN_ITEMS = 10
+MIN_ACTIVE_MONTHS = 6
 TEST_MONTHS = 2
 CALIBRATION_BINS = 10
 
@@ -96,11 +88,7 @@ def _design_matrix(
     medians: pd.Series | None,
     columns: list[str] | None,
 ) -> tuple[pd.DataFrame, pd.Series, list[str]]:
-    work = frame.copy()
-    if "log_gmv" not in work.columns:
-        gmv = pd.to_numeric(work.get("gmv"), errors="coerce").fillna(0.0).clip(lower=0.0)
-        work["log_gmv"] = np.log1p(gmv)
-    numeric = work.loc[:, list(NUMERIC_FEATURES)].apply(pd.to_numeric, errors="coerce")
+    numeric = frame.loc[:, list(NUMERIC_FEATURES)].apply(pd.to_numeric, errors="coerce")
     if medians is None:
         medians = numeric.median(numeric_only=True)
     numeric = numeric.fillna(medians).fillna(0.0)
@@ -182,14 +170,17 @@ def _contributions(
     latest: pd.DataFrame,
     score_x: pd.DataFrame,
     model: LogisticRegression,
-    scaled_x: np.ndarray,
+    train_matrix: np.ndarray,
     columns: list[str],
 ) -> tuple[pd.DataFrame, float]:
-    """coef * z after StandardScaler. Scaled mean is 0 so the intercept is unchanged."""
+    """coef * (x - train mean). Intercept absorbs coef · mean so the sum matches the logit."""
+    means = train_matrix.mean(axis=0)
     coef = np.asarray(model.coef_, dtype=float).ravel()
     intercept = float(np.asarray(model.intercept_, dtype=float).ravel()[0])
+    adjusted = intercept + float(np.dot(coef, means))
     values = score_x.to_numpy(dtype=float)
-    effects = np.asarray(scaled_x, dtype=float) * coef
+    centered = values - means
+    effects = centered * coef
     seller_ids = latest["seller_id"].astype(str).to_numpy()
     labels = [feature_label(column) for column in columns]
     rows = []
@@ -203,7 +194,7 @@ def _contributions(
                     "contribution": float(effects[row_index, column_index]),
                 }
             )
-    return pd.DataFrame(rows), intercept
+    return pd.DataFrame(rows), adjusted
 
 
 def _baseline_scores(
@@ -219,7 +210,6 @@ def _baseline_scores(
         "auc": None,
         "brier": None,
         "n_train_orders": 0,
-        "n_train_sellers": 0,
         "n_test_orders": 0,
         "base_rate": None,
         "test_months": [],
@@ -277,7 +267,6 @@ def train_and_score(
             "auc": None,
             "brier": None,
             "n_train_orders": 0,
-            "n_train_sellers": 0,
             "n_test_orders": 0,
             "trained_through_month": None,
             "as_of_month": None,
@@ -292,7 +281,6 @@ def train_and_score(
             "auc": None,
             "brier": None,
             "n_train_orders": 0,
-            "n_train_sellers": 0,
             "n_test_orders": 0,
             "trained_through_month": None,
             "as_of_month": chosen,
@@ -327,16 +315,13 @@ def train_and_score(
     if train_y.size == 0 or len(np.unique(train_y)) < 2:
         return _baseline_scores(latest, "training labels have one class", scored_at)
 
-    scaler = StandardScaler().fit(train_matrix)
-    train_scaled = scaler.transform(train_matrix)
-    test_scaled = scaler.transform(test_matrix)
     model = LogisticRegression(random_state=RANDOM_STATE, max_iter=500, solver="lbfgs")
-    model.fit(train_scaled, train_y)
+    model.fit(train_matrix, train_y)
     n_iter = np.atleast_1d(model.n_iter_)
     if int(n_iter.max()) >= 500:
         return _baseline_scores(latest, "logistic regression did not converge", scored_at)
 
-    probability = model.predict_proba(test_scaled)[:, 1] if test_y.size else np.array([])
+    probability = model.predict_proba(test_matrix)[:, 1] if test_y.size else np.array([])
     auc = None
     brier = None
     if test_y.size and len(np.unique(test_y)) > 1:
@@ -346,10 +331,9 @@ def train_and_score(
         brier = float(brier_score_loss(test_y, probability))
 
     score_x, _, _ = _design_matrix(latest, medians, columns)
-    score_scaled = scaler.transform(score_x.to_numpy(dtype=float))
     scored = _score_frame(
         latest,
-        model.predict_proba(score_scaled)[:, 1],
+        model.predict_proba(score_x.to_numpy(dtype=float))[:, 1],
         "logistic",
         train_months[-1],
         scored_at,
@@ -360,7 +344,6 @@ def train_and_score(
         "auc": auc,
         "brier": brier,
         "n_train_orders": int(train_y.size),
-        "n_train_sellers": int(train_rows["seller_key"].nunique()),
         "n_test_orders": int(test_y.size),
         "trained_through_month": train_months[-1],
         "as_of_month": scored["as_of_month"].iloc[0] if len(scored) else None,
@@ -368,6 +351,6 @@ def train_and_score(
         "test_months": sorted(test_months),
     }
     calibration = _calibration(probability, test_y)
-    contrib, intercept = _contributions(latest, score_x, model, score_scaled, columns)
+    contrib, intercept = _contributions(latest, score_x, model, train_matrix, columns)
     metrics["intercept"] = intercept
     return scored, metrics, calibration, contrib
