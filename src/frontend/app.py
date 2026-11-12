@@ -64,7 +64,7 @@ def render_sidebar() -> None:
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("Đọc theo thứ tự 1 → 4")
+    #st.sidebar.caption("Đọc theo thứ tự 1 → 4")
     filters_off = False
     try:
         path = str(st.context.url).rstrip("/")

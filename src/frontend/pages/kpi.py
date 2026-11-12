@@ -303,7 +303,7 @@ def render(settings=None) -> None:
     start, end = month_from, month_to
     st.caption(
         f"Tháng {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · vùng {region or 'tất cả'} · "
-        f"bang {state or 'tất cả'} · chốt {DATA_AS_OF}"
+        f"bang {state or 'tất cả'}"
         + (f" · {funnel_label}" if funnel is not None else "")
     )
     try:
