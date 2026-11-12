@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlparse
 import streamlit as st
 
 from lib import db
@@ -77,6 +78,39 @@ def _expr(fact: str, name: str) -> str:
     return column
 
 
+def _bind(where: list[str], params: list, value, clause: str) -> None:
+    """Skip a filter that is Tất cả (None). The value stays a bound parameter."""
+    if value is None:
+        return
+    where.append(clause)
+    params.append(value)
+
+
+def _literal(value) -> str:
+    """One SQL literal for the display string. Not used when the query runs."""
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def readable_sql(sql: str, params: tuple | list = ()) -> str:
+    """Fill placeholders for the SQL box. Never execute the returned string."""
+    values = tuple(params or ())
+    pieces = sql.split("?")
+    if len(pieces) != len(values) + 1:
+        raise ValueError("placeholder count does not match parameters")
+    chunks: list[str] = []
+    for piece, value in zip(pieces, values):
+        chunks.append(piece)
+        chunks.append(_literal(value))
+    chunks.append(pieces[-1])
+    return sqlparse.format("".join(chunks), reindent=True, keyword_case="upper")
+
+
 def build_query(measure: str, dims: list[str], filters: dict | None = None) -> tuple[str, tuple]:
     """One grouped query. User text is never concatenated into the SQL."""
     if measure not in MEASURES:
@@ -122,12 +156,9 @@ def build_query(measure: str, dims: list[str], filters: dict | None = None) -> t
             f"INNER JOIN {catalog}.{gold}.dim_seller AS s ON f.seller_key = s.seller_key"
         )
         where.append("f.seller_key <> -1 AND m.month_key <> -1 AND s.seller_key <> -1")
-        where.append(f"({marker} IS NULL OR m.year_month >= {marker})")
-        params.extend((scope.get("month_from"), scope.get("month_from")))
-        where.append(f"({marker} IS NULL OR m.year_month <= {marker})")
-        params.extend((scope.get("month_to"), scope.get("month_to")))
-        where.append(f"({marker} IS NULL OR s.region_name = {marker})")
-        params.extend((scope.get("region"), scope.get("region")))
+        _bind(where, params, scope.get("month_from"), f"m.year_month >= {marker}")
+        _bind(where, params, scope.get("month_to"), f"m.year_month <= {marker}")
+        _bind(where, params, scope.get("region"), f"s.region_name = {marker}")
     else:
         tables = [
             f"FROM {catalog}.{gold}.fact_order_item AS i",
@@ -144,33 +175,29 @@ def build_query(measure: str, dims: list[str], filters: dict | None = None) -> t
             )
             where.append("d.date_key <> -1")
             month_expr = "format_string('%04d-%02d', d.year, d.month)"
-            where.append(f"({marker} IS NULL OR {month_expr} >= {marker})")
-            params.extend((scope.get("month_from"), scope.get("month_from")))
-            where.append(f"({marker} IS NULL OR {month_expr} <= {marker})")
-            params.extend((scope.get("month_to"), scope.get("month_to")))
+            _bind(where, params, scope.get("month_from"), f"{month_expr} >= {marker}")
+            _bind(where, params, scope.get("month_to"), f"{month_expr} <= {marker}")
         if "product" in joins:
             tables.append(
                 f"INNER JOIN {catalog}.{gold}.dim_product AS p ON i.product_key = p.product_key"
             )
             where.append("p.product_key <> -1")
-            where.append(f"({marker} IS NULL OR p.category_group = {marker})")
-            params.extend((scope.get("category"), scope.get("category")))
+            _bind(where, params, scope.get("category"), f"p.category_group = {marker}")
         if "seller" in joins:
-            where.append(f"({marker} IS NULL OR s.region_name = {marker})")
-            params.extend((scope.get("region"), scope.get("region")))
+            _bind(where, params, scope.get("region"), f"s.region_name = {marker}")
         source = " ".join(tables)
 
     if any(name in _TIME_DIMS for name in chosen):
         order = ", ".join(f"dim_{index}" for index in range(1, len(chosen) + 1))
     else:
         order = "value DESC"
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
     sql = (
         "SELECT "
         + ", ".join(select)
         + " "
         + source
-        + " WHERE "
-        + " AND ".join(where)
+        + where_sql
         + " GROUP BY "
         + ", ".join(group)
         + " ORDER BY "

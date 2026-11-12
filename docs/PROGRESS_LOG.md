@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: caption cách đọc dưới biểu đồ, bản đồ bang sát title hơn. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: SQL Ad hoc nhiều dòng, tham số đọc được, lọc Tất cả không vào WHERE. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (caption cách đọc) |
+| Cập nhật | 12/11/2026 (SQL Ad hoc dễ đọc) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — SQL Ad hoc dễ đọc
+
+- **Đã làm:** `build_query` không thêm điều kiện người dùng khi lọc là Tất cả (`None`), nên hết dạng `(? IS NULL OR ...)`. Giữ sentinel `seller_key <> -1` (và khóa `-1` của tháng/ngày) vì bỏ chúng có thể đổi tổng. Câu chạy vẫn gắn `?` và tuple tham số, không ghép chữ người dùng vào SQL thực thi. Hộp SQL gọi `readable_sql`: `sqlparse` xuống dòng, từ khóa viết hoa, chuỗi trong nháy đơn; chuỗi đó không được chạy. Thêm `sqlparse` vào `src/frontend/requirements.txt`. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** `python -m pytest src/tests -q` → 35 passed in 17.15s. GMV theo Vùng vẫn `13494400.74`. Norte bàn giao trễ vẫn 19,2%. Đã mở `http://localhost:8501/olap`, tab Tự khám phá: Tất cả thì SQL không có `IS NULL OR`, WHERE còn sentinel; Vùng = Sul có `s.region_name = 'Sul'`.
 
 ### 12/11/2026 — Caption cách đọc dưới biểu đồ
 

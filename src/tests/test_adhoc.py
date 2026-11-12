@@ -65,3 +65,50 @@ def test_late_ship_by_region_matches_the_rollup_tab():
     frame = db.query_uncached(sql, params)
     norte = frame[frame["dim_1"].astype(str) == "Norte"].iloc[0]
     assert round(float(norte["value"]) * 100, 1) == 19.2
+
+
+def test_all_filters_omit_optional_predicates():
+    filters = {"month_from": None, "month_to": None, "region": None, "category": None}
+    sql, params = adhoc.build_query("GMV", ["Vùng"], filters)
+    assert "IS NULL OR" not in sql
+    assert params == ()
+    assert "WHERE" in sql
+    assert "seller_key <> -1" in sql
+    item_sql, item_params = adhoc.build_query("Tỷ lệ bàn giao trễ", ["Vùng"], filters)
+    assert "IS NULL OR" not in item_sql
+    assert item_params == ()
+
+
+def test_region_sul_is_bound_and_readable():
+    sql, params = adhoc.build_query(
+        "GMV",
+        ["Vùng"],
+        {"region": "Sul", "month_from": None, "month_to": None, "category": None},
+    )
+    assert "Sul" not in sql
+    assert "IS NULL OR" not in sql
+    assert params == ("Sul",)
+    assert "s.region_name = ?" in sql
+    shown = " ".join(adhoc.readable_sql(sql, params).split())
+    assert "s.region_name = 'Sul'" in shown
+    assert shown.startswith("SELECT")
+    assert " WHERE " in shown
+
+
+def test_typed_filter_stays_out_of_executed_sql_when_shown():
+    sql, params = adhoc.build_query("GMV", ["Vùng"], {"region": _TOKEN})
+    assert _TOKEN not in sql
+    assert _TOKEN in params
+    shown = adhoc.readable_sql(sql, params)
+    assert _TOKEN not in sql
+    assert "''" in shown
+
+
+def test_sul_gmv_matches_the_unfiltered_slice():
+    all_sql, all_params = adhoc.build_query("GMV", ["Vùng"], {})
+    all_frame = db.query_uncached(all_sql, all_params)
+    sul_sql, sul_params = adhoc.build_query("GMV", ["Vùng"], {"region": "Sul"})
+    sul_frame = db.query_uncached(sul_sql, sul_params)
+    expected = float(all_frame.loc[all_frame["dim_1"].astype(str) == "Sul", "value"].iloc[0])
+    assert len(sul_frame) == 1
+    assert abs(float(sul_frame["value"].iloc[0]) - expected) < 0.05

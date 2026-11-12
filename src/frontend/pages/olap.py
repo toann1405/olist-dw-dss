@@ -619,6 +619,29 @@ def _tab_adhoc() -> None:
         for name in group_frame["category_group"].dropna().astype(str).tolist()
         if name != "Unknown"
     ]
+    chart_slot = st.container()
+    form_col, sql_col = st.columns(2)
+    with form_col:
+        _adhoc_form(months, regions, groups)
+    saved = st.session_state.get("adhoc_params")
+    with sql_col:
+        with st.container(border=True):
+            st.markdown("**SQL**")
+            if saved:
+                st.code(
+                    adhoc.readable_sql(
+                        st.session_state.get("adhoc_sql") or "",
+                        st.session_state.get("adhoc_sql_params") or (),
+                    ),
+                    language="sql",
+                )
+            else:
+                st.caption("SQL hiện sau khi chạy truy vấn.")
+    with chart_slot:
+        _adhoc_chart()
+
+
+def _adhoc_form(months: list[str], regions: list[str], groups: list[str]) -> None:
     with st.form("adhoc_form"):
         measure = st.selectbox("Chỉ số", tuple(adhoc.MEASURES), key="adhoc_measure")
         dim_1 = st.selectbox("Chiều 1", tuple(adhoc.DIMENSIONS), key="adhoc_dim_1")
@@ -666,112 +689,108 @@ def _tab_adhoc() -> None:
                 st.session_state["adhoc_result"] = frame
                 st.session_state["adhoc_sql"] = sql
                 st.session_state["adhoc_sql_params"] = params
+
+
+def _adhoc_chart() -> None:
     saved = st.session_state.get("adhoc_params")
-    if not saved:
+    frame = st.session_state.get("adhoc_result")
+    if not saved or frame is None:
         st.info("Chọn chỉ số, chiều rồi bấm Chạy truy vấn.")
         return
     measure = saved["measure"]
     dims = saved["dims"]
-    frame = st.session_state.get("adhoc_result")
-    sql = st.session_state.get("adhoc_sql") or ""
-    params = st.session_state.get("adhoc_sql_params") or ()
-    if frame is None:
-        st.info("Chọn chỉ số, chiều rồi bấm Chạy truy vấn.")
-        return
-    chart_col, side = st.columns([2, 1])
     kind = adhoc.MEASURES[measure][2]
     work = frame.copy()
     for column in ("value", "n"):
         work[column] = pd.to_numeric(work[column], errors="coerce")
     one = "Đường" if dims == ["Tháng"] or dims == ["Quý"] else "Cột"
-    with chart_col:
-        if len(dims) == 1:
-            mode = st.segmented_control("Xem", ["Cột", "Đường", "Bảng"], default=one, key=f"adhoc_one_{dims[0]}")
+    if len(dims) == 1:
+        mode = st.segmented_control("Xem", ["Cột", "Đường", "Bảng"], default=one, key=f"adhoc_one_{dims[0]}")
+    else:
+        mode = st.segmented_control("Xem", ["Heatmap", "Bảng"], default="Heatmap", key="adhoc_two")
+    if work.empty:
+        st.info("Không có dòng cho bộ lọc này.")
+    elif mode == "Bảng" and len(dims) == 1:
+        st.dataframe(work, width="stretch", hide_index=True)
+    elif mode == "Bảng":
+        matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
+        st.dataframe(matrix, width="stretch")
+    elif len(dims) == 1 and mode == "Đường":
+        labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
+        opacity = [0.35 if (n or 0) < MIN_N_DISPLAY else 1 for n in work["n"]]
+        figure = go.Figure(
+            go.Scatter(
+                x=labels,
+                y=work["value"],
+                mode="lines+markers",
+                name=measure,
+                marker=dict(color=LATE, opacity=opacity, size=8),
+                line=dict(color=LATE, width=2),
+                customdata=work["n"],
+                hovertemplate="%{x}<br>%{y}<br>n %{customdata:,.0f}<extra></extra>",
+            )
+        )
+        figure.update_layout(height=360)
+        figure.update_xaxes(title=dims[0])
+        figure.update_yaxes(title=measure)
+        st.plotly_chart(
+            style_fig(figure, f"{measure} theo {dims[0]}", "Tự chọn · tối đa 500 dòng"),
+            width="stretch",
+        )
+        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+    elif len(dims) == 1:
+        labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
+        samples = pd.to_numeric(work["n"], errors="coerce").fillna(0)
+        hidden = int((samples < MIN_N_DISPLAY).sum())
+        keep = (samples >= MIN_N_DISPLAY).tolist()
+        labels = [label for label, flag in zip(labels, keep) if flag]
+        values = [value for value, flag in zip(work["value"].tolist(), keep) if flag]
+        kept_n = [value for value, flag in zip(samples.tolist(), keep) if flag]
+        if not labels:
+            st.info("Không có nhóm đủ mẫu.")
         else:
-            mode = st.segmented_control("Xem", ["Heatmap", "Bảng"], default="Heatmap", key="adhoc_two")
-        if work.empty:
-            st.info("Không có dòng cho bộ lọc này.")
-        elif mode == "Bảng" and len(dims) == 1:
-            st.dataframe(work, width="stretch", hide_index=True)
-        elif mode == "Bảng":
-            matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
-            st.dataframe(matrix, width="stretch")
-        elif len(dims) == 1 and mode == "Đường":
-            labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
-            opacity = [0.35 if (n or 0) < MIN_N_DISPLAY else 1 for n in work["n"]]
-            figure = go.Figure(
-                go.Scatter(
-                    x=labels,
-                    y=work["value"],
-                    mode="lines+markers",
-                    name=measure,
-                    marker=dict(color=LATE, opacity=opacity, size=8),
-                    line=dict(color=LATE, width=2),
-                    customdata=work["n"],
-                    hovertemplate="%{x}<br>%{y}<br>n %{customdata:,.0f}<extra></extra>",
-                )
+            figure = _hbar(
+                labels,
+                values,
+                kept_n,
+                LATE,
+                measure,
+                f"{measure} theo {dims[0]}",
+                "Tự chọn · tối đa 500 dòng",
             )
-            figure.update_layout(height=360)
-            figure.update_xaxes(title=dims[0])
-            figure.update_yaxes(title=measure)
-            st.plotly_chart(
-                style_fig(figure, f"{measure} theo {dims[0]}", "Tự chọn · tối đa 500 dòng"),
-                width="stretch",
+            if kind != "pct":
+                figure.update_xaxes(tickformat=",.0f", tickprefix="" if kind == "int" else "R$ ")
+            st.plotly_chart(figure, width="stretch")
+        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+    else:
+        counts = work.pivot(index="dim_1", columns="dim_2", values="n")
+        matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
+        matrix = matrix.where(counts >= MIN_N_DISPLAY)
+        text = matrix.map(lambda value: "—" if pd.isna(value) else _adhoc_text(value, kind))
+        y_labels = [_adhoc_label(dims[0], value) for value in matrix.index]
+        x_labels = [_adhoc_label(dims[1], value) for value in matrix.columns]
+        figure = go.Figure(
+            go.Heatmap(
+                z=matrix.values,
+                x=x_labels,
+                y=y_labels,
+                colorscale=[[0, "#f6f1e7"], [0.5, "#e7b089"], [1, LATE]],
+                text=text.values,
+                texttemplate="%{text}",
+                hovertemplate="%{y} · %{x}<br>%{text}<extra></extra>",
             )
-            st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
-        elif len(dims) == 1:
-            labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
-            samples = pd.to_numeric(work["n"], errors="coerce").fillna(0)
-            hidden = int((samples < MIN_N_DISPLAY).sum())
-            keep = (samples >= MIN_N_DISPLAY).tolist()
-            labels = [label for label, flag in zip(labels, keep) if flag]
-            values = [value for value, flag in zip(work["value"].tolist(), keep) if flag]
-            kept_n = [value for value, flag in zip(samples.tolist(), keep) if flag]
-            if not labels:
-                st.info("Không có nhóm đủ mẫu.")
-            else:
-                figure = _hbar(
-                    labels,
-                    values,
-                    kept_n,
-                    LATE,
-                    measure,
-                    f"{measure} theo {dims[0]}",
-                    "Tự chọn · tối đa 500 dòng",
-                )
-                if kind != "pct":
-                    figure.update_xaxes(tickformat=",.0f", tickprefix="" if kind == "int" else "R$ ")
-                st.plotly_chart(figure, width="stretch")
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
-        else:
-            counts = work.pivot(index="dim_1", columns="dim_2", values="n")
-            matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
-            matrix = matrix.where(counts >= MIN_N_DISPLAY)
-            text = matrix.map(lambda value: "—" if pd.isna(value) else _adhoc_text(value, kind))
-            y_labels = [_adhoc_label(dims[0], value) for value in matrix.index]
-            x_labels = [_adhoc_label(dims[1], value) for value in matrix.columns]
-            figure = go.Figure(
-                go.Heatmap(
-                    z=matrix.values,
-                    x=x_labels,
-                    y=y_labels,
-                    colorscale=[[0, "#f6f1e7"], [0.5, "#e7b089"], [1, LATE]],
-                    text=text.values,
-                    texttemplate="%{text}",
-                    hovertemplate="%{y} · %{x}<br>%{text}<extra></extra>",
-                )
-            )
-            figure.update_layout(height=max(360, 36 * len(y_labels) + 120))
-            figure.update_xaxes(title=dims[1])
-            figure.update_yaxes(title=dims[0])
-            st.plotly_chart(
-                style_fig(
-                    figure,
-                    f"{measure} theo {dims[0]} × {dims[1]}",
-                    f"ô trống khi dưới {MIN_N_DISPLAY} mẫu",
-                ),
-                width="stretch",
-            )
+        )
+        figure.update_layout(height=max(360, 36 * len(y_labels) + 120))
+        figure.update_xaxes(title=dims[1])
+        figure.update_yaxes(title=dims[0])
+        st.plotly_chart(
+            style_fig(
+                figure,
+                f"{measure} theo {dims[0]} × {dims[1]}",
+                f"ô trống khi dưới {MIN_N_DISPLAY} mẫu",
+            ),
+            width="stretch",
+        )
     qualified = work.dropna(subset=["value"])
     big = qualified[qualified["n"] >= MIN_N_DISPLAY]
     if big.empty:
@@ -786,18 +805,14 @@ def _tab_adhoc() -> None:
         "Đây là truy vấn tự lắp: một chỉ số và một hoặc hai chiều, không gõ SQL. "
         "Cột chỉ vẽ nhóm đủ mẫu. Điểm mờ và ô trống là mẫu dưới ngưỡng hiển thị."
     )
-    with side:
-        st.markdown(f"**{headline}**")
-        st.write(reading)
-        st.download_button(
-            "Tải CSV",
-            work.to_csv(index=False).encode("utf-8"),
-            file_name="adhoc.csv",
-            mime="text/csv",
-        )
-        with st.expander("Xem SQL"):
-            st.code(sql, language="sql")
-            st.caption(str(params))
+    st.markdown(f"**{headline}**")
+    st.write(reading)
+    st.download_button(
+        "Tải CSV",
+        work.to_csv(index=False).encode("utf-8"),
+        file_name="adhoc.csv",
+        mime="text/csv",
+    )
 
 
 def render(settings=None) -> None:
