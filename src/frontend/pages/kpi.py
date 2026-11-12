@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib import db, queries
-from lib.glossary import DATA_AS_OF, explain
+from lib.glossary import explain
 from lib.insights import build_insight_kpi
 from lib.stats import SPARSE_MONTHS
 from pages import kpi_panels
@@ -21,7 +21,6 @@ from lib.ui import (
     fmt_int,
     fmt_pct,
     highlight_colors,
-    insight_box,
     kpi_card,
     next_step,
     page_header,
@@ -287,25 +286,59 @@ def _risk_table() -> None:
     )
 
 
+def _month_phrase(token) -> str:
+    parts = str(token).split("-")
+    if len(parts) >= 2 and len(parts[1]) == 2:
+        return f"Tháng {parts[1]}/{parts[0]}"
+    return str(token)
+
+
+def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> str:
+    """Latest dense month versus the month before it, plus the worst region."""
+    from lib.insights import _groups, _worst_group
+    from lib.stats import SPARSE_MONTHS
+
+    if series is None or series.empty or "bad_experience_count" not in series.columns:
+        if story is None:
+            return "Chưa đủ dữ liệu để kết luận."
+        return build_insight_kpi(story, MIN_ORDERS)
+    data = series.copy()
+    data["bad_orders"] = pd.to_numeric(data["bad_experience_count"], errors="coerce")
+    data["eligible"] = pd.to_numeric(data["bad_experience_eligible"], errors="coerce")
+    data = data.dropna(subset=["year_month"]).sort_values("year_month")
+    dense = data[~data["year_month"].astype(str).isin(SPARSE_MONTHS)]
+    use = dense if not dense.empty else data
+    if use.empty:
+        return "Chưa đủ dữ liệu để kết luận."
+    last = use.iloc[-1]
+    rate = _ratio(last["bad_orders"], last["eligible"])
+    if rate is None:
+        return "Chưa đủ dữ liệu để kết luận."
+    direction = ""
+    if len(use) >= 2:
+        previous = use.iloc[-2]
+        previous_rate = _ratio(previous["bad_orders"], previous["eligible"])
+        points = signed_points(rate, previous_rate)
+        if points:
+            direction = f", {points} so với tháng trước"
+    region = ""
+    if story is not None:
+        _total, groups = _groups(story, MIN_ORDERS)
+        if not groups.empty:
+            worst = _worst_group(groups)
+            region = f"; vùng {worst['region_name']} cao nhất"
+    return f"{_month_phrase(last['year_month'])}: {fmt_pct(rate)} đơn xấu{direction}{region}."
+
+
 def render(settings=None) -> None:
     del settings
     month_from, month_to, region, state, category = filters()
     if month_from and month_to and month_from > month_to:
         st.warning("Từ tháng đang sau Đến tháng. Chọn lại khoảng thời gian ở sidebar.")
         return
-    page_header(
-        "Sức khỏe marketplace đang thế nào?",
-        "Đọc tỷ lệ từ trái sang phải: cả sàn, rồi nơi phát sinh, rồi seller nào kéo số lên.",
-        "Tổng quan KPI",
-    )
     funnel_label = st.session_state.get("filter_funnel", "Tất cả")
     funnel = {"Có closed deal": 1, "Không có closed deal": 0}.get(funnel_label)
     start, end = month_from, month_to
-    st.caption(
-        f"Tháng {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · vùng {region or 'tất cả'} · "
-        f"bang {state or 'tất cả'}"
-        + (f" · {funnel_label}" if funnel is not None else "")
-    )
     try:
         with st.spinner("Đang tải dữ liệu…"):
             current = _load_base(start, end, region, state)
@@ -331,15 +364,23 @@ def render(settings=None) -> None:
                         previous = _pack_category(prior_scoped, previous)
             categories = db.query(*queries.kpi_top_categories(start, end, region, state))
             regions = db.query(*queries.kpi_late_by_region(start, end, state))
+            story = db.query(*queries.story_by_region(start, end, region, state, category))
+            series = db.query(*queries.seller_month_series(region, state, funnel, start, end))
     except Exception as exc:
+        page_header("Sức khỏe marketplace đang thế nào?", "Chưa tải được dữ liệu để kết luận.", "actual")
         db.show_warehouse_error(exc)
         next_step("kpi")
         return
-    try:
-        story = db.query(*queries.story_by_region(start, end, region, state, category))
-        insight_box(build_insight_kpi(story, MIN_ORDERS))
-    except Exception as exc:
-        st.error(db.redact(exc))
+    page_header(
+        "Sức khỏe marketplace đang thế nào?",
+        _kpi_conclusion(series, story),
+        "actual",
+    )
+    st.caption(
+        f"Tháng {start or 'đầu kỳ'} → {end or 'cuối kỳ'} · vùng {region or 'tất cả'} · "
+        f"bang {state or 'tất cả'}"
+        + (f" · {funnel_label}" if funnel is not None else "")
+    )
 
     def _growth(now, before):
         if now is None or before in (None, 0):
@@ -370,10 +411,9 @@ def render(settings=None) -> None:
             with column:
                 kpi_card(label, value, delta=delta, help_text=help_text, delta_color=color)
 
-    series = quality = scatter = sellers = funnel_frame = snapshot = None
+    quality = scatter = sellers = funnel_frame = snapshot = None
     try:
         with st.spinner("Đang tải dữ liệu…"):
-            series = db.query(*queries.seller_month_series(region, state, funnel, start, end))
             quality = db.query(*queries.market_quality(start, end, region, state))
             scatter = db.query(*queries.category_scatter(start, end, region, state))
             sellers = db.query(*queries.seller_pareto(region, state, funnel, start, end, 1))

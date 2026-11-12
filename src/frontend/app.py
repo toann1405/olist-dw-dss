@@ -16,7 +16,7 @@ import streamlit as st
 from lib import db, queries
 from lib.stats import DENSE_FROM, DENSE_TO
 from lib.ui import ALL, NAVY
-from pages import home, kpi, olap, policy, seller_risk
+from pages import home, kpi, method, olap, policy, seller_risk
 
 
 def _labels(frame, column: str) -> list[str]:
@@ -64,11 +64,11 @@ def render_sidebar() -> None:
         f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
     )
-    #st.sidebar.caption("Đọc theo thứ tự 1 → 4")
+    st.sidebar.caption("Đọc 1 → 4 mỗi tháng. Trang cuối là phương pháp.")
     filters_off = False
     try:
         path = str(st.context.url).rstrip("/")
-        filters_off = path.endswith("/olap") or path.endswith("/risk")
+        filters_off = path.endswith(("/olap", "/risk", "/policy", "/method"))
     except Exception:
         filters_off = False
     if filters_off:
@@ -130,35 +130,53 @@ def main() -> None:
         "home": st.Page(home.render, title="Giới thiệu", icon=":material/home:", url_path="home", default=True),
         "kpi": st.Page(
             kpi.render,
-            title="Sức khỏe marketplace đang thế nào?",
+            title="1. Sức khỏe marketplace",
             icon=":material/monitoring:",
             url_path="kpi",
         ),
         "olap": st.Page(
             olap.render,
-            title="GMV và trải nghiệm xấu đến từ đâu?",
+            title="2. GMV và trải nghiệm xấu từ đâu",
             icon=":material/account_tree:",
             url_path="olap",
         ),
         "risk": st.Page(
             seller_risk.render,
-            title="Seller nào đáng lo nhất?",
+            title="3. Seller nào đáng lo",
             icon=":material/warning:",
             url_path="risk",
         ),
         "policy": st.Page(
             policy.render,
-            title="Chọn chính sách nào?",
+            title="4. Chọn chính sách nào",
             icon=":material/rule:",
             url_path="policy",
+        ),
+        "method": st.Page(
+            method.render,
+            title="5. Dữ liệu & phương pháp",
+            icon=":material/menu_book:",
+            url_path="method",
         ),
     }
     st.session_state["nav_pages"] = pages
     if hasattr(st, "navigation"):
-        st.navigation(list(pages.values())).run()
+        st.navigation(
+            {
+                "Hàng tháng": [pages["home"], pages["kpi"], pages["olap"], pages["risk"], pages["policy"]],
+                "Tham khảo": [pages["method"]],
+            }
+        ).run()
         return
-    choice = st.sidebar.radio("Trang", ("home", "kpi", "olap", "risk", "policy"))
-    {"home": home, "kpi": kpi, "olap": olap, "risk": seller_risk, "policy": policy}[choice].render()
+    choice = st.sidebar.radio("Trang", ("home", "kpi", "olap", "risk", "policy", "method"))
+    {
+        "home": home,
+        "kpi": kpi,
+        "olap": olap,
+        "risk": seller_risk,
+        "policy": policy,
+        "method": method,
+    }[choice].render()
 
 
 if __name__ == "__main__":

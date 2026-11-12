@@ -26,7 +26,7 @@ from lib.labels import (
     policy_name,
 )
 from lib.policy_cache import cached_compare, cached_goal, cached_tornado, param_token, score_token
-from lib.ui import badge_predicted, chart_note, fmt_brl, insight_box, next_step, page_header, style_fig
+from lib.ui import chart_card, fmt_brl, kpi_card, next_step, page_header, style_fig
 from src.dss.params import (
     AS_OF_MONTH,
     AVG_REVIEW_THRESHOLD,
@@ -282,17 +282,13 @@ def _tornado_chart(frame: pd.DataFrame) -> None:
     figure.update_layout(height=320, margin_l=160, margin_r=16, margin_b=16)
     figure.update_xaxes(title="Độ lệch đơn xấu dự kiến (số đơn)")
     figure.update_yaxes(title="Giả định", automargin=True)
-    st.plotly_chart(
+    chart_card(
         style_fig(
             figure,
             "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?",
             f"Lệch ±20% quanh ngưỡng gợi ý · tháng chấm {AS_OF_MONTH}",
         ),
-        width="stretch",
-    )
-    chart_note(
-        "giả định nào làm đơn xấu dự kiến đổi nhiều nhất khi lệch ±20%.",
-        "thanh dài nhất là giả định cần kiểm chứng trước.",
+        how_to_read="Thanh dài nhất là giả định cần kiểm chứng trước.",
     )
 
 
@@ -395,33 +391,13 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
         horizontal=True,
         key="policy_choice",
     )
-    st.write(f"Đang chốt theo: {ORIGIN_TEXT.get(origin, origin)}.")
+    st.caption(f"Đang chốt theo: {ORIGIN_TEXT.get(origin, origin)}.")
     result = simulate(scores, choice, params)
     violates = not (bool(result.meets_x) and bool(result.meets_n))
-    st.write(
-        f"{COLUMN_LABELS['expected_bad_orders']} **{fmt_number(result.expected_bad_orders)}** · "
-        f"{COLUMN_LABELS['gmv_affected_pct']} **{fmt_percent_points(result.gmv_affected_pct)}** "
-        f"(tối đa {fmt_limit(X)}%) · "
-        f"{COLUMN_LABELS['n_sellers_flagged']} **{fmt_count(result.n_sellers_flagged)}** "
-        f"(tối đa {fmt_limit(N)})."
-    )
     if violates:
-        st.error("Phương án này vượt trần GMV hoặc trần số seller. Hãy nhập lý do trước khi ghi.")
-    flagged = _flagged_source(result)
-    preview = flagged.head(FLAGGED_PREVIEW)
-    with st.expander(
-        f"Danh sách seller bị xử lý ({fmt_count(len(preview))} / {fmt_count(len(flagged))})",
-        expanded=False,
-    ):
-        st.dataframe(_format_table(preview), width="stretch", hide_index=True)
-        st.download_button(
-            "Tải CSV",
-            flagged.to_csv(index=False).encode("utf-8"),
-            file_name=f"flagged_sellers_{choice}.csv",
-            mime="text/csv",
-        )
-    note = st.text_area("Lý do chọn phương án này", key="decision_note")
-    if st.button("Ghi quyết định"):
+        st.error("Phương án này vượt trần. Hãy nhập lý do trước khi chốt.")
+    note = str(st.session_state.get("decision_note", ""))
+    if st.button("Chốt"):
         if violates and not note.strip():
             st.error("Chưa ghi được vì phương án vượt ràng buộc mà chưa có lý do.")
         else:
@@ -442,11 +418,25 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
                 ),
             }
             st.session_state["open_confirm"] = True
+    note = st.text_area("Lý do chọn phương án này", key="decision_note")
     if st.session_state.get("open_confirm"):
         _confirm_dialog()
     if st.session_state.get("last_saved_id"):
         st.success("Đã ghi quyết định.")
         st.session_state["last_saved_id"] = None
+    flagged = _flagged_source(result)
+    preview = flagged.head(FLAGGED_PREVIEW)
+    with st.expander(
+        f"Danh sách seller bị xử lý ({fmt_count(len(preview))} / {fmt_count(len(flagged))})",
+        expanded=False,
+    ):
+        st.dataframe(_format_table(preview), width="stretch", hide_index=True)
+        st.download_button(
+            "Tải CSV",
+            flagged.to_csv(index=False).encode("utf-8"),
+            file_name=f"flagged_sellers_{choice}.csv",
+            mime="text/csv",
+        )
 
 
 def _assumptions_form() -> None:
@@ -547,113 +537,114 @@ def _recent() -> None:
     st.dataframe(_format_table(frame), width="stretch", hide_index=True)
 
 
+def _saved_orders(results, code: str | None):
+    by_code = {item.policy_code: item for item in results}
+    chosen = by_code.get(code)
+    base = by_code.get("P0")
+    if chosen is None or base is None:
+        return chosen, None
+    return chosen, base.expected_bad_orders - chosen.expected_bad_orders
+
+
+def _decision_conclusion(results, advice: dict) -> str:
+    chosen, saved = _saved_orders(results, advice.get("code"))
+    if chosen is None:
+        return advice.get("sentence") or "Chưa đủ dữ liệu để kết luận."
+    if saved is None:
+        change = "chưa so được với phương án không làm gì"
+    elif saved >= 0:
+        change = f"giảm {fmt_number(saved)} đơn xấu"
+    else:
+        change = f"tăng {fmt_number(abs(saved))} đơn xấu"
+    return (
+        f"Khuyến nghị {policy_name(chosen.policy_code)}: "
+        f"{fmt_count(chosen.n_sellers_flagged)} seller, "
+        f"GMV ảnh hưởng {fmt_percent_points(chosen.gmv_affected_pct)}, {change}."
+    )
+
+
 def render(settings=None) -> None:
     del settings
-    page_header(
-        "Chọn chính sách nào?",
-        (
-            f"Chọn cách xử lý seller tháng này để giảm đơn trải nghiệm xấu "
-            f"mà GMV bị ảnh hưởng không quá {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller."
-        ),
-        "Policy scenario – M2",
-    )
-    st.markdown("**Bài toán**")
-    st.write("Mục tiêu: giảm đơn xấu tháng tới.")
-    st.write(f"Luật chơi: GMV bị ảnh hưởng ≤ {fmt_limit(X)}%, xử lý ≤ {fmt_limit(N)} seller.")
-    st.write("Ba cách: Không làm gì (P0) · Xử lý theo KPI quá khứ (P1) · Xử lý theo dự báo rủi ro (P2).")
-    st.write(
-        "Seller bị gắn cờ → can thiệp giảm e% đơn xấu của họ → mất r% GMV của họ. "
-        "e và r là giả định, không phải số đã đo."
-    )
     try:
         with st.spinner("Đang tải dữ liệu…"):
             scores = db.query(*queries.scores())
             snapshot = db.query(*queries.policy_snapshot())
     except Exception as exc:
+        page_header("Chọn chính sách nào?", "Chưa tải được dữ liệu để kết luận.", "predicted")
         db.show_warehouse_error(exc)
         next_step("policy")
         return
     if scores.empty:
-        st.info("Chưa có điểm rủi ro cho kỳ này, hãy liên hệ nhóm dữ liệu.")
+        page_header("Chọn chính sách nào?", "Chưa có điểm rủi ro cho kỳ này.", "predicted")
         next_step("policy")
         return
     scores = scores[scores["as_of_month"].astype(str) == AS_OF_MONTH].copy()
     if scores.empty:
-        st.info("Kỳ này chưa đủ dữ liệu để chấm.")
+        page_header("Chọn chính sách nào?", "Kỳ này chưa đủ dữ liệu để chấm.", "predicted")
         next_step("policy")
         return
 
     _ensure_state()
     applied = st.session_state["applied"]
     origin = st.session_state.get("param_origin", "default")
-    if origin == "custom":
-        st.warning("Bạn đang xem kết quả theo giả định tùy chỉnh.")
-    one, two = st.columns(2)
-    with one:
-        st.markdown(f"**GMV ảnh hưởng ≤ {fmt_limit(X)}%**")
-    with two:
-        st.markdown(f"**Can thiệp ≤ {fmt_limit(N)} seller**")
-    month = str(scores["as_of_month"].iloc[0])
-    when = "—"
-    if "scored_at" in snapshot.columns and not snapshot.empty and snapshot["scored_at"].iloc[0] is not None:
-        when = str(snapshot["scored_at"].iloc[0]).replace("T", " ").split(".")[0].replace("+00:00", " UTC")
-    st.caption(f"Tháng dữ liệu {month}. Thời điểm job chạy cuối: {when}.")
-
     params = _params_from(applied)
     token = score_token(scores)
     results = cached_compare(token, param_token(params))
     advice = recommend_policy(_results_frame(results), X, N)
+    chosen_item, saved = _saved_orders(results, advice.get("code"))
+    page_header("Chọn chính sách nào?", _decision_conclusion(results, advice), "predicted")
+    if origin == "custom":
+        st.warning("Bạn đang xem kết quả theo giả định tùy chỉnh.")
+    month = str(scores["as_of_month"].iloc[0])
+    st.caption(f"Tháng chấm {month}. Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller.")
 
-    st.subheader("① Nên chọn phương án nào?")
-    st.caption("What-if")
-    badge_predicted()
-    insight_box(advice["sentence"])
+    with st.container(border=True):
+        if chosen_item is None:
+            st.markdown("**Chưa có phương án vừa cả hai trần.**")
+        else:
+            reduced = "—" if saved is None else fmt_number(saved)
+            cards = [
+                ("Phương án khuyến nghị", policy_name(chosen_item.policy_code), None),
+                ("Seller bị can thiệp", fmt_count(chosen_item.n_sellers_flagged), None),
+                ("GMV ảnh hưởng", fmt_percent_points(chosen_item.gmv_affected_pct), None),
+                ("Đơn xấu giảm được", reduced, None),
+            ]
+            for column, (label, value, delta) in zip(st.columns(4), cards):
+                with column:
+                    kpi_card(label, value, delta=delta)
+        _render_decision(scores, params, results, advice["code"], origin)
+
     _render_cards(results, advice["code"])
     with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
         st.dataframe(_format_table(snapshot), width="stretch", hide_index=True)
 
-    st.subheader("② Ngưỡng nào tối ưu?")
-    st.caption("Goal seeking")
-    badge_predicted()
+    st.markdown("**Xem lập luận**")
+    goal_tab, trust_tab, assume_tab = st.tabs(
+        ["Ngưỡng nào tối ưu", "Kết quả đáng tin đến đâu", "Giả định"],
+    )
     chosen, sought = cached_goal(token, param_token(params))
-    st.write(_goal_sentence(chosen, sought))
-    st.button(
-        "Dùng ngưỡng gợi ý này",
-        on_click=_use_suggestion,
-        args=(chosen.theta_1, chosen.theta_2, chosen.theta_3),
-        help="Ghi ngưỡng gợi ý vào giả định và tính lại phần chốt quyết định.",
-    )
-
-    st.subheader("③ Kết quả này đáng tin đến đâu?")
-    st.caption("Sensitivity")
-    badge_predicted()
-    st.write(
-        "Khi mỗi giả định đổi ±20%, kết quả thay đổi như sau "
-        "(tính quanh ngưỡng gợi ý ở ②, không phải slider hiện tại)."
-    )
-    shocks = cached_tornado(token, param_token(chosen))
-    _tornado_chart(shocks)
-    if st.toggle("Xem bảng", key="tornado_table"):
-        table = shocks.copy()
-        table["factor"] = table["factor"].map(lambda name: FACTOR_LABELS.get(str(name), str(name)))
-        table["expected_bad_orders"] = table["expected_bad_orders"].map(fmt_number)
-        table["gmv_affected_pct"] = table["gmv_affected_pct"].map(fmt_percent_points)
-        table["n_sellers_flagged"] = table["n_sellers_flagged"].map(fmt_count)
-        st.dataframe(table.rename(columns=COLUMN_LABELS), width="stretch", hide_index=True)
-
-    st.subheader("④ Chốt quyết định")
-    _render_decision(scores, params, results, advice["code"], origin)
-    _recent()
-
-    with st.expander("Điều chỉnh giả định (nâng cao)", expanded=False):
+    with goal_tab:
+        st.write(_goal_sentence(chosen, sought))
+        st.button(
+            "Dùng ngưỡng gợi ý này",
+            on_click=_use_suggestion,
+            args=(chosen.theta_1, chosen.theta_2, chosen.theta_3),
+            help="Ghi ngưỡng gợi ý vào giả định và tính lại phần chốt quyết định.",
+        )
+    with trust_tab:
+        st.caption("Mỗi giả định lệch ±20% quanh ngưỡng gợi ý, không phải slider hiện tại.")
+        shocks = cached_tornado(token, param_token(chosen))
+        _tornado_chart(shocks)
+        if st.toggle("Xem bảng", key="tornado_table"):
+            table = shocks.copy()
+            table["factor"] = table["factor"].map(lambda name: FACTOR_LABELS.get(str(name), str(name)))
+            table["expected_bad_orders"] = table["expected_bad_orders"].map(fmt_number)
+            table["gmv_affected_pct"] = table["gmv_affected_pct"].map(fmt_percent_points)
+            table["n_sellers_flagged"] = table["n_sellers_flagged"].map(fmt_count)
+            st.dataframe(table.rename(columns=COLUMN_LABELS), width="stretch", hide_index=True)
+    with assume_tab:
         st.button("Đặt lại về mặc định", on_click=_reset_params)
         _assumptions_form()
 
-    with st.expander("Ghi chú kỹ thuật"):
-        st.write(
-            "Các ngưỡng trên slider là quy ước của mô hình trong src/dss/params.py. "
-            f"SPEC khóa trần GMV {fmt_limit(X)}% và trần {fmt_limit(N)} seller. "
-            "SPEC không khóa các ngưỡng còn lại."
-        )
-
+    _recent()
     next_step("policy")
