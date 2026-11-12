@@ -180,7 +180,7 @@ def _summary(scored: pd.DataFrame, eligible: pd.DataFrame, scenario, min_orders:
     ]
     columns = st.columns(4)
     for column, (label, value, caption, help_text) in zip(columns, cards):
-        with column, st.container(border=True):
+        with column, st.container(border=True, height="stretch"):
             kpi_card(label, value, help=help_text, border=False)
             if caption:
                 st.caption(caption)
