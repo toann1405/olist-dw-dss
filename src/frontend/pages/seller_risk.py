@@ -14,7 +14,6 @@ from lib.ui import (
     MIN_N_DISPLAY,
     NAVY,
     add_legend_swatch,
-    button_dropdown,
     chart_note,
     fmt_brl,
     fmt_pct,
@@ -23,15 +22,12 @@ from lib.ui import (
     page_header,
     style_fig,
 )
-from src.dss.params import AS_OF_MONTH, MIN_ORDERS, N, THETA_1, THETA_2, THETA_3, X
+from src.dss.params import AS_OF_MONTH, MIN_ORDERS, N, R, THETA_1, THETA_2, THETA_3, X
 from src.dss.policy import PolicyParams, simulate
-from src.dss.recommend import action_for_tier, percentile_above, reason_chips
+from src.dss.recommend import TIER_NAME, action_for_tier, percentile_above, reason_chips
 
 PREDICTED = "#6d28d9"
 MISSING = "Không có dữ liệu (seller không qua funnel)"
-
-
-TIER_NAME = {0: "Bình thường", 1: "Theo dõi", 2: "Cảnh báo", 3: "Tạm ngưng"}
 
 
 def _known(value) -> str:
@@ -54,53 +50,140 @@ def _rate(top, bottom):
     return float(top) / float(bottom)
 
 
-def _attach(scores: pd.DataFrame) -> pd.DataFrame:
-    """Add tier and expected bad orders from the default P2 simulation."""
-    result = simulate(scores, "P2", PolicyParams())
+def _attach(scores: pd.DataFrame, min_orders: int):
+    """Add M2 columns. Numbers come from simulate, not a second formula."""
+    result = simulate(scores, "P2", PolicyParams(min_orders=int(min_orders)))
     sellers = result.sellers
     out = scores.copy()
     out["tier"] = sellers["tier"].to_numpy()
     out["expected_bad"] = sellers["expected_bad_i"].to_numpy()
     out["flagged"] = sellers["flagged"].to_numpy()
+    probability = pd.to_numeric(out["p_bad"], errors="coerce").fillna(0.0)
+    orders = pd.to_numeric(out["n_orders_valid"], errors="coerce").fillna(0.0)
+    out["baseline_bad"] = probability * orders
     return out, result
+
+
+def _kpi_numbers(scored: pd.DataFrame, eligible: pd.DataFrame, scenario) -> dict:
+    """Card values from the P2 scenario and the eligible slice."""
+    flagged = (
+        eligible[eligible["flagged"].astype(bool)]
+        if not eligible.empty and "flagged" in eligible.columns
+        else eligible.iloc[0:0]
+    )
+    counts = (
+        pd.to_numeric(flagged["tier"], errors="coerce").fillna(0).astype(int).value_counts()
+        if not flagged.empty
+        else pd.Series(dtype=int)
+    )
+    baseline = float(pd.to_numeric(eligible["baseline_bad"], errors="coerce").fillna(0).sum())
+    flagged_baseline = float(pd.to_numeric(flagged["baseline_bad"], errors="coerce").fillna(0).sum())
+    remaining = float(pd.to_numeric(eligible["expected_bad"], errors="coerce").fillna(0).sum())
+    return {
+        "n_eligible": len(eligible),
+        "n_scored": len(scored),
+        "n_flagged": int(scenario.n_sellers_flagged),
+        "tiers": {1: int(counts.get(1, 0)), 2: int(counts.get(2, 0)), 3: int(counts.get(3, 0))},
+        "gmv_affected_pct": scenario.gmv_affected_pct,
+        "meets_x": bool(scenario.meets_x),
+        "baseline_bad": baseline,
+        "flagged_share": None if baseline <= 0 else flagged_baseline / baseline,
+        "p2_remaining": remaining,
+        "p2_reduction": None if baseline <= 0 else (baseline - remaining) / baseline,
+    }
+
+
+def _forecast_month(as_of: str) -> str | None:
+    """Month after the scoring month. M1 estimates that next month."""
+    parts = str(as_of).split("-")
+    if len(parts) != 2:
+        return None
+    try:
+        year = int(parts[0])
+        month = int(parts[1])
+    except ValueError:
+        return None
+    if month < 1 or month > 12:
+        return None
+    month += 1
+    if month == 13:
+        year += 1
+        month = 1
+    return f"{year:04d}-{month:02d}"
 
 
 def _flag_sentence(frame: pd.DataFrame) -> str:
     if frame.empty:
         return "Chưa đủ dữ liệu để kết luận."
+    horizon = _forecast_month(AS_OF_MONTH) or "tới"
+    when = f"Tháng {horizon}" if horizon != "tới" else "Tháng tới"
     flagged = frame[frame["flagged"].astype(bool)] if "flagged" in frame.columns else frame.iloc[0:0]
-    top = frame.sort_values("p_bad", ascending=False).head(3)
-    names = ", ".join(top["seller_id"].astype(str).str.slice(0, 8))
-    return f"{fmt_count(len(flagged))} seller bị gắn cờ tháng tới, top 3 là {names}."
+    total = len(frame)
+    n_flagged = len(flagged)
+    if n_flagged == 0:
+        return (
+            f"{when} dự kiến không có seller nào vượt ngưỡng rủi ro (chính sách P2) "
+            f"trong {fmt_count(total)} seller đủ điều kiện."
+        )
+    total_bad = float(pd.to_numeric(frame["baseline_bad"], errors="coerce").fillna(0).sum())
+    flagged_bad = float(pd.to_numeric(flagged["baseline_bad"], errors="coerce").fillna(0).sum())
+    share = None if total_bad <= 0 else flagged_bad / total_bad
+    share_text = "" if share is None else f", gom khoảng {fmt_ratio(share)} đơn xấu dự kiến"
+    return (
+        f"{when} dự kiến có {fmt_count(n_flagged)}/{fmt_count(total)} seller "
+        f"vượt ngưỡng rủi ro (chính sách P2){share_text}; "
+        "xem danh sách bên dưới để chọn seller cần xử lý."
+    )
 
 
-def _summary(frame: pd.DataFrame, scored: pd.DataFrame) -> None:
-    high = frame[frame["tier"] >= 2]
-    total_gmv = float(pd.to_numeric(scored["gmv"], errors="coerce").fillna(0).sum())
-    high_gmv = float(pd.to_numeric(high["gmv"], errors="coerce").fillna(0).sum()) if not high.empty else 0.0
-    gmv_pct = None if total_gmv <= 0 else 100.0 * high_gmv / total_gmv
-    total_bad = float(pd.to_numeric(scored["expected_bad"], errors="coerce").fillna(0).sum())
-    top = scored.sort_values("p_bad", ascending=False).head(int(N))
-    top_bad = float(pd.to_numeric(top["expected_bad"], errors="coerce").fillna(0).sum())
-    meets = gmv_pct is not None and gmv_pct <= float(X)
-    columns = st.columns(4)
+def _summary(scored: pd.DataFrame, eligible: pd.DataFrame, scenario, min_orders: int) -> None:
+    stats = _kpi_numbers(scored, eligible, scenario)
+    watch, warn, halt = stats["tiers"][1], stats["tiers"][2], stats["tiers"][3]
+    gmv_ok = "Đạt ✓" if stats["meets_x"] else "Vượt trần ✗"
     cards = [
-        ("Seller được chấm", fmt_count(len(frame)), None),
-        ("Seller hạng cao", fmt_count(len(high)), None),
         (
-            "GMV hạng cao",
-            f"{fmt_percent_points(gmv_pct)} / trần {fmt_limit(X)}% {'✓' if meets else '✗'}",
+            "Seller đủ điều kiện xét",
+            f"{fmt_count(stats['n_eligible'])} / {fmt_count(stats['n_scored'])}",
             None,
+            (
+                f"Seller có ít nhất {fmt_count(min_orders)} đơn hợp lệ trong tháng chấm; "
+                "seller ít đơn có xác suất dao động mạnh nên không xét."
+            ),
         ),
         (
-            "Đơn xấu dự kiến",
-            fmt_number(total_bad),
-            f"Top {fmt_limit(N)}: {fmt_number(top_bad)}",
+            "Seller bị gắn cờ",
+            fmt_count(stats["n_flagged"]),
+            f"Theo dõi {fmt_count(watch)} · Cảnh báo {fmt_count(warn)} · Tạm ngưng {fmt_count(halt)}",
+            (
+                f"Seller có xác suất đơn xấu ≥ {fmt_ratio(THETA_1)} (hạng 1 trở lên theo P2), "
+                f"tối đa {fmt_limit(N)} seller."
+            ),
+        ),
+        (
+            "GMV bị ảnh hưởng",
+            fmt_percent_points(stats["gmv_affected_pct"]),
+            f"Trần {fmt_limit(X)}% · {gmv_ok}",
+            (
+                "Phần GMV có thể mất khi xử lý seller bị gắn cờ, "
+                f"giả định {float(R) * 100:.0f}% đơn chuyển sang seller khác, chia cho tổng GMV. "
+                f"Không được vượt {fmt_limit(X)}%."
+            ),
+        ),
+        (
+            "Đơn xấu dự kiến (chưa can thiệp)",
+            fmt_number(stats["baseline_bad"]),
+            None
+            if stats["flagged_share"] is None
+            else f"Seller bị gắn cờ chiếm {fmt_ratio(stats['flagged_share'])}",
+            "Tổng xác suất đơn xấu × số đơn của từng seller, trước khi áp dụng chính sách.",
         ),
     ]
-    for column, (label, value, delta) in zip(columns, cards):
-        with column:
-            kpi_card(label, value, delta=delta)
+    columns = st.columns(4)
+    for column, (label, value, caption, help_text) in zip(columns, cards):
+        with column, st.container(border=True):
+            kpi_card(label, value, help=help_text, border=False)
+            if caption:
+                st.caption(caption)
 
 
 def _list_tab(eligible: pd.DataFrame) -> None:
@@ -109,18 +192,23 @@ def _list_tab(eligible: pd.DataFrame) -> None:
         return
     work = eligible.copy()
     regions = ["Tất cả"] + sorted(work["region_name"].dropna().astype(str).unique())
-    tiers = ["Tất cả"] + [str(item) for item in sorted(work["tier"].unique())]
-    one, two, three, four = st.columns(4)
-    with one:
-        region = button_dropdown("Vùng", regions, "risk_region")
-    with two:
-        tier = button_dropdown("Hạng", tiers, "risk_tier")
+    tier_names = ["Tất cả"] + [
+        TIER_NAME.get(int(item), str(item))
+        for item in sorted(pd.to_numeric(work["tier"], errors="coerce").dropna().astype(int).unique())
+    ]
+    if st.session_state.get("risk_region") not in regions:
+        st.session_state["risk_region"] = "Tất cả"
+    if st.session_state.get("risk_tier") not in tier_names:
+        st.session_state["risk_tier"] = "Tất cả"
+    one, two, three, four = st.columns(4, vertical_alignment="bottom")
+    region = one.selectbox("Vùng", regions, key="risk_region")
+    tier = two.selectbox("Hạng", tier_names, key="risk_tier")
     top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, key="risk_top")
     needle = four.text_input("Tìm seller", key="risk_search")
     if region != "Tất cả":
         work = work[work["region_name"].astype(str) == region]
     if tier != "Tất cả":
-        work = work[work["tier"].astype(str) == tier]
+        work = work[work["tier"].map(lambda item: TIER_NAME.get(int(item), str(item))) == tier]
     if needle.strip():
         work = work[work["seller_id"].astype(str).str.contains(needle.strip(), case=False)]
     work = work.sort_values("p_bad", ascending=False).head(int(top_n))
@@ -192,8 +280,9 @@ def _distribution(frame: pd.DataFrame) -> None:
         width="stretch",
     )
     chart_note("Cột dồn về bên phải là seller đáng lo hơn; đường đứt là ngưỡng từng hạng.")
-    ranked = pareto(frame.rename(columns={"expected_bad": "bad_orders"}))
-    mark = ranked[ranked["sellers"] <= int(N)].tail(1)
+    ranked = pareto(frame, "baseline_bad")
+    n_flagged = int(frame["flagged"].astype(bool).sum()) if "flagged" in frame.columns else 0
+    mark = ranked[ranked["sellers"] == n_flagged] if n_flagged else ranked.iloc[0:0]
     figure = go.Figure(go.Scatter(
         x=ranked["seller_share"],
         y=ranked["bad_share"],
@@ -207,7 +296,7 @@ def _distribution(frame: pd.DataFrame) -> None:
             y=mark["bad_share"],
             mode="markers",
             marker=dict(color=PREDICTED, size=12),
-            name=f"Top {int(N)} seller",
+            name=f"{fmt_count(n_flagged)} seller bị gắn cờ",
         )
     figure.update_layout(height=340)
     figure.update_xaxes(tickformat=".0%", title="Seller, tệ nhất trước (%)")
@@ -233,9 +322,9 @@ def _distribution(frame: pd.DataFrame) -> None:
         marker=dict(size=8, color=PREDICTED, opacity=0.75),
     ))
     figure.add_vline(x=median_gmv, line_dash="dot", line_color=PREDICTED, annotation_text="GMV trung vị")
-    figure.add_hline(y=float(THETA_2), line_dash="dot", line_color=PREDICTED, annotation_text="Ngưỡng hạng 2")
+    figure.add_hline(y=float(THETA_1), line_dash="dot", line_color=PREDICTED, annotation_text="Ngưỡng gắn cờ")
     add_legend_swatch(figure, "GMV trung vị", PREDICTED, dash="dot")
-    add_legend_swatch(figure, "Ngưỡng hạng 2", PREDICTED, dash="dash")
+    add_legend_swatch(figure, "Ngưỡng gắn cờ", PREDICTED, dash="dot")
     figure.update_layout(height=440)
     figure.update_xaxes(type="log", title="GMV (R$)")
     figure.update_yaxes(title="Xác suất đơn xấu (%)", tickformat=".0%")
@@ -394,10 +483,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
 
 def _trust(as_of: str, model_name: str, trained_through) -> None:
     st.write(f"Loại mô hình: {model_name or '—'}. Học đến tháng {trained_through or '—'}.")
-    st.caption(
-        "Seller ít đơn làm xác suất dao động. Đơn nhiều seller không vào nhánh review. "
-        "Hiệu quả can thiệp nằm ở trang chính sách, không nằm trong xác suất này."
-    )
+    st.caption("Đơn có nhiều seller không được tính review cho từng seller.")
     try:
         metrics = db.query(*queries.model_eval(as_of))
         calibration = db.query(*queries.model_calibration(as_of))
@@ -459,12 +545,12 @@ def render(settings=None) -> None:
         page_header("Seller nào đáng lo nhất?", "Kỳ này chưa đủ dữ liệu để chấm.", "predicted")
         next_step("risk")
         return
-    scored, scenario = _attach(raw)
-    as_of = AS_OF_MONTH
-    scored_at = str(scored["scored_at"].iloc[0]).split(".")[0] if "scored_at" in scored.columns else "—"
     if "risk_min_orders" not in st.session_state:
         st.session_state["risk_min_orders"] = int(MIN_ORDERS)
     min_orders = int(st.session_state["risk_min_orders"])
+    scored, scenario = _attach(raw, min_orders)
+    as_of = AS_OF_MONTH
+    scored_at = str(scored["scored_at"].iloc[0]).split(".")[0] if "scored_at" in scored.columns else "—"
     eligible = scored[pd.to_numeric(scored["n_orders_valid"], errors="coerce").fillna(0) >= int(min_orders)].copy()
     page_header("Seller nào đáng lo nhất?", _flag_sentence(eligible), "predicted")
     st.number_input(
@@ -481,8 +567,15 @@ def render(settings=None) -> None:
     if eligible.empty:
         next_step("risk")
         return
-    _summary(eligible, eligible)
-    st.caption(f"Đơn xấu dự kiến theo P2, cùng công thức trang chính sách: {fmt_number(scenario.expected_bad_orders)}.")
+    _summary(scored, eligible, scenario, min_orders)
+    stats = _kpi_numbers(scored, eligible, scenario)
+    if stats["p2_reduction"] is None:
+        st.caption(f"Nếu áp dụng P2, đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])}.")
+    else:
+        st.caption(
+            f"Nếu áp dụng P2, đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])} "
+            f"(giảm {fmt_ratio(stats['p2_reduction'])})."
+        )
     tabs = st.tabs(["Danh sách", "Phân bố", "Chi tiết seller", "Độ tin cậy"])
     with tabs[0]:
         _list_tab(eligible)

@@ -234,13 +234,15 @@ def kpi_card(
     delta_color: str = "normal",
     *,
     border: bool = True,
+    help: str | None = None,
 ) -> None:
     """One metric. border=False when the caller already wraps the card and its chart."""
+    text = help if help is not None else help_text
     if border:
         with st.container(border=True):
-            st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+            st.metric(label, value, delta=delta, delta_color=delta_color, help=text)
         return
-    st.metric(label, value, delta=delta, delta_color=delta_color, help=help_text)
+    st.metric(label, value, delta=delta, delta_color=delta_color, help=text)
 
 
 def chip(label: str, value: str) -> None:

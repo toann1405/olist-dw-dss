@@ -8,10 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from src.dss.recommend import action_for_tier, percentile_above, reason_chips  # noqa: E402
+from src.dss.recommend import TIER_NAME, action_for_tier, percentile_above, reason_chips  # noqa: E402
 
 
 def test_action_for_tier():
+    assert TIER_NAME[0] == "Bình thường"
+    assert TIER_NAME[1] == "Theo dõi"
+    assert TIER_NAME[2] == "Cảnh báo"
+    assert TIER_NAME[3] == "Tạm ngưng"
     assert action_for_tier(0) == "Bình thường"
     assert action_for_tier(2) == "Cảnh báo + hỗ trợ"
     assert action_for_tier(3) == "Tạm ngưng hiển thị"

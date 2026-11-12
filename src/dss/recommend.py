@@ -5,6 +5,13 @@ Tier numbers come from M2. This module does not recompute thresholds or p_i.
 
 from __future__ import annotations
 
+TIER_NAME = {
+    0: "Bình thường",
+    1: "Theo dõi",
+    2: "Cảnh báo",
+    3: "Tạm ngưng",
+}
+
 TIER_ACTION = {
     0: "Bình thường",
     1: "Theo dõi",
