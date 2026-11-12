@@ -620,13 +620,13 @@ def _tab_adhoc() -> None:
         if name != "Unknown"
     ]
     chart_slot = st.container()
-    form_col, sql_col = st.columns(2)
+    form_col, sql_col = st.columns([1.5,2.5])
     with form_col:
         _adhoc_form(months, regions, groups)
     saved = st.session_state.get("adhoc_params")
     with sql_col:
         with st.container(border=True):
-            st.markdown("**SQL**")
+            st.markdown("**SQL Explanation**")
             if saved:
                 st.code(
                     adhoc.readable_sql(
