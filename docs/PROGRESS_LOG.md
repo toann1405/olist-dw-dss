@@ -11,14 +11,19 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: sidebar và Ad hoc chỉ query khi bấm nút. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
+| Đang làm | R09 vẫn ◐. Branch `fix/olap-page`: caption cách đọc dưới biểu đồ, bản đồ bang sát title hơn. Checkbox PLAN Phase 4/5 Local→Cloud chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (query khi bấm nút) |
+| Cập nhật | 12/11/2026 (caption cách đọc) |
 
 ---
 
 ## Nhật ký
+
+### 12/11/2026 — Caption cách đọc dưới biểu đồ
+
+- **Đã làm:** `chart_card` và `chart_note` bỏ popover "Cách đọc". Nếu có câu đọc thì `st.caption` ngay dưới chart, trên dòng "Ẩn … nhóm" hoặc "Điểm mờ". Câu rỗng thì không render. Mỗi câu rút còn một câu: bản đồ, cột địa lý, scatter nhóm hàng, các chart Seller risk và tornado chính sách. Bản đồ bang: cao 640, title neo đáy vào mép trên của plot, margin trên 88, domain geo đầy vùng vẽ. Không đổi số liệu. Không tick PLAN. R09 vẫn ◐.
+- **Đã chạy:** `python -m pytest src/tests -q` → 31 passed in 9.52s. Đã mở `http://localhost:8501/kpi`, tab Xảy ra ở đâu: không còn nút "Cách đọc". Caption dưới bản đồ là "Màu càng đậm, tỷ lệ càng cao; bang xám là bang có dưới 30 đơn." Khoảng từ đáy title tới bản đồ 26px, bản đồ cao 470px. Câu cột vùng đứng trên dòng "Ẩn 1 nhóm…".
 
 ### 12/11/2026 — Query khi bấm nút
 

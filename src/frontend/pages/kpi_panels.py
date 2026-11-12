@@ -487,7 +487,7 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
             colorbar=dict(
                 title=f"{label} (%)" if is_rate else f"{label} (R$)",
                 tickformat=".0%" if is_rate else ",.0f",
-                len=0.7,
+                len=0.9,
             ),
             customdata=_hover_rows(colored, label, is_rate),
             hovertemplate=hover,
@@ -508,13 +508,18 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
             hovertemplate=hover,
             name="",
         ))
-    figure.update_layout(height=520)
+    figure.update_layout(height=640)
     badge_actual()
     style_fig(
         figure,
         f"{label} đang cao ở bang nào?",
         scope_subtitle(extra=level),
         legend=False,
+    )
+    figure.update_layout(
+        height=640,
+        margin=dict(t=88, b=0, l=0, r=4),
+        title=dict(y=1, yanchor="bottom", yref="paper"),
     )
     figure.update_geos(
         fitbounds="locations",
@@ -527,7 +532,8 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
         showlakes=False,
         showocean=False,
         projection_type="mercator",
-        domain=dict(x=[0.0, 0.86], y=[0.0, 0.78]),
+        projection_scale=1.2,
+        domain=dict(x=[0.0, 0.82], y=[0.0, 1.0]),
     )
     figure.update_xaxes(visible=False)
     figure.update_yaxes(visible=False)
@@ -544,10 +550,10 @@ def _choropleth(frame: pd.DataFrame, label: str, is_rate: bool, level: str) -> N
     if picked and picked != current:
         st.session_state["pending_filter_state"] = picked
         st.rerun()
-    chart_note(
-        "chỉ số theo từng bang của Brazil, cùng tử số và mẫu số với biểu đồ cột.",
-        "màu càng đậm thì chỉ số càng cao. Ở mức Bang, màu và n là của bang. Ở mức Vùng, các bang cùng vùng dùng chung số của vùng. Bang xám là mẫu nhỏ. Bấm một bang để lọc Bang seller.",
-    )
+    if is_rate:
+        chart_note("Màu càng đậm, tỷ lệ càng cao; bang xám là bang có dưới 30 đơn.")
+    else:
+        chart_note("Màu càng đậm, GMV càng cao; bang xám là bang có dưới 30 đơn.")
 
 
 def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> None:
@@ -601,6 +607,13 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         width="stretch",
         key="where_bar",
     )
+    if is_rate:
+        chart_note(
+            f"Thanh vượt đường đứt là {place.lower()} tệ hơn trung bình sàn; "
+            "thanh sai số dài nghĩa là ít đơn, kém chắc chắn."
+        )
+    else:
+        chart_note(f"Thanh dài hơn là {place.lower()} có GMV cao hơn.")
     st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
 
 
@@ -659,11 +672,8 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         width="stretch",
         key="where_scatter",
     )
+    chart_note("Góc trên-phải là nhóm hàng vừa bán nhiều vừa nhiều đơn xấu, cần ưu tiên xử lý.")
     st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
-    chart_note(
-        "GMV và tỷ lệ đơn trải nghiệm xấu của từng nhóm hàng.",
-        "trục ngang là GMV (R$), trục dọc là tỷ lệ đơn xấu. Kích thước chấm là số đơn. Nhãn là 5 nhóm GMV cao nhất và nhóm cao hơn trung bình sàn.",
-    )
 
 
 def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) -> None:

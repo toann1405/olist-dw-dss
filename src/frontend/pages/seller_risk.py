@@ -191,10 +191,7 @@ def _distribution(frame: pd.DataFrame) -> None:
         style_fig(figure, "Xác suất đơn xấu của seller phân bố thế nào?", f"Tháng chấm {AS_OF_MONTH}"),
         width="stretch",
     )
-    chart_note(
-        "xác suất đơn xấu tháng tới của các seller được chấm.",
-        "cột dồn về bên phải là nhóm đáng lo hơn. Đường đứt là ngưỡng hạng.",
-    )
+    chart_note("Cột dồn về bên phải là seller đáng lo hơn; đường đứt là ngưỡng từng hạng.")
     ranked = pareto(frame.rename(columns={"expected_bad": "bad_orders"}))
     mark = ranked[ranked["sellers"] <= int(N)].tail(1)
     figure = go.Figure(go.Scatter(
@@ -223,10 +220,7 @@ def _distribution(frame: pd.DataFrame) -> None:
         ),
         width="stretch",
     )
-    chart_note(
-        "bao nhiêu phần đơn xấu dự kiến dồn vào nhóm seller rủi ro nhất.",
-        "đường càng dốc lên sớm thì xử lý ít seller càng hiệu quả.",
-    )
+    chart_note("Đường dốc lên sớm nghĩa là xử lý ít seller đã gom được nhiều đơn xấu dự kiến.")
     plot = frame.copy()
     plot["gmv_plot"] = pd.to_numeric(plot["gmv"], errors="coerce").clip(lower=1)
     median_gmv = float(plot["gmv_plot"].median())
@@ -253,10 +247,7 @@ def _distribution(frame: pd.DataFrame) -> None:
         ),
         width="stretch",
     )
-    chart_note(
-        "seller nào vừa rủi ro cao vừa chiếm nhiều GMV.",
-        "góc trên trái là ưu tiên dễ. Góc trên phải khó hơn vì GMV cao dễ chạm trần.",
-    )
+    chart_note("Góc trên-trái là seller rủi ro cao mà GMV còn thấp, dễ xử lý hơn góc trên-phải.")
 
 
 def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> None:
@@ -304,10 +295,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
                 ),
                 width="stretch",
             )
-            chart_note(
-                "GMV của seller này nằm ở nhóm hàng nào.",
-                "thanh dài là nhóm mang lại nhiều doanh thu nhất.",
-            )
+            chart_note("Thanh dài là nhóm hàng mang lại nhiều doanh thu nhất cho seller này.")
     try:
         history = db.query(*queries.seller_history(seller_id))
     except Exception as exc:
@@ -360,10 +348,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
                 ),
                 width="stretch",
             )
-            chart_note(
-                "bàn giao trễ của seller này qua từng tháng.",
-                "điểm nằm trên đường đứt là tháng tệ hơn mặt bằng sàn.",
-            )
+            chart_note("Điểm nằm trên đường đứt là tháng seller bàn giao trễ hơn mặt bằng sàn.")
 
     st.subheader("③ Mô hình dự báo gì và nên làm gì")
     higher = fmt_pct(share) if share is not None else "—"
@@ -396,10 +381,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
             ),
             width="stretch",
         )
-        chart_note(
-            "yếu tố nào đẩy xác suất lên hoặc kéo xuống.",
-            "thanh dương là tăng rủi ro theo log-odds, không phải phần trăm.",
-        )
+        chart_note("Thanh dương làm xác suất đơn xấu tăng; thanh âm kéo xác suất xuống.")
     pages = st.session_state.get("nav_pages", {})
     links = st.columns(2)
     if pages.get("policy") is not None:
@@ -455,10 +437,7 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
             ),
             width="stretch",
         )
-        chart_note(
-            "xác suất dự báo và tỷ lệ đơn xấu thực tế theo nhóm.",
-            "điểm nằm gần đường đứt là nhóm được hiệu chỉnh sát thực tế. n là số đơn trong nhóm.",
-        )
+        chart_note("Điểm gần đường đứt là nhóm được dự báo sát tỷ lệ đơn xấu thực tế.")
 
 
 def render(settings=None) -> None:

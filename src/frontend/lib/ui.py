@@ -140,16 +140,16 @@ def chart_card(fig, how_to_read: str | None = None, formula: str | None = None, 
 
 
 def _chart_aside(how_to_read: str | None, formula: str | None) -> None:
-    if how_to_read:
-        with st.popover("ℹ️ Cách đọc"):
-            st.write(how_to_read)
+    if how_to_read and how_to_read.strip():
+        st.caption(how_to_read.strip())
     if formula:
         with st.expander("Cách tính"):
             st.write(formula)
 
 
-def chart_note(shows: str, how: str) -> None:
-    _chart_aside(f"{shows} {how}", None)
+def chart_note(shows: str, how: str = "") -> None:
+    text = " ".join(part.strip() for part in (shows, how) if part and part.strip())
+    _chart_aside(text or None, None)
 
 
 def filter_badge(kind: str, question: str | None = None) -> None:
