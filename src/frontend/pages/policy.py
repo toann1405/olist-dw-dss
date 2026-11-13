@@ -40,7 +40,6 @@ from lib.ui import (
     chart_card,
     chart_note,
     fmt_brl,
-    kpi_card,
     next_step,
     page_header,
     style_fig,
@@ -192,29 +191,37 @@ def _results_frame(results) -> pd.DataFrame:
 def _render_cards(results, recommended: str | None) -> None:
     by_code = {item.policy_code: item for item in results}
     base = by_code.get("P0")
+    descriptions = {
+        "P0": "Giữ nguyên, không xử lý seller nào (mốc so sánh).",
+        "P1": "Xử lý seller có KPI quá khứ vượt ngưỡng cố định.",
+        "P2": "Xử lý seller có xác suất đơn xấu dự báo vượt ngưỡng hạng.",
+    }
     columns = st.columns(3)
     for column, item in zip(columns, results):
-        with column, st.container(border=True):
+        with column, st.container(border=True, height="stretch"):
+            title_line = f"**{policy_name(item.policy_code)}**"
             if item.policy_code == recommended:
-                st.markdown("**Khuyến nghị**")
-            st.markdown(f"**{policy_name(item.policy_code)}**")
-            st.caption(POLICY_BLURB.get(item.policy_code, ""))
-            st.caption({
-                "P0": "Cách này nghĩa là không xử lý seller nào.",
-                "P1": "Cách này nghĩa là xử lý seller có KPI quá khứ vượt ngưỡng.",
-                "P2": "Cách này nghĩa là xử lý seller có xác suất đơn xấu vượt ngưỡng hạng.",
-            }.get(item.policy_code, ""))
-            delta = None
-            if base is not None and item.policy_code != "P0":
-                gap = item.expected_bad_orders - base.expected_bad_orders
-                sign = "+" if gap > 0 else ""
-                delta = f"{sign}{fmt_number(gap)} so với {policy_name('P0')}"
+                title_line += " :green-badge[Khuyến nghị]"
+            st.markdown(title_line)
+            st.caption(descriptions.get(item.policy_code, POLICY_BLURB.get(item.policy_code, "")))
             st.metric(
                 COLUMN_LABELS["expected_bad_orders"],
                 fmt_number(item.expected_bad_orders),
-                delta=delta,
-                delta_color="inverse",
             )
+            if base is None or item.policy_code == "P0":
+                st.write("Đơn xấu giảm: —")
+                st.write("Hiệu quả: —")
+            else:
+                reduced = base.expected_bad_orders - item.expected_bad_orders
+                reduced_pct = (
+                    reduced / base.expected_bad_orders
+                    if base.expected_bad_orders > 0
+                    else 0.0
+                )
+                st.write(f"Đơn xấu giảm: {fmt_number(reduced)} ({fmt_ratio(reduced_pct)})")
+                eff = efficiency(item, base)
+                eff_text = "—" if eff is None else f"{fmt_number(eff)} đơn / 1% GMV"
+                st.write(f"Hiệu quả: {eff_text}")
             gmv_text = (
                 f"{fmt_percent_points(item.gmv_affected_pct)} / tối đa {fmt_limit(X)}% "
                 f"{_mark(item.meets_x)}"
@@ -469,7 +476,7 @@ def _confirm_dialog() -> None:
         st.rerun()
 
 
-def _render_decision(scores, params: PolicyParams, results, recommended: str | None, origin: str) -> None:
+def _render_decision(scores, params: PolicyParams, results, recommended: str | None) -> None:
     codes = [item.policy_code for item in results]
     signature = (param_token(params), recommended)
     if st.session_state.get("choice_signature") != signature:
@@ -482,12 +489,11 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
         horizontal=True,
         key="policy_choice",
     )
-    st.caption(f"Đang chốt theo: {ORIGIN_TEXT.get(origin, origin)}.")
     result = simulate(scores, choice, params)
     violates = not (bool(result.meets_x) and bool(result.meets_n))
     if violates:
         st.error("Phương án này vượt trần. Hãy nhập lý do trước khi chốt.")
-    note = str(st.session_state.get("decision_note", ""))
+    note = st.text_area("Lý do chọn phương án này", key="decision_note")
     if st.button("Chốt"):
         if violates and not note.strip():
             st.error("Chưa ghi được vì phương án vượt ràng buộc mà chưa có lý do.")
@@ -509,7 +515,6 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
                 ),
             }
             st.session_state["open_confirm"] = True
-    note = st.text_area("Lý do chọn phương án này", key="decision_note")
     if st.session_state.get("open_confirm"):
         _confirm_dialog()
     if st.session_state.get("last_saved_id"):
@@ -641,16 +646,25 @@ def _decision_conclusion(results, advice: dict) -> str:
     chosen, saved = _saved_orders(results, advice.get("code"))
     if chosen is None:
         return advice.get("sentence") or "Chưa đủ dữ liệu để kết luận."
+    by_code = {item.policy_code: item for item in results}
+    base = by_code.get("P0")
     if saved is None:
-        change = "chưa so được với phương án không làm gì"
-    elif saved >= 0:
-        change = f"giảm {fmt_number(saved)} đơn xấu"
+        change = "chưa so được với P0"
     else:
-        change = f"tăng {fmt_number(abs(saved))} đơn xấu"
+        pct = (
+            saved / base.expected_bad_orders
+            if base is not None and base.expected_bad_orders > 0
+            else 0.0
+        )
+        if saved >= 0:
+            change = f"giảm {fmt_number(saved)} đơn xấu ({fmt_ratio(pct)})"
+        else:
+            change = f"tăng {fmt_number(abs(saved))} đơn xấu ({fmt_ratio(abs(pct))})"
     return (
-        f"Khuyến nghị {policy_name(chosen.policy_code)}: "
-        f"{fmt_count(chosen.n_sellers_flagged)} seller, "
-        f"GMV ảnh hưởng {fmt_percent_points(chosen.gmv_affected_pct)}, {change}."
+        f"Khuyến nghị {chosen.policy_code}: "
+        f"xử lý {fmt_count(chosen.n_sellers_flagged)} seller, "
+        f"{change}, "
+        f"đổi lại {fmt_percent_points(chosen.gmv_affected_pct)} GMV (trần {fmt_limit(X)}%)."
     )
 
 
@@ -682,39 +696,19 @@ def render(settings=None) -> None:
     token = score_token(scores)
     results = cached_compare(token, param_token(params))
     advice = recommend_policy(_results_frame(results), X, N)
-    chosen_item, saved = _saved_orders(results, advice.get("code"))
     page_header("Chọn chính sách nào?", _decision_conclusion(results, advice), "predicted")
-    if origin == "custom":
-        st.warning("Bạn đang xem kết quả theo giả định tùy chỉnh.")
     month = str(scores["as_of_month"].iloc[0])
     n_scored = len(scores)
     n_eligible = int((pd.to_numeric(scores["n_orders_valid"], errors="coerce").fillna(0) >= int(params.min_orders)).sum())
     st.caption(
+        f"Đang dùng: {ORIGIN_TEXT.get(origin, origin)} · "
         f"Tháng chấm {month} · tính trên {fmt_count(n_scored)} seller được chấm "
         f"({fmt_count(n_eligible)} seller ≥ {fmt_count(params.min_orders)} đơn đủ điều kiện gắn cờ; "
-        f"với hệ số mùa vụ s = {fmt_number(params.s)}). "
+        f"s = {fmt_number(params.s)}). "
         f"Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller."
     )
 
-    with st.container(border=True):
-        if chosen_item is None:
-            st.markdown("**Chưa có phương án vừa cả hai trần.**")
-        else:
-            reduced = "—" if saved is None else fmt_number(saved)
-            cards = [
-                ("Phương án khuyến nghị", policy_name(chosen_item.policy_code), None),
-                ("Seller bị can thiệp", fmt_count(chosen_item.n_sellers_flagged), None),
-                ("GMV ảnh hưởng", fmt_percent_points(chosen_item.gmv_affected_pct), None),
-                ("Đơn xấu giảm được", reduced, None),
-            ]
-            for column, (label, value, delta) in zip(st.columns(4), cards):
-                with column:
-                    kpi_card(label, value, delta=delta)
-        _render_decision(scores, params, results, advice["code"], origin)
-
     _render_cards(results, advice["code"])
-    with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
-        st.dataframe(_format_table(snapshot), width="stretch", hide_index=True)
 
     st.markdown("**Xem lập luận**")
     goal_tab, trust_tab, assume_tab = st.tabs(
@@ -757,9 +751,15 @@ def render(settings=None) -> None:
             table["gmv_affected_pct"] = table["gmv_affected_pct"].map(fmt_percent_points)
             table["n_sellers_flagged"] = table["n_sellers_flagged"].map(fmt_count)
             st.dataframe(table.rename(columns=COLUMN_LABELS), width="stretch", hide_index=True)
+        with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
+            st.dataframe(_format_table(snapshot), width="stretch", hide_index=True)
     with assume_tab:
         st.button("Đặt lại về mặc định", on_click=_reset_params)
         _assumptions_form()
+
+    st.markdown("**Chốt phương án**")
+    with st.container(border=True):
+        _render_decision(scores, params, results, advice["code"])
 
     _recent()
     next_step("policy")
