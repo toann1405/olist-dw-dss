@@ -143,7 +143,7 @@ def _hbar(
     add_legend_swatch(fig, "Các nhóm còn lại", NEUTRAL)
     fig.update_layout(height=max(280, 34 * len(labels) + 120), margin_l=160, margin_r=16, margin_b=16)
     fig.update_xaxes(tickformat=".0%", title=axis_title)
-    fig.update_yaxes(title="Nơi bán", automargin=True)
+    fig.update_yaxes(title="Nơi bán", type="category", automargin=True)
     styled = style_fig(fig, question, subtitle, legend_side="top")
     # Anchor to the plot edge, not to a fraction of the figure. A tall state or city
     # chart then keeps the same gap under "Xem" as the short region chart.
@@ -317,7 +317,12 @@ def _tab_drill(frame: pd.DataFrame) -> None:
                 )
             )
             fig.update_layout(height=360)
-            fig.update_xaxes(title="Kỳ")
+            if level == "Năm":
+                fig.update_xaxes(title="Kỳ", type="category", dtick=1, tickformat="d")
+            elif level in ("Quý", "Tháng"):
+                fig.update_xaxes(title="Kỳ", type="category")
+            else:
+                fig.update_xaxes(title="Kỳ")
             fig.update_yaxes(tickformat=".0%", title="Review xấu (%)")
             st.plotly_chart(
                 style_fig(
@@ -725,7 +730,7 @@ def _adhoc_chart() -> None:
             )
         )
         figure.update_layout(height=360)
-        figure.update_xaxes(title=dims[0])
+        figure.update_xaxes(title=dims[0], type="category")
         figure.update_yaxes(title=measure)
         st.plotly_chart(
             style_fig(figure, f"{measure} theo {dims[0]}", "Tự chọn · tối đa 500 dòng"),
@@ -775,8 +780,8 @@ def _adhoc_chart() -> None:
             )
         )
         figure.update_layout(height=max(360, 36 * len(y_labels) + 120))
-        figure.update_xaxes(title=dims[1])
-        figure.update_yaxes(title=dims[0])
+        figure.update_xaxes(title=dims[1], type="category")
+        figure.update_yaxes(title=dims[0], type="category")
         st.plotly_chart(
             style_fig(
                 figure,
