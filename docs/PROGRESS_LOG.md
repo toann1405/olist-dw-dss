@@ -11,14 +11,20 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | Branch `feat/policy-review`: siết hàng nút Áp dụng / Đặt lại trên tab Giả định. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
+| Đang làm | Branch `feat/policy-review`: chữ sidebar Streamlit kem trên navy. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chạy lại job DSS để tab Độ tin cậy có số của warehouse. Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 13/11/2026 (nút form giả định sát nhau) |
+| Cập nhật | 13/11/2026 (chữ sidebar kem trên navy) |
 
 ---
 
 ## Nhật ký
+
+### 13/11/2026 — Chữ sidebar kem trên navy
+
+- **Đã làm:** Tiêu đề sidebar dùng `CREAM` `#FAF6EE` thay vì `NAVY`. CSS trong `inject_sidebar_css` chỉ gắn `section[data-testid="stSidebar"]`: nhãn, caption, nav, widget và trạng thái disabled/placeholder. `config.toml` `[theme.sidebar]` thêm `secondaryBackgroundColor = "#1f3a5f"`. Không đổi palette. Nội dung chính giữ `#1E2533` trên `#FAF6EE`. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** Đã mở `http://localhost:8501/` (bộ lọc bật) và `/olap` (bộ lọc tắt). Nav `#FAF6EE` trên `#1F2A44` ~13:1; nhãn bật ~13:1; nhãn/nút disabled `#E8DFCC` ~11:1; select `#FAF6EE` trên `#1f3a5f` ~11:1. Title «Olist Seller Performance» hết navy trên navy. Chữ trang chính vẫn `#1E2533`.
+- **Chưa làm:** không chạy pytest trong phiên này.
 
 ### 13/11/2026 — Nút Áp dụng và Đặt lại sát nhau
 

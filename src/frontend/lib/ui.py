@@ -16,7 +16,184 @@ LATE = "#d9622b"
 REVIEW = "#1b7f79"
 NEUTRAL = "#8a93a0"
 INK = "#1c2b33"
+CREAM = "#FAF6EE"
+SIDEBAR_NAVY = "#1F2A44"
+BORDER = "#E8DFCC"
 ALL = "Tất cả"
+
+# Navy sidebar, cream type. Tokens match src/frontend/.streamlit/config.toml.
+_SIDEBAR_CSS = """
+<style>
+[data-testid="stSidebar"] {
+  background-color: #1F2A44;
+  color: #F3EBDD;
+}
+[data-testid="stSidebar"] * {
+  color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] *,
+[data-testid="stSidebar"] small {
+  color: #C9BFAE !important;
+  opacity: 1 !important;
+}
+[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
+  color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] [data-testid="stSidebarNav"] a span {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div,
+[data-testid="stSidebar"] [data-baseweb="base-input"] {
+  background-color: #FFFDF8 !important;
+  border-color: #5A6684 !important;
+  color: #1E2533 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] > div *,
+[data-testid="stSidebar"] [data-baseweb="select"] input,
+[data-testid="stSidebar"] [data-baseweb="select"] svg,
+[data-testid="stSidebar"] [data-baseweb="input"] input,
+[data-testid="stSidebar"] [data-baseweb="base-input"] input {
+  color: #1E2533 !important;
+  -webkit-text-fill-color: #1E2533 !important;
+  caret-color: #1E2533 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"][aria-disabled="true"] > div *,
+[data-testid="stSidebar"] [data-baseweb="select"] [aria-disabled="true"] *,
+[data-testid="stSidebar"] input:disabled {
+  color: #5A6684 !important;
+  -webkit-text-fill-color: #5A6684 !important;
+}
+[data-testid="stSidebar"] input::placeholder {
+  color: #5A6684 !important;
+  opacity: 1 !important;
+}
+[data-baseweb="popover"]:has([role="listbox"]) > div,
+[data-baseweb="popover"] [data-baseweb="menu"],
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [data-testid="stSelectboxVirtualDropdown"],
+[data-baseweb="popover"] [data-testid="stSelectboxVirtualDropdown"] > div,
+[data-baseweb="popover"] [role="option"] {
+  background-color: #FFFDF8 !important;
+  color: #1E2533 !important;
+}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="popover"] [role="option"][aria-selected="true"] {
+  background-color: #E8DFCC !important;
+  color: #1E2533 !important;
+}
+[data-baseweb="popover"] [data-baseweb="menu"] *,
+[data-baseweb="popover"] [role="listbox"] *,
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="popover"] [role="option"] * {
+  color: #1E2533 !important;
+}
+[data-testid="stSidebar"] button[kind="primary"],
+[data-testid="stSidebar"] button[kind="primaryFormSubmit"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-primaryFormSubmit"] {
+  background-color: #8FA3C7 !important;
+  border-color: #8FA3C7 !important;
+  color: #1F2A44 !important;
+}
+[data-testid="stSidebar"] button[kind="primary"] *,
+[data-testid="stSidebar"] button[kind="primary"] p,
+[data-testid="stSidebar"] button[kind="primaryFormSubmit"] *,
+[data-testid="stSidebar"] button[kind="primaryFormSubmit"] p,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] p,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primaryFormSubmit"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primaryFormSubmit"] p {
+  color: #1F2A44 !important;
+}
+[data-testid="stSidebar"] button[kind="primary"]:hover,
+[data-testid="stSidebar"] button[kind="primaryFormSubmit"]:hover,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"]:hover,
+[data-testid="stSidebar"] [data-testid="stBaseButton-primaryFormSubmit"]:hover {
+  background-color: #A9B8D6 !important;
+  border-color: #A9B8D6 !important;
+}
+[data-testid="stSidebar"] button[kind="secondary"],
+[data-testid="stSidebar"] button[kind="secondaryFormSubmit"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondaryFormSubmit"] {
+  background-color: transparent !important;
+  border-color: #5A6684 !important;
+  color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] button[kind="secondary"] *,
+[data-testid="stSidebar"] button[kind="secondary"] p,
+[data-testid="stSidebar"] button[kind="secondaryFormSubmit"] *,
+[data-testid="stSidebar"] button[kind="secondaryFormSubmit"] p,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] p,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondaryFormSubmit"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondaryFormSubmit"] p {
+  color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] button[kind="secondary"]:hover,
+[data-testid="stSidebar"] button[kind="secondaryFormSubmit"]:hover,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondaryFormSubmit"]:hover {
+  background-color: #2E3B5C !important;
+  border-color: #8FA3C7 !important;
+}
+[data-testid="stSidebar"] button:disabled {
+  opacity: 0.55 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label,
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label p,
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label span {
+  color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[role="switch"]) > div:first-of-type {
+  background-color: #5A6684 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[role="switch"]:checked) > div:first-of-type {
+  background-color: #8FA3C7 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[role="switch"]) > div:first-of-type > div {
+  background-color: #F3EBDD !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:not(:has(input[role="switch"])) > span:first-of-type {
+  background-color: #5A6684 !important;
+  border-color: #5A6684 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:not([role="switch"]):checked) > span:first-of-type {
+  background-color: #8FA3C7 !important;
+  border-color: #8FA3C7 !important;
+}
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-pressed="true"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-segmented_controlActive"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-pillsActive"] {
+  background-color: #8FA3C7 !important;
+  border-color: #8FA3C7 !important;
+  color: #1F2A44 !important;
+}
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-checked="true"] *,
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-pressed="true"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-segmented_controlActive"] *,
+[data-testid="stSidebar"] [data-testid="stBaseButton-pillsActive"] * {
+  color: #1F2A44 !important;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+  background-color: #8FA3C7 !important;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) * {
+  color: #1F2A44 !important;
+}
+</style>
+"""
+
+
+def inject_sidebar_css() -> None:
+    """Cream type on the navy sidebar. Main content keeps the light theme."""
+    st.markdown(_SIDEBAR_CSS, unsafe_allow_html=True)
 
 pio.templates["olist"] = go.layout.Template(
     layout=go.Layout(

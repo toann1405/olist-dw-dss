@@ -574,7 +574,7 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
         st.session_state["policy_choice"] = recommended if recommended in codes else codes[0]
         st.session_state["choice_signature"] = signature
 
-    st.markdown("**① Chọn phương án**")
+    st.markdown("**1. Chọn phương án**")
     choice = st.radio(
         "Phương án chốt",
         codes,
@@ -599,7 +599,7 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
     if violates:
         st.error("Phương án này vượt trần. Hãy nhập lý do trước khi chốt.")
 
-    st.markdown("**② Xem seller sẽ bị xử lý**")
+    st.markdown("**2. Xem seller sẽ bị xử lý**")
     flagged = _flagged_source(result)
     preview = flagged.head(FLAGGED_PREVIEW)
     with st.expander(
@@ -614,7 +614,7 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
             mime="text/csv",
         )
 
-    st.markdown("**③ Ghi lý do và chốt**")
+    st.markdown("**3. Ghi lý do và chốt**")
     note = st.text_area(
         "Lý do chọn phương án này",
         key="decision_note",
@@ -661,7 +661,7 @@ def _section_header(title: str, help_text: str | None = None) -> None:
 def _assumptions_form(scores: pd.DataFrame) -> None:
     with st.container(border=True):
         _section_header(
-            "① Ai bị gắn cờ?",
+            "1. Ai bị gắn cờ?",
             "P2 chọn seller theo điểm rủi ro dự báo (p_bad = xác suất một đơn tháng tới là đơn xấu). "
             "p_bad ≥ ngưỡng hạng nào thì vào hạng đó; từ hạng 1 trở lên là bị gắn cờ. "
             "P1 chọn theo KPI quá khứ: bàn giao trễ ≥ ngưỡng HOẶC review ≤ ngưỡng. "
@@ -737,7 +737,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
 
     with st.container(border=True):
         _section_header(
-            "② Can thiệp hiệu quả đến đâu?",
+            "2. Can thiệp hiệu quả đến đâu?",
             "Phần trăm đơn xấu giảm được ở seller bị xử lý. Ví dụ 50% nghĩa là seller đó chỉ còn một nửa số đơn xấu dự kiến. "
             "Đây là giả định chưa có dữ liệu thực nghiệm, nên kiểm chứng bằng thí điểm. "
             "Tăng hiệu quả → đơn xấu giảm nhiều hơn, không ảnh hưởng GMV.",
@@ -778,7 +778,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
 
     with st.container(border=True):
         _section_header(
-            "③ Thị trường phản ứng ra sao?",
+            "3. Thị trường phản ứng ra sao?",
             "Các giả định về hành vi của khách và mùa vụ, áp dụng cho mọi phương án.",
         )
         one, two, three = st.columns(3)

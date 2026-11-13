@@ -15,7 +15,7 @@ import streamlit as st
 
 from lib import db, queries
 from lib.stats import DENSE_FROM, DENSE_TO
-from lib.ui import ALL, NAVY, default_filters, filters
+from lib.ui import ALL, CREAM, default_filters, filters, inject_sidebar_css
 from pages import home, kpi, method, olap, policy, seller_risk
 
 
@@ -102,7 +102,7 @@ def render_sidebar() -> None:
         applied["state"] = str(pending_state)
         st.session_state["applied_filters"] = applied
     st.sidebar.markdown(
-        f"<div style='font-size:20px;font-weight:700;color:{NAVY};line-height:1.2;'>Olist<br>Seller Performance</div>",
+        f"<div style='font-size:20px;font-weight:700;color:{CREAM};line-height:1.2;'>Olist<br>Seller Performance</div>",
         unsafe_allow_html=True,
     )
     filters_off = False
@@ -181,6 +181,7 @@ def render_sidebar() -> None:
 
 def main() -> None:
     st.set_page_config(layout="wide", page_title="Olist Seller Performance", page_icon=":material/storefront:")
+    inject_sidebar_css()
     render_sidebar()
     pages = {
         "home": st.Page(home.render, title="Giới thiệu", icon=":material/home:", url_path="home", default=True),
