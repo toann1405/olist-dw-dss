@@ -168,15 +168,9 @@ def _hbar(
 
 
 def _kpi_strip() -> None:
-    chosen = filters()
-    month_from = chosen.get("month_from")
-    month_to = chosen.get("month_to")
-    region = chosen.get("region")
-    state = chosen.get("state")
-    _category = chosen.get("category")
     try:
-        monthly = db.query(*queries.kpi_seller_month(month_from, month_to, region, state)).iloc[0]
-        orders = db.query(*queries.kpi_orders(month_from, month_to, region, state)).iloc[0]
+        monthly = db.query(*queries.kpi_seller_month(None, None, None, None)).iloc[0]
+        orders = db.query(*queries.kpi_orders(None, None, None, None)).iloc[0]
     except Exception as exc:
         st.error(db.redact(exc))
         return
@@ -191,7 +185,7 @@ def _kpi_strip() -> None:
         ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
     try:
-        quality = db.query(*queries.market_quality(month_from, month_to, region, state))
+        quality = db.query(*queries.market_quality(None, None, None, None))
         if not quality.empty and quality.iloc[0]["bad_eligible"]:
             bad = float(quality.iloc[0]["bad_orders"]) / float(quality.iloc[0]["bad_eligible"])
             values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
