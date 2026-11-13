@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
+from html import escape
 from uuid import uuid4
 
 import pandas as pd
@@ -25,8 +27,26 @@ from lib.labels import (
     fmt_ratio,
     policy_name,
 )
-from lib.policy_cache import cached_compare, cached_goal, cached_tornado, param_token, score_token
-from lib.ui import chart_card, fmt_brl, kpi_card, next_step, page_header, style_fig
+from lib.policy_cache import (
+    cached_budget,
+    cached_budget_curve,
+    cached_compare,
+    cached_tornado,
+    cached_tornado_advice,
+    param_token,
+    score_token,
+)
+from lib.ui import (
+    LATE,
+    NAVY,
+    add_legend_swatch,
+    chart_note,
+    fmt_brl,
+    kpi_card,
+    next_step,
+    page_header,
+    style_fig,
+)
 from src.dss.params import (
     AS_OF_MONTH,
     AVG_REVIEW_THRESHOLD,
@@ -44,7 +64,7 @@ from src.dss.params import (
     THETA_3,
     X,
 )
-from src.dss.policy import PolicyParams, scenario_record, simulate
+from src.dss.policy import PolicyParams, efficiency, scenario_record, simulate
 
 RECENT_LIMIT = 5
 FLAGGED_PREVIEW = 50
@@ -80,6 +100,11 @@ def _near(left, right) -> bool:
 
 def _matches_default(applied: dict) -> bool:
     return all(_near(applied[key], value) for key, value in _default_applied().items())
+
+
+def _modified_default_count(applied: dict) -> int:
+    defaults = _default_applied()
+    return sum(1 for key, value in defaults.items() if not _near(applied.get(key), value))
 
 
 def _sync_draft(applied: dict) -> None:
@@ -126,9 +151,17 @@ def _params_from(applied: dict) -> PolicyParams:
     )
 
 
-def _store_applied(applied: dict, origin: str) -> None:
+def _remember_applied(applied: dict, origin: str) -> None:
     st.session_state["applied"] = applied
     st.session_state["param_origin"] = "default" if _matches_default(applied) else origin
+
+
+def _store_applied(applied: dict, origin: str) -> None:
+    """Write applied values and the slider keys. Callbacks only.
+
+    A form submit cannot assign slider keys after those widgets exist.
+    """
+    _remember_applied(applied, origin)
     _sync_draft(applied)
 
 
@@ -174,29 +207,37 @@ def _results_frame(results) -> pd.DataFrame:
 def _render_cards(results, recommended: str | None) -> None:
     by_code = {item.policy_code: item for item in results}
     base = by_code.get("P0")
+    descriptions = {
+        "P0": "Giữ nguyên, không xử lý seller nào (mốc so sánh).",
+        "P1": "Xử lý seller có KPI quá khứ vượt ngưỡng cố định.",
+        "P2": "Xử lý seller có xác suất đơn xấu dự báo vượt ngưỡng hạng.",
+    }
     columns = st.columns(3)
     for column, item in zip(columns, results):
-        with column, st.container(border=True):
+        with column, st.container(border=True, height="stretch"):
+            title_line = f"**{policy_name(item.policy_code)}**"
             if item.policy_code == recommended:
-                st.markdown("**Khuyến nghị**")
-            st.markdown(f"**{policy_name(item.policy_code)}**")
-            st.caption(POLICY_BLURB.get(item.policy_code, ""))
-            st.caption({
-                "P0": "Cách này nghĩa là không xử lý seller nào.",
-                "P1": "Cách này nghĩa là xử lý seller có KPI quá khứ vượt ngưỡng.",
-                "P2": "Cách này nghĩa là xử lý seller có xác suất đơn xấu vượt ngưỡng hạng.",
-            }.get(item.policy_code, ""))
-            delta = None
-            if base is not None and item.policy_code != "P0":
-                gap = item.expected_bad_orders - base.expected_bad_orders
-                sign = "+" if gap > 0 else ""
-                delta = f"{sign}{fmt_number(gap)} so với {policy_name('P0')}"
+                title_line += " :green-badge[Khuyến nghị]"
+            st.markdown(title_line)
+            st.caption(descriptions.get(item.policy_code, POLICY_BLURB.get(item.policy_code, "")))
             st.metric(
                 COLUMN_LABELS["expected_bad_orders"],
                 fmt_number(item.expected_bad_orders),
-                delta=delta,
-                delta_color="inverse",
             )
+            if base is None or item.policy_code == "P0":
+                st.write("Đơn xấu giảm: —")
+                st.write("Hiệu quả: —")
+            else:
+                reduced = base.expected_bad_orders - item.expected_bad_orders
+                reduced_pct = (
+                    reduced / base.expected_bad_orders
+                    if base.expected_bad_orders > 0
+                    else 0.0
+                )
+                st.write(f"Đơn xấu giảm: {fmt_number(reduced)} ({fmt_ratio(reduced_pct)})")
+                eff = efficiency(item, base)
+                eff_text = "—" if eff is None else f"{fmt_number(eff)} đơn / 1% GMV"
+                st.write(f"Hiệu quả: {eff_text}")
             gmv_text = (
                 f"{fmt_percent_points(item.gmv_affected_pct)} / tối đa {fmt_limit(X)}% "
                 f"{_mark(item.meets_x)}"
@@ -233,63 +274,209 @@ def _format_table(frame: pd.DataFrame) -> pd.DataFrame:
     return show.rename(columns=COLUMN_LABELS)
 
 
-def _goal_sentence(chosen: PolicyParams, sought) -> str:
+def _budget_sentence(budget_res, baseline) -> str:
+    chosen = budget_res.params
+    sought = budget_res.scenario
+    delta_bad = (
+        baseline.expected_bad_orders - sought.expected_bad_orders
+        if baseline is not None
+        else 0.0
+    )
+    delta_pct = (
+        delta_bad / baseline.expected_bad_orders
+        if baseline is not None and baseline.expected_bad_orders > 0
+        else 0.0
+    )
     return (
-        f"Để giảm nhiều đơn xấu nhất mà GMV ≤ {fmt_limit(X)}%, "
-        f"nên gắn cờ seller có điểm rủi ro từ {fmt_ratio(chosen.theta_1)} trở lên. "
-        f"Kết quả: {fmt_number(sought.expected_bad_orders)} đơn xấu dự kiến, "
-        f"GMV bị ảnh hưởng {fmt_percent_points(sought.gmv_affected_pct)}, "
-        f"{fmt_count(sought.n_sellers_flagged)} seller bị xử lý."
+        f"Ràng buộc đang bó là {budget_res.binding}. "
+        f"Gắn cờ top {fmt_count(budget_res.k)} seller theo điểm rủi ro "
+        f"(tương đương p_bad ≥ {fmt_ratio(chosen.theta_1)}) → "
+        f"{fmt_number(sought.expected_bad_orders)} đơn xấu dự kiến, "
+        f"giảm {fmt_number(delta_bad)} ({fmt_ratio(delta_pct)}) so với P0, "
+        f"GMV ảnh hưởng {fmt_percent_points(sought.gmv_affected_pct)}."
     )
 
 
-def _tornado_chart(frame: pd.DataFrame) -> None:
+def _budget_curve_chart(curve: pd.DataFrame, p1_result, p2_result) -> None:
+    if curve.empty:
+        st.info("Chưa đủ seller đủ điều kiện để vẽ đường cong gắn cờ.")
+        return
+    figure = go.Figure(
+        go.Scatter(
+            x=curve["k"],
+            y=curve["expected_bad_orders"],
+            mode="lines",
+            name="P2 theo top k seller",
+            line=dict(color="#6d28d9", width=2.5),
+            customdata=list(zip(curve["theta_1"], curve["gmv_affected_pct"])),
+            hovertemplate=(
+                "Top %{x} seller (p_bad ≥ %{customdata[0]:.1%})"
+                "<br>Đơn xấu dự kiến: %{y:,.1f}"
+                "<br>GMV ảnh hưởng: %{customdata[1]:.1f}%<extra></extra>"
+            ),
+        )
+    )
+    if p1_result is not None:
+        figure.add_hline(
+            y=p1_result.expected_bad_orders,
+            line_dash="dash",
+            line_color=LATE,
+        )
+        add_legend_swatch(
+            figure,
+            f"P1 ({fmt_count(p1_result.n_sellers_flagged)} seller)",
+            LATE,
+            dash="dash",
+        )
+    if p2_result is not None:
+        figure.add_scatter(
+            x=[p2_result.n_sellers_flagged],
+            y=[p2_result.expected_bad_orders],
+            mode="markers",
+            name="Vị trí hiện tại (P2)",
+            marker=dict(color=NAVY, size=11),
+            hovertemplate=(
+                "Vị trí hiện tại: %{x} seller"
+                "<br>Đơn xấu dự kiến: %{y:,.1f}<extra></extra>"
+            ),
+        )
+    figure.update_layout(height=360)
+    figure.update_xaxes(title="Số seller gắn cờ")
+    figure.update_yaxes(title="Đơn xấu dự kiến")
+    st.plotly_chart(
+        style_fig(
+            figure,
+            "Gắn cờ thêm seller giảm được bao nhiêu đơn xấu?",
+            f"Top 1..{fmt_count(len(curve))} seller theo p_bad · tháng chấm {AS_OF_MONTH}",
+        ),
+        width="stretch",
+    )
+    chart_note(
+        "Đường tím đi xuống cho thấy đơn xấu dự kiến giảm khi mở rộng top seller theo p_bad; "
+        "điểm xanh đậm là cấu hình P2 hiện tại."
+    )
+
+
+def _tornado_chart(
+    frame: pd.DataFrame,
+    advice_stability: tuple[str | None, list[tuple[str, str, str | None]]] | None = None,
+) -> None:
+    metric_choice = st.segmented_control(
+        "Chỉ số đánh giá độ nhạy",
+        ["Đơn xấu dự kiến", "GMV bị ảnh hưởng (%)"],
+        default="Đơn xấu dự kiến",
+        key="tornado_metric",
+        help=(
+            "Mỗi giả định được đẩy lệch ±20%, các giả định khác giữ nguyên. "
+            "Độ dài thanh = mức kết quả thay đổi; thanh càng dài, kết quả càng phụ thuộc giả định đó. "
+            "Hệ số mùa vụ nhân vào số đơn của mọi seller nên luôn dài nhất, nhưng làm P0/P1/P2 dịch cùng chiều nên không đổi phương án được chọn. "
+            "Hiệu quả can thiệp chỉ tác động lên seller bị gắn cờ, cần kiểm chứng bằng thí điểm. "
+            "Tỷ lệ chuyển đơn chỉ ảnh hưởng GMV, nên bằng 0 ở chế độ đơn xấu là đúng."
+        ),
+    )
+    if metric_choice is None:
+        metric_choice = "Đơn xấu dự kiến"
+
+    is_gmv = metric_choice == "GMV bị ảnh hưởng (%)"
+    metric_col = "gmv_affected_pct" if is_gmv else "expected_bad_orders"
     rows = []
     for factor, part in frame.groupby("factor"):
-        low = part.loc[part["shock"] == "low", "expected_bad_orders"]
-        high = part.loc[part["shock"] == "high", "expected_bad_orders"]
-        if low.empty or high.empty:
+        low = part.loc[part["shock"] == "low", metric_col]
+        base = part.loc[part["shock"] == "base", metric_col]
+        high = part.loc[part["shock"] == "high", metric_col]
+        if low.empty or base.empty or high.empty:
+            continue
+        if pd.isna(low.iloc[0]) or pd.isna(base.iloc[0]) or pd.isna(high.iloc[0]):
             continue
         low_value = float(low.iloc[0])
+        base_value = float(base.iloc[0])
         high_value = float(high.iloc[0])
+        delta_low = low_value - base_value
+        delta_high = high_value - base_value
+        span = max(abs(delta_high - delta_low), abs(delta_low), abs(delta_high))
         rows.append(
             {
                 "factor": factor,
                 "label": FACTOR_LABELS.get(str(factor), str(factor)),
-                "span": abs(high_value - low_value),
+                "span": span,
+                "delta_low": delta_low,
+                "delta_high": delta_high,
                 "low": low_value,
+                "base": base_value,
                 "high": high_value,
             }
         )
     if not rows:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
+
     ordered = sorted(rows, key=lambda row: row["span"])
-    figure = go.Figure(
-        go.Bar(
-            x=[row["span"] for row in ordered],
-            y=[row["label"] for row in ordered],
-            orientation="h",
-            name="Độ lệch đơn xấu dự kiến (số đơn)",
-            marker_color="#6d28d9",
-            customdata=[[fmt_number(row["low"]), fmt_number(row["high"])] for row in ordered],
-            hovertemplate=(
-                "%{y}<br>Đơn xấu dự kiến thấp %{customdata[0]}"
-                "<br>Đơn xấu dự kiến cao %{customdata[1]}<extra></extra>"
-            ),
-        )
+    unit = "điểm %" if is_gmv else "đơn"
+    figure = go.Figure()
+    figure.add_bar(
+        x=[row["delta_low"] for row in ordered],
+        y=[row["label"] for row in ordered],
+        orientation="h",
+        name="Giảm 20%",
+        marker_color=NAVY,
+        customdata=[[fmt_number(row["low"]), fmt_number(row["base"])] for row in ordered],
+        hovertemplate=(
+            "%{y} (Giảm 20%)<br>Độ lệch: %{x:+.2f} " + unit
+            + "<br>Kết quả mới: %{customdata[0]} (gốc %{customdata[1]})<extra></extra>"
+        ),
     )
-    figure.update_layout(height=320, margin_l=160, margin_r=16, margin_b=16)
-    figure.update_xaxes(title="Độ lệch đơn xấu dự kiến (số đơn)")
+    figure.add_bar(
+        x=[row["delta_high"] for row in ordered],
+        y=[row["label"] for row in ordered],
+        orientation="h",
+        name="Tăng 20%",
+        marker_color=LATE,
+        customdata=[[fmt_number(row["high"]), fmt_number(row["base"])] for row in ordered],
+        hovertemplate=(
+            "%{y} (Tăng 20%)<br>Độ lệch: %{x:+.2f} " + unit
+            + "<br>Kết quả mới: %{customdata[0]} (gốc %{customdata[1]})<extra></extra>"
+        ),
+    )
+    figure.add_vline(x=0, line_color="#8a93a0", line_width=1)
+    figure.update_layout(height=320, barmode="overlay", margin_l=160, margin_r=16, margin_b=16)
+    x_title = (
+        "Độ lệch GMV bị ảnh hưởng (điểm phần trăm)"
+        if is_gmv
+        else "Độ lệch đơn xấu dự kiến (đơn)"
+    )
+    figure.update_xaxes(title=x_title)
     figure.update_yaxes(title="Giả định", automargin=True)
-    chart_card(
+    chart_title = (
+        "Giả định nào làm GMV bị ảnh hưởng đổi nhiều nhất?"
+        if is_gmv
+        else "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?"
+    )
+    st.plotly_chart(
         style_fig(
             figure,
-            "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?",
+            chart_title,
             f"Lệch ±20% quanh ngưỡng gợi ý · tháng chấm {AS_OF_MONTH}",
         ),
-        how_to_read="Thanh dài nhất là giả định cần kiểm chứng trước.",
+        width="stretch",
     )
+    chart_note("Thanh dài nhất là giả định nhạy nhất, nhưng chỉ đáng lo nếu nó làm đổi phương án được chọn.")
+
+    if advice_stability is not None:
+        base_code, changes = advice_stability
+        if not changes:
+            if base_code is None:
+                st.write("Ở mọi mức lệch ±20%, vẫn chưa có phương án nào đạt cả hai trần.")
+            else:
+                st.write(f"Ở mọi mức lệch ±20%, phương án khuyến nghị vẫn là {base_code}.")
+        else:
+            factor, shock, new_code = changes[0]
+            factor_name = FACTOR_LABELS.get(str(factor), str(factor))
+            shock_text = "−20%" if shock == "low" else "+20%"
+            target_text = new_code or "không có phương án đạt trần"
+            st.write(
+                f"{factor_name} ở {shock_text} làm khuyến nghị đổi sang {target_text}. "
+                "Cần kiểm chứng giả định này trước."
+            )
 
 
 def _flagged_source(result) -> pd.DataFrame:
@@ -378,26 +565,67 @@ def _confirm_dialog() -> None:
         st.rerun()
 
 
-def _render_decision(scores, params: PolicyParams, results, recommended: str | None, origin: str) -> None:
+def _render_decision(scores, params: PolicyParams, results, recommended: str | None) -> None:
     codes = [item.policy_code for item in results]
+    by_code = {item.policy_code: item for item in results}
+    base = by_code.get("P0")
     signature = (param_token(params), recommended)
     if st.session_state.get("choice_signature") != signature:
         st.session_state["policy_choice"] = recommended if recommended in codes else codes[0]
         st.session_state["choice_signature"] = signature
+
+    st.markdown("**① Chọn phương án**")
     choice = st.radio(
         "Phương án chốt",
         codes,
         format_func=policy_name,
         horizontal=True,
         key="policy_choice",
+        label_visibility="collapsed",
     )
-    st.caption(f"Đang chốt theo: {ORIGIN_TEXT.get(origin, origin)}.")
-    result = simulate(scores, choice, params)
+    result = by_code.get(choice) or simulate(scores, choice, params)
+    saved = (base.expected_bad_orders - result.expected_bad_orders) if base is not None else 0.0
+    saved_pct = (
+        saved / base.expected_bad_orders
+        if base is not None and base.expected_bad_orders > 0
+        else 0.0
+    )
+    st.caption(
+        f"{fmt_count(result.n_sellers_flagged)} seller · "
+        f"giảm {fmt_number(saved)} đơn xấu ({fmt_ratio(saved_pct)}) · "
+        f"GMV {fmt_percent_points(result.gmv_affected_pct)}"
+    )
     violates = not (bool(result.meets_x) and bool(result.meets_n))
     if violates:
         st.error("Phương án này vượt trần. Hãy nhập lý do trước khi chốt.")
-    note = str(st.session_state.get("decision_note", ""))
-    if st.button("Chốt"):
+
+    st.markdown("**② Xem seller sẽ bị xử lý**")
+    flagged = _flagged_source(result)
+    preview = flagged.head(FLAGGED_PREVIEW)
+    with st.expander(
+        f"Danh sách seller bị xử lý ({fmt_count(len(preview))} / {fmt_count(len(flagged))})",
+        expanded=False,
+    ):
+        st.dataframe(_format_table(preview), width="stretch", hide_index=True)
+        st.download_button(
+            "Tải CSV",
+            flagged.to_csv(index=False).encode("utf-8"),
+            file_name=f"flagged_sellers_{choice}.csv",
+            mime="text/csv",
+        )
+
+    st.markdown("**③ Ghi lý do và chốt**")
+    note = st.text_area(
+        "Lý do chọn phương án này",
+        key="decision_note",
+        placeholder="Ví dụ: chọn P1 vì đội vận hành đã quen KPI, dù P2 hiệu quả hơn.",
+        label_visibility="collapsed",
+    )
+    if st.button(
+        "Chốt",
+        disabled=not note.strip(),
+        help="Quyết định được ghi vào nhật ký kèm toàn bộ giả định đang dùng.",
+    ):
         if violates and not note.strip():
             st.error("Chưa ghi được vì phương án vượt ràng buộc mà chưa có lý do.")
         else:
@@ -418,93 +646,182 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
                 ),
             }
             st.session_state["open_confirm"] = True
-    note = st.text_area("Lý do chọn phương án này", key="decision_note")
     if st.session_state.get("open_confirm"):
         _confirm_dialog()
     if st.session_state.get("last_saved_id"):
         st.success("Đã ghi quyết định.")
         st.session_state["last_saved_id"] = None
-    flagged = _flagged_source(result)
-    preview = flagged.head(FLAGGED_PREVIEW)
-    with st.expander(
-        f"Danh sách seller bị xử lý ({fmt_count(len(preview))} / {fmt_count(len(flagged))})",
-        expanded=False,
-    ):
-        st.dataframe(_format_table(preview), width="stretch", hide_index=True)
-        st.download_button(
-            "Tải CSV",
-            flagged.to_csv(index=False).encode("utf-8"),
-            file_name=f"flagged_sellers_{choice}.csv",
-            mime="text/csv",
-        )
 
 
-def _assumptions_form() -> None:
-    st.caption(
-        f"GMV tối đa {fmt_limit(X)}% và số seller tối đa {fmt_limit(N)} đã khóa trong SPEC. "
-        "Hai số này không chỉnh ở đây."
+def _section_header(title: str, help_text: str | None = None) -> None:
+    st.markdown(f"**{title}**", help=help_text
     )
-    with st.form("assumptions"):
-        st.markdown("**Ngưỡng điểm rủi ro theo hạng**")
-        one, two, three = st.columns(3)
-        theta_1 = one.slider(
-            "Hạng 1", 0.0, 1.0, key="draft_theta_1", step=0.01,
-            help="Điểm rủi ro để vào hạng 1. Hạ ngưỡng thì nhiều seller bị xử lý hơn.",
+
+
+def _assumptions_form(scores: pd.DataFrame) -> None:
+    with st.container(border=True):
+        _section_header(
+            "① Ai bị gắn cờ?",
+            "P2 chọn seller theo điểm rủi ro dự báo (p_bad = xác suất một đơn tháng tới là đơn xấu). "
+            "p_bad ≥ ngưỡng hạng nào thì vào hạng đó; từ hạng 1 trở lên là bị gắn cờ. "
+            "P1 chọn theo KPI quá khứ: bàn giao trễ ≥ ngưỡng HOẶC review ≤ ngưỡng. "
+            "Hạ ngưỡng → gắn cờ nhiều seller hơn → giảm nhiều đơn xấu hơn nhưng GMV bị ảnh hưởng nhiều hơn. "
+            f"Tối đa {fmt_limit(N)} seller được xử lý.",
         )
-        theta_2 = two.slider(
-            "Hạng 2", 0.0, 1.0, key="draft_theta_2", step=0.01,
-            help="Điểm rủi ro để vào hạng 2. Hạ ngưỡng thì nhiều seller lên hạng cao hơn.",
+        left, right = st.columns(2)
+        with left:
+            st.caption("Theo điểm rủi ro (P2)")
+            theta_1 = st.slider(
+                "Hạng 1",
+                0.0,
+                1.0,
+                key="draft_theta_1",
+                step=0.01,
+                help="p_bad ≥ giá trị này → hạng 1 (nhắc nhở). Mặc định 0,20 = dự báo ≥ 20% đơn tháng tới xấu.",
+            )
+            theta_2 = st.slider(
+                "Hạng 2",
+                0.0,
+                1.0,
+                key="draft_theta_2",
+                step=0.01,
+                help="p_bad ≥ giá trị này → hạng 2 (cảnh cáo, giám sát). Mặc định 0,35.",
+            )
+            theta_3 = st.slider(
+                "Hạng 3",
+                0.0,
+                1.0,
+                key="draft_theta_3",
+                step=0.01,
+                help="p_bad ≥ giá trị này → hạng 3 (tạm hạn chế). Mặc định 0,50.",
+            )
+        with right:
+            st.caption("Theo KPI quá khứ (P1)")
+            late_ship = st.slider(
+                "Tỷ lệ bàn giao trễ tối đa (%)",
+                0,
+                100,
+                key="draft_late",
+                step=1,
+                help="Seller có tỷ lệ bàn giao trễ ≥ mức này bị P1 gắn cờ. Mặc định 15%.",
+            )
+            avg_review = st.slider(
+                "Điểm review trung bình tối thiểu",
+                1.0,
+                5.0,
+                key="draft_review",
+                step=0.1,
+                help="Seller có review trung bình ≤ mức này bị P1 gắn cờ. Mặc định 3,5.",
+            )
+        preview_params = PolicyParams(
+            theta_1=float(theta_1),
+            theta_2=float(theta_2),
+            theta_3=float(theta_3),
+            late_ship_threshold=float(late_ship) / 100,
+            avg_review_threshold=float(avg_review),
+            min_orders=int(st.session_state.get("draft_min_orders", MIN_ORDERS)),
+            n_limit=-1,
         )
-        theta_3 = three.slider(
-            "Hạng 3", 0.0, 1.0, key="draft_theta_3", step=0.01,
-            help="Điểm rủi ro để vào hạng 3. Hạ ngưỡng thì nhiều seller vào hạng mạnh nhất.",
+        p2_preview = simulate(scores, "P2", preview_params)
+        p1_preview = simulate(scores, "P1", preview_params)
+        tiers = p2_preview.sellers["tier"]
+        t1 = int((tiers == 1).sum())
+        t2 = int((tiers == 2).sum())
+        t3 = int((tiers == 3).sum())
+        st.caption(
+            f"Với ngưỡng đang chọn: P2 gắn cờ {fmt_count(p2_preview.n_sellers_flagged)} seller "
+            f"(hạng 1/2/3: {fmt_count(t1)}/{fmt_count(t2)}/{fmt_count(t3)}); "
+            f"P1 gắn cờ {fmt_count(p1_preview.n_sellers_flagged)} seller. "
+            f"Tối đa {fmt_limit(N)} được xử lý."
         )
-        st.markdown("**Hiệu quả can thiệp**")
+
+    with st.container(border=True):
+        _section_header(
+            "② Can thiệp hiệu quả đến đâu?",
+            "Phần trăm đơn xấu giảm được ở seller bị xử lý. Ví dụ 50% nghĩa là seller đó chỉ còn một nửa số đơn xấu dự kiến. "
+            "Đây là giả định chưa có dữ liệu thực nghiệm, nên kiểm chứng bằng thí điểm. "
+            "Tăng hiệu quả → đơn xấu giảm nhiều hơn, không ảnh hưởng GMV.",
+        )
         one, two, three, four = st.columns(4)
         e1 = one.slider(
-            "Hạng 1 (%)", 0, 100, key="draft_e1", step=5,
-            help="Phần đơn xấu giảm khi xử lý hạng 1. Tăng hiệu quả thì đơn xấu dự kiến giảm.",
+            "Hạng 1 (%)",
+            0,
+            100,
+            key="draft_e1",
+            step=5,
+            help="Nhắc nhở. Mặc định 25%.",
         )
         e2 = two.slider(
-            "Hạng 2 (%)", 0, 100, key="draft_e2", step=5,
-            help="Phần đơn xấu giảm khi xử lý hạng 2. Tăng hiệu quả thì đơn xấu dự kiến giảm.",
+            "Hạng 2 (%)",
+            0,
+            100,
+            key="draft_e2",
+            step=5,
+            help="Cảnh cáo + giám sát. Mặc định 50%.",
         )
         e3 = three.slider(
-            "Hạng 3 (%)", 0, 100, key="draft_e3", step=5,
-            help="Phần đơn xấu giảm khi xử lý hạng 3. Tăng hiệu quả thì đơn xấu dự kiến giảm.",
+            "Hạng 3 (%)",
+            0,
+            100,
+            key="draft_e3",
+            step=5,
+            help="Tạm hạn chế bán. Mặc định 75%.",
         )
         e_p1 = four.slider(
-            "Ngưỡng KPI cố định (%)", 0, 100, key="draft_e_p1", step=5,
-            help="Phần đơn xấu giảm khi xử lý theo ngưỡng KPI. Tăng hiệu quả thì đơn xấu dự kiến giảm.",
+            "Ngưỡng KPI cố định (%)",
+            0,
+            100,
+            key="draft_e_p1",
+            step=5,
+            help="Một mức chung cho seller bị P1 gắn cờ. Mặc định 50%.",
         )
-        st.markdown("**Ngưỡng KPI của phương án Ngưỡng KPI cố định**")
-        one, two = st.columns(2)
-        late_ship = one.slider(
-            "Tỷ lệ bàn giao trễ tối đa (%)", 0, 100, key="draft_late", step=1,
-            help="Seller vượt tỷ lệ này bị xử lý. Hạ ngưỡng thì nhiều seller bị xử lý hơn.",
+
+    with st.container(border=True):
+        _section_header(
+            "③ Thị trường phản ứng ra sao?",
+            "Các giả định về hành vi của khách và mùa vụ, áp dụng cho mọi phương án.",
         )
-        avg_review = two.slider(
-            "Điểm review trung bình tối thiểu", 1.0, 5.0, key="draft_review", step=0.1,
-            help="Seller dưới điểm này bị xử lý. Tăng ngưỡng thì nhiều seller bị xử lý hơn.",
-        )
-        st.markdown("**Giả định thị trường**")
         one, two, three = st.columns(3)
         transfer = one.slider(
-            "Đơn chuyển sang seller khác (%)", 0, 100, key="draft_r", step=5,
-            help="Phần đơn giữ lại được khi seller bị xử lý. Tăng tỷ lệ thì GMV bị ảnh hưởng giảm.",
+            "Đơn chuyển sang seller khác (%)",
+            0,
+            100,
+            key="draft_r",
+            step=5,
+            help="Khi seller bị xử lý, phần doanh thu chuyển sang seller khác trên sàn (sàn không mất). GMV ảnh hưởng = GMV × (1 − r). Mặc định 50%.",
         )
         season = two.slider(
-            "Hệ số mùa vụ", 0.0, 2.0, key="draft_s", step=0.05,
-            help="Nhân với số đơn kỳ vọng. Tăng hệ số thì đơn xấu dự kiến tăng.",
+            "Hệ số mùa vụ",
+            0.0,
+            2.0,
+            key="draft_s",
+            step=0.05,
+            help="Số đơn tháng tới = s × số đơn hiện tại. 1,0 = như cũ; 1,2 = mùa cao điểm. Làm mọi phương án dịch cùng chiều.",
         )
         min_orders = three.number_input(
             "Số đơn tối thiểu để đánh giá seller",
             min_value=0,
             key="draft_min_orders",
             step=1,
-            help="Seller ít đơn hơn mức này không được gắn cờ. Tăng mức thì ít seller bị xử lý hơn.",
+            help="Seller dưới mức này không được xét vì quá ít đơn, tỷ lệ dễ nhiễu. Mặc định 5.",
         )
-        apply = st.form_submit_button("Áp dụng")
+
+    with st.container(border=True):
+        _section_header("④ Ràng buộc cố định")
+        left, right = st.columns(2)
+        with left:
+            kpi_card("GMV ảnh hưởng tối đa", f"{fmt_limit(X)}%")
+        with right:
+            kpi_card("Số seller xử lý tối đa", fmt_limit(N))
+        st.caption("Chính sách của sàn (đặt trong SPEC), không phải giả định nên không chỉnh ở đây.")
+
+    button_row, _ = st.columns([3.4, 4.6])
+    with button_row:
+        apply_col, reset_col = st.columns([1.15, 2.2], gap="small")
+        with apply_col:
+            apply = st.button("Áp dụng", type="primary")
+        with reset_col:
+            st.button("Đặt lại về mặc định", on_click=_reset_params)
     if apply:
         applied = {
             "theta_1": float(theta_1),
@@ -520,7 +837,7 @@ def _assumptions_form() -> None:
             "s": float(season),
             "min_orders": int(min_orders),
         }
-        _store_applied(applied, "custom")
+        _remember_applied(applied, "custom")
         st.rerun()
 
 
@@ -550,16 +867,25 @@ def _decision_conclusion(results, advice: dict) -> str:
     chosen, saved = _saved_orders(results, advice.get("code"))
     if chosen is None:
         return advice.get("sentence") or "Chưa đủ dữ liệu để kết luận."
+    by_code = {item.policy_code: item for item in results}
+    base = by_code.get("P0")
     if saved is None:
-        change = "chưa so được với phương án không làm gì"
-    elif saved >= 0:
-        change = f"giảm {fmt_number(saved)} đơn xấu"
+        change = "chưa so được với P0"
     else:
-        change = f"tăng {fmt_number(abs(saved))} đơn xấu"
+        pct = (
+            saved / base.expected_bad_orders
+            if base is not None and base.expected_bad_orders > 0
+            else 0.0
+        )
+        if saved >= 0:
+            change = f"giảm {fmt_number(saved)} đơn xấu ({fmt_ratio(pct)})"
+        else:
+            change = f"tăng {fmt_number(abs(saved))} đơn xấu ({fmt_ratio(abs(pct))})"
     return (
-        f"Khuyến nghị {policy_name(chosen.policy_code)}: "
-        f"{fmt_count(chosen.n_sellers_flagged)} seller, "
-        f"GMV ảnh hưởng {fmt_percent_points(chosen.gmv_affected_pct)}, {change}."
+        f"Khuyến nghị {chosen.policy_code}: "
+        f"xử lý {fmt_count(chosen.n_sellers_flagged)} seller, "
+        f"{change}, "
+        f"đổi lại {fmt_percent_points(chosen.gmv_affected_pct)} GMV (trần {fmt_limit(X)}%)."
     )
 
 
@@ -591,60 +917,77 @@ def render(settings=None) -> None:
     token = score_token(scores)
     results = cached_compare(token, param_token(params))
     advice = recommend_policy(_results_frame(results), X, N)
-    chosen_item, saved = _saved_orders(results, advice.get("code"))
     page_header("Chọn chính sách nào?", _decision_conclusion(results, advice), "predicted")
-    if origin == "custom":
-        st.warning("Bạn đang xem kết quả theo giả định tùy chỉnh.")
     month = str(scores["as_of_month"].iloc[0])
-    st.caption(f"Tháng chấm {month}. Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller.")
-
-    with st.container(border=True):
-        if chosen_item is None:
-            st.markdown("**Chưa có phương án vừa cả hai trần.**")
-        else:
-            reduced = "—" if saved is None else fmt_number(saved)
-            cards = [
-                ("Phương án khuyến nghị", policy_name(chosen_item.policy_code), None),
-                ("Seller bị can thiệp", fmt_count(chosen_item.n_sellers_flagged), None),
-                ("GMV ảnh hưởng", fmt_percent_points(chosen_item.gmv_affected_pct), None),
-                ("Đơn xấu giảm được", reduced, None),
-            ]
-            for column, (label, value, delta) in zip(st.columns(4), cards):
-                with column:
-                    kpi_card(label, value, delta=delta)
-        _render_decision(scores, params, results, advice["code"], origin)
+    n_scored = len(scores)
+    n_eligible = int((pd.to_numeric(scores["n_orders_valid"], errors="coerce").fillna(0) >= int(params.min_orders)).sum())
+    st.caption(
+        f"Đang dùng: {ORIGIN_TEXT.get(origin, origin)} · "
+        f"Tháng chấm {month} · tính trên {fmt_count(n_scored)} seller được chấm "
+        f"({fmt_count(n_eligible)} seller ≥ {fmt_count(params.min_orders)} đơn đủ điều kiện gắn cờ; "
+        f"s = {fmt_number(params.s)}). "
+        f"Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller."
+    )
 
     _render_cards(results, advice["code"])
-    with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
-        st.dataframe(_format_table(snapshot), width="stretch", hide_index=True)
 
     st.markdown("**Xem lập luận**")
     goal_tab, trust_tab, assume_tab = st.tabs(
         ["Ngưỡng nào tối ưu", "Kết quả đáng tin đến đâu", "Giả định"],
     )
-    chosen, sought = cached_goal(token, param_token(params))
+    budget_res = cached_budget(token, param_token(params))
+    chosen = budget_res.params
+    sought = budget_res.scenario
+    by_code = {item.policy_code: item for item in results}
+    p0_result = by_code.get("P0")
+    p1_result = by_code.get("P1")
+    p2_result = by_code.get("P2")
     with goal_tab:
-        st.write(_goal_sentence(chosen, sought))
+        st.write(_budget_sentence(budget_res, p0_result))
+        eff_p2 = efficiency(sought, p0_result) if p0_result is not None else None
+        eff_p1 = efficiency(p1_result, p0_result) if p0_result is not None and p1_result is not None else None
+        if eff_p2 is not None:
+            eff_text = f"Hiệu quả biên P2 gợi ý: giảm {fmt_number(eff_p2)} đơn xấu / 1% GMV ảnh hưởng"
+            if eff_p1 is not None:
+                eff_text += f" (so với P1: {fmt_number(eff_p1)})."
+            else:
+                eff_text += "."
+            st.caption(eff_text)
         st.button(
             "Dùng ngưỡng gợi ý này",
             on_click=_use_suggestion,
             args=(chosen.theta_1, chosen.theta_2, chosen.theta_3),
             help="Ghi ngưỡng gợi ý vào giả định và tính lại phần chốt quyết định.",
         )
+        curve = cached_budget_curve(token, param_token(params))
+        _budget_curve_chart(curve, p1_result, p2_result)
     with trust_tab:
-        st.caption("Mỗi giả định lệch ±20% quanh ngưỡng gợi ý, không phải slider hiện tại.")
-        shocks = cached_tornado(token, param_token(chosen))
-        _tornado_chart(shocks)
-        if st.toggle("Xem bảng", key="tornado_table"):
-            table = shocks.copy()
-            table["factor"] = table["factor"].map(lambda name: FACTOR_LABELS.get(str(name), str(name)))
-            table["expected_bad_orders"] = table["expected_bad_orders"].map(fmt_number)
-            table["gmv_affected_pct"] = table["gmv_affected_pct"].map(fmt_percent_points)
-            table["n_sellers_flagged"] = table["n_sellers_flagged"].map(fmt_count)
-            st.dataframe(table.rename(columns=COLUMN_LABELS), width="stretch", hide_index=True)
+        with st.container(border=True):
+            st.markdown("**Giả định nào nhạy nhất**")
+            st.caption("Mỗi giả định lệch ±20% quanh ngưỡng gợi ý, không phải slider hiện tại.")
+            shocks = cached_tornado(token, param_token(chosen))
+            advice_stability = cached_tornado_advice(token, param_token(chosen))
+            _tornado_chart(shocks, advice_stability)
+            if st.toggle("Xem bảng", key="tornado_table"):
+                table = shocks.copy()
+                table["factor"] = table["factor"].map(lambda name: FACTOR_LABELS.get(str(name), str(name)))
+                table["expected_bad_orders"] = table["expected_bad_orders"].map(fmt_number)
+                table["gmv_affected_pct"] = table["gmv_affected_pct"].map(fmt_percent_points)
+                table["n_sellers_flagged"] = table["n_sellers_flagged"].map(fmt_count)
+                st.dataframe(table.rename(columns=COLUMN_LABELS), width="stretch", hide_index=True)
+        with st.container(border=True):
+            st.markdown("**Kết quả job gần nhất**")
+            with st.expander("Kết quả chuẩn của job gần nhất (không đổi khi chỉnh giả định)"):
+                st.dataframe(_format_table(snapshot), width="stretch", hide_index=True)
     with assume_tab:
-        st.button("Đặt lại về mặc định", on_click=_reset_params)
-        _assumptions_form()
+        modified_count = _modified_default_count(applied)
+        if modified_count > 0:
+            st.badge(f"Đã chỉnh {modified_count} giả định")
+        _assumptions_form(scores)
+
+    st.markdown("**Chốt phương án**")
+    with st.container(border=True):
+        _render_decision(scores, params, results, advice["code"])
 
     _recent()
     next_step("policy")
