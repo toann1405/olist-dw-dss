@@ -23,26 +23,12 @@ def _num(value):
     return float(value)
 
 
-def _pct(value) -> str:
-    number = float(value) * 100
-    sign = "−" if number < 0 else ""
-    text = f"{abs(number):,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return f"{sign}{text}%"
-
-
-def _int(value) -> str:
-    return f"{int(round(float(value))):,}".replace(",", ".")
-
-
-def _decimal(value) -> str:
-    return f"{float(value):,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def _already_pct(value) -> str:
-    """A percent already on a 0–100 scale, which is how M2 stores GMV impact."""
-    text = f"{abs(float(value)):,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    sign = "−" if float(value) < 0 else ""
-    return f"{sign}{text}%"
+from lib.ui import (
+    fmt_int as _int,
+    fmt_number as _decimal,
+    fmt_pct as _pct,
+    fmt_percent_points as _already_pct,
+)
 
 
 def _rate(numerator, denominator):
@@ -94,6 +80,11 @@ def build_insight_kpi(frame: pd.DataFrame, min_orders: int) -> str:
     if overall is None or overall_n is None or overall_n < int(min_orders):
         return NOT_ENOUGH
     worst = _worst_group(groups)
+    if len(groups) == 1:
+        return (
+            f"Tỷ lệ đơn trải nghiệm xấu tại vùng {worst['region_name']} là "
+            f"{_pct(worst['rate'])} (n={_int(worst['eligible_orders'])})."
+        )
     return (
         f"Tỷ lệ đơn trải nghiệm xấu {_pct(overall)}, cao nhất ở {worst['region_name']} "
         f"({_pct(worst['rate'])}, n={_int(worst['eligible_orders'])})."

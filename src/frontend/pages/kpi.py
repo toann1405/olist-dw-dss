@@ -13,9 +13,11 @@ from lib.stats import SPARSE_MONTHS
 from pages import kpi_panels
 from lib.ui import (
     LATE,
+    MIN_N_DISPLAY,
     NAVY,
     NEUTRAL,
     add_legend_swatch,
+    category_label,
     filters,
     fmt_brl,
     fmt_int,
@@ -211,7 +213,7 @@ def _category_bars(frame: pd.DataFrame) -> None:
     fig = go.Figure(
         go.Bar(
             x=data["gmv"],
-            y=data["category_group"],
+            y=data["category_group"].map(category_label),
             orientation="h",
             name="GMV (R$)",
             showlegend=False,
@@ -270,15 +272,14 @@ def _risk_table() -> None:
         st.info("Chưa có seller với ít nhất 5 đơn hợp lệ trong tháng chấm. Chạy job DSS trên workspace trước.")
         return
     show = frame.head(10).copy()
-    show["p_bad"] = pd.to_numeric(show["p_bad"], errors="coerce")
+    show["Điểm rủi ro"] = show["p_bad"].map(fmt_pct)
     show["Đơn"] = show["n_orders_valid"].map(fmt_int)
     show["GMV"] = show["gmv"].map(fmt_brl)
     show["Bàn giao trễ"] = show["late_ship_rate"].map(fmt_pct)
     st.dataframe(
-        show[["seller_id", "p_bad", "Đơn", "GMV", "Bàn giao trễ", "as_of_month"]],
+        show[["seller_id", "Điểm rủi ro", "Đơn", "GMV", "Bàn giao trễ", "as_of_month"]],
         column_config={
             "seller_id": "Seller",
-            "p_bad": st.column_config.ProgressColumn("Điểm rủi ro", min_value=0, max_value=1, format="percent"),
             "as_of_month": "Tháng chấm",
         },
         width="stretch",
@@ -301,7 +302,7 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
     if series is None or series.empty or "bad_experience_count" not in series.columns:
         if story is None:
             return "Chưa đủ dữ liệu để kết luận."
-        return build_insight_kpi(story, MIN_ORDERS)
+        return build_insight_kpi(story, MIN_N_DISPLAY)
     data = series.copy()
     data["bad_orders"] = pd.to_numeric(data["bad_experience_count"], errors="coerce")
     data["eligible"] = pd.to_numeric(data["bad_experience_eligible"], errors="coerce")
@@ -323,10 +324,19 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
             direction = f", {points} so với tháng trước"
     region = ""
     if story is not None:
-        _total, groups = _groups(story, MIN_ORDERS)
-        if not groups.empty:
+        _total, groups = _groups(story, MIN_N_DISPLAY)
+        if len(groups) == 1:
+            only = _worst_group(groups)
+            region = (
+                f"; vùng {only['region_name']} có {fmt_pct(only['rate'])} đơn xấu cả kỳ "
+                f"(n={fmt_int(only['eligible_orders'])})"
+            )
+        elif not groups.empty:
             worst = _worst_group(groups)
-            region = f"; vùng {worst['region_name']} cao nhất"
+            region = (
+                f"; vùng {worst['region_name']} cao nhất "
+                f"({fmt_pct(worst['rate'])}, n={fmt_int(worst['eligible_orders'])})"
+            )
     return f"{_month_phrase(last['year_month'])}: {fmt_pct(rate)} đơn xấu{direction}{region}."
 
 

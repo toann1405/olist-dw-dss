@@ -41,6 +41,7 @@ from lib.ui import (
     NAVY,
     add_legend_swatch,
     chart_note,
+    count_axis_ticks,
     fmt_brl,
     kpi_card,
     next_step,
@@ -341,7 +342,7 @@ def _budget_curve_chart(curve: pd.DataFrame, p1_result, p2_result) -> None:
             ),
         )
     figure.update_layout(height=360)
-    figure.update_xaxes(title="Số seller gắn cờ")
+    figure.update_xaxes(title="Số seller gắn cờ", **count_axis_ticks(curve["k"]))
     figure.update_yaxes(title="Đơn xấu dự kiến")
     st.plotly_chart(
         style_fig(
@@ -677,6 +678,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
                 1.0,
                 key="draft_theta_1",
                 step=0.01,
+                format="%.2f",
                 help="p_bad ≥ giá trị này → hạng 1 (nhắc nhở). Mặc định 0,20 = dự báo ≥ 20% đơn tháng tới xấu.",
             )
             theta_2 = st.slider(
@@ -685,6 +687,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
                 1.0,
                 key="draft_theta_2",
                 step=0.01,
+                format="%.2f",
                 help="p_bad ≥ giá trị này → hạng 2 (cảnh cáo, giám sát). Mặc định 0,35.",
             )
             theta_3 = st.slider(
@@ -693,6 +696,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
                 1.0,
                 key="draft_theta_3",
                 step=0.01,
+                format="%.2f",
                 help="p_bad ≥ giá trị này → hạng 3 (tạm hạn chế). Mặc định 0,50.",
             )
         with right:
@@ -703,6 +707,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
                 100,
                 key="draft_late",
                 step=1,
+                format="%d%%",
                 help="Seller có tỷ lệ bàn giao trễ ≥ mức này bị P1 gắn cờ. Mặc định 15%.",
             )
             avg_review = st.slider(
@@ -711,6 +716,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
                 5.0,
                 key="draft_review",
                 step=0.1,
+                format="%.1f",
                 help="Seller có review trung bình ≤ mức này bị P1 gắn cờ. Mặc định 3,5.",
             )
         preview_params = PolicyParams(
@@ -749,6 +755,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             100,
             key="draft_e1",
             step=5,
+            format="%d%%",
             help="Nhắc nhở. Mặc định 25%.",
         )
         e2 = two.slider(
@@ -757,6 +764,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             100,
             key="draft_e2",
             step=5,
+            format="%d%%",
             help="Cảnh cáo + giám sát. Mặc định 50%.",
         )
         e3 = three.slider(
@@ -765,6 +773,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             100,
             key="draft_e3",
             step=5,
+            format="%d%%",
             help="Tạm hạn chế bán. Mặc định 75%.",
         )
         e_p1 = four.slider(
@@ -773,6 +782,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             100,
             key="draft_e_p1",
             step=5,
+            format="%d%%",
             help="Một mức chung cho seller bị P1 gắn cờ. Mặc định 50%.",
         )
 
@@ -788,6 +798,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             100,
             key="draft_r",
             step=5,
+            format="%d%%",
             help="Khi seller bị xử lý, phần doanh thu chuyển sang seller khác trên sàn (sàn không mất). GMV ảnh hưởng = GMV × (1 − r). Mặc định 50%.",
         )
         season = two.slider(
@@ -796,6 +807,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             2.0,
             key="draft_s",
             step=0.05,
+            format="%.2f",
             help="Số đơn tháng tới = s × số đơn hiện tại. 1,0 = như cũ; 1,2 = mùa cao điểm. Làm mọi phương án dịch cùng chiều.",
         )
         min_orders = three.number_input(
@@ -803,6 +815,7 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             min_value=0,
             key="draft_min_orders",
             step=1,
+            format="%d",
             help="Seller dưới mức này không được xét vì quá ít đơn, tỷ lệ dễ nhiễu. Mặc định 5.",
         )
 
@@ -982,7 +995,7 @@ def render(settings=None) -> None:
     with assume_tab:
         modified_count = _modified_default_count(applied)
         if modified_count > 0:
-            st.badge(f"Đã chỉnh {modified_count} giả định")
+            st.badge(f"Đã chỉnh {fmt_count(modified_count)} giả định")
         _assumptions_form(scores)
 
     st.markdown("**Chốt phương án**")

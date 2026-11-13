@@ -55,59 +55,15 @@ RATIO_COLUMNS = {"p_bad", "late_ship_rate", "e_k"}
 POINT_COLUMNS = {"gmv_affected_pct", "x_limit"}
 
 
+from lib.ui import (
+    fmt_int as fmt_count,
+    fmt_limit,
+    fmt_number,
+    fmt_pct as fmt_ratio,
+    fmt_percent_points,
+)
+
+
 def policy_name(code: str) -> str:
     label = POLICY_LABELS.get(str(code), str(code))
     return f"{label} ({code})"
-
-
-def _missing(value) -> bool:
-    if value is None:
-        return True
-    try:
-        import pandas as pd
-
-        return bool(pd.isna(value))
-    except TypeError:
-        return False
-
-
-def _group(text: str) -> str:
-    return text.replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def fmt_count(value) -> str:
-    if _missing(value):
-        return "—"
-    return _group(f"{int(round(float(value))):,}")
-
-
-def fmt_number(value) -> str:
-    """One decimal, thousands grouped, Vietnamese separators."""
-    if _missing(value):
-        return "—"
-    return _group(f"{float(value):,.1f}")
-
-
-def fmt_percent_points(value) -> str:
-    """A percent already on a 0–100 scale."""
-    if _missing(value):
-        return "—"
-    number = float(value)
-    sign = "−" if number < 0 else ""
-    return f"{sign}{_group(f'{abs(number):,.1f}')}%"
-
-
-def fmt_ratio(value) -> str:
-    """A ratio on 0–1, shown as a percent with one decimal."""
-    if _missing(value):
-        return "—"
-    return fmt_percent_points(float(value) * 100)
-
-
-def fmt_limit(value) -> str:
-    if _missing(value):
-        return "—"
-    number = float(value)
-    if number == int(number):
-        return fmt_count(number)
-    return fmt_number(number)

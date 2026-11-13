@@ -9,12 +9,15 @@ import streamlit as st
 from lib import adhoc, db, queries
 from lib.glossary import explain
 from lib.ui import (
+    CATEGORY_LABELS,
     LATE,
     MIN_N_DISPLAY,
     NEUTRAL,
     REVIEW,
     add_legend_swatch,
     button_dropdown,
+    category_label as _category_label,
+    count_axis_ticks,
     filters,
     fmt_brl,
     fmt_int,
@@ -30,20 +33,6 @@ DICE_MIN_N = MIN_N_DISPLAY
 _ROLLUP_MARGIN_TOP = 168
 _ROLLUP_LEGEND_GAP = 96
 _LEVEL_LABEL = {"region": "Vùng", "state": "Bang", "city": "Thành phố"}
-_CATEGORY_GROUP_VI = {
-    "home_furniture_decor": "Nhà cửa và nội thất",
-    "health_beauty_fashion": "Sức khỏe, làm đẹp và thời trang",
-    "electronics_it_telephony": "Điện tử, tin học và điện thoại",
-    "sports_leisure_toys": "Thể thao, giải trí và đồ chơi",
-    "auto_tools_construction": "Ô tô, dụng cụ và xây dựng",
-    "books_stationery_media": "Sách, văn phòng phẩm và media",
-    "baby_pets_food_drinks": "Mẹ và bé, thú cưng, thực phẩm",
-    "services_others": "Dịch vụ và nhóm khác",
-}
-
-
-def _category_label(code: str) -> str:
-    return _CATEGORY_GROUP_VI.get(str(code), str(code))
 
 
 def _num(series_value):
@@ -75,11 +64,42 @@ def _view(key: str) -> str:
     return st.segmented_control("Xem", ["Biểu đồ", "Bảng"], default="Biểu đồ", key=key)
 
 
+def _format_olap_table(frame: pd.DataFrame) -> pd.DataFrame:
+    show = frame.copy()
+    for col in (
+        "late_ship_rate",
+        "negative_review_rate",
+        "late_delivery_rate",
+        "seller_negative_review_rate",
+        "late_rate",
+    ):
+        if col in show.columns:
+            show[col] = show[col].map(fmt_pct)
+    for col in (
+        "late_items",
+        "eligible_items",
+        "negative_orders",
+        "reviewed_orders",
+        "late_orders",
+        "eligible_orders",
+        "late_eligible_orders",
+        "review_eligible_orders",
+        "n",
+    ):
+        if col in show.columns:
+            show[col] = show[col].map(fmt_int)
+    if "gmv" in show.columns:
+        show["gmv"] = show["gmv"].map(fmt_brl)
+    if "category_group" in show.columns:
+        show["category_group"] = show["category_group"].map(_category_label)
+    return show
+
+
 def _panel(headline: str, reading: str, frame: pd.DataFrame | None = None, key: str = "") -> None:
     st.markdown(f"**{headline}**")
     st.write(reading)
     if frame is not None and key and st.toggle("Xem bảng", key=key):
-        st.dataframe(frame, width="stretch", hide_index=True)
+        st.dataframe(_format_olap_table(frame), width="stretch", hide_index=True)
         st.download_button(
             "Tải CSV",
             frame.to_csv(index=False).encode("utf-8"),
@@ -143,7 +163,7 @@ def _hbar(
     add_legend_swatch(fig, "Các nhóm còn lại", NEUTRAL)
     fig.update_layout(height=max(280, 34 * len(labels) + 120), margin_l=160, margin_r=16, margin_b=16)
     fig.update_xaxes(tickformat=".0%", title=axis_title)
-    fig.update_yaxes(title="Nơi bán", automargin=True)
+    fig.update_yaxes(title="Nơi bán", type="category", automargin=True)
     styled = style_fig(fig, question, subtitle, legend_side="top")
     # Anchor to the plot edge, not to a fraction of the figure. A tall state or city
     # chart then keeps the same gap under "Xem" as the short region chart.
@@ -168,15 +188,9 @@ def _hbar(
 
 
 def _kpi_strip() -> None:
-    chosen = filters()
-    month_from = chosen.get("month_from")
-    month_to = chosen.get("month_to")
-    region = chosen.get("region")
-    state = chosen.get("state")
-    _category = chosen.get("category")
     try:
-        monthly = db.query(*queries.kpi_seller_month(month_from, month_to, region, state)).iloc[0]
-        orders = db.query(*queries.kpi_orders(month_from, month_to, region, state)).iloc[0]
+        monthly = db.query(*queries.kpi_seller_month(None, None, None, None)).iloc[0]
+        orders = db.query(*queries.kpi_orders(None, None, None, None)).iloc[0]
     except Exception as exc:
         st.error(db.redact(exc))
         return
@@ -191,7 +205,7 @@ def _kpi_strip() -> None:
         ("Review xấu (theo seller)", fmt_pct(review), explain("negative_review")),
     ]
     try:
-        quality = db.query(*queries.market_quality(month_from, month_to, region, state))
+        quality = db.query(*queries.market_quality(None, None, None, None))
         if not quality.empty and quality.iloc[0]["bad_eligible"]:
             bad = float(quality.iloc[0]["bad_orders"]) / float(quality.iloc[0]["bad_eligible"])
             values.append(("Đơn trải nghiệm xấu", fmt_pct(bad), explain("bad_experience")))
@@ -247,10 +261,10 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
     with chart_col:
         mode = _view("rollup_view")
         if mode == "Bảng":
-            st.dataframe(part, width="stretch", hide_index=True)
+            st.dataframe(_format_olap_table(part), width="stretch", hide_index=True)
         elif drawn.empty:
             st.info("Không có tỷ lệ để vẽ.")
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
         else:
             ordered = drawn.sort_values("late_ship_rate")
             st.plotly_chart(
@@ -265,7 +279,7 @@ def _tab_rollup(frame: pd.DataFrame) -> None:
                 ),
                 width="stretch",
             )
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     with side:
         _panel(headline, reading, part, "rollup_table")
 
@@ -304,7 +318,7 @@ def _tab_drill(frame: pd.DataFrame) -> None:
     with chart_col:
         mode = _view("drill_view")
         if mode == "Bảng":
-            st.dataframe(grouped, width="stretch", hide_index=True)
+            st.dataframe(_format_olap_table(grouped), width="stretch", hide_index=True)
         else:
             fig = go.Figure(
                 go.Scatter(
@@ -323,7 +337,12 @@ def _tab_drill(frame: pd.DataFrame) -> None:
                 )
             )
             fig.update_layout(height=360)
-            fig.update_xaxes(title="Kỳ")
+            if level == "Năm":
+                fig.update_xaxes(title="Kỳ", type="category", dtick=1, tickformat="d")
+            elif level in ("Quý", "Tháng"):
+                fig.update_xaxes(title="Kỳ", type="category")
+            else:
+                fig.update_xaxes(title="Kỳ")
             fig.update_yaxes(tickformat=".0%", title="Review xấu (%)")
             st.plotly_chart(
                 style_fig(
@@ -333,7 +352,7 @@ def _tab_drill(frame: pd.DataFrame) -> None:
                 ),
                 width="stretch",
             )
-            st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     with side:
         _panel(headline, reading, grouped, "drill_table")
 
@@ -365,7 +384,14 @@ def _tab_slice(groups: pd.DataFrame) -> None:
             format_func=_category_label,
             index=names.index(preferred),
         )
-        minimum = st.slider("Số đơn tối thiểu để vẽ", min_value=1, max_value=50, value=5, key="slice_min")
+        minimum = st.slider(
+            "Số đơn tối thiểu để vẽ",
+            min_value=1,
+            max_value=50,
+            value=5,
+            format="%d",
+            key="slice_min",
+        )
     try:
         frame = db.query(*queries.slice_category(chosen))
     except Exception as exc:
@@ -374,12 +400,13 @@ def _tab_slice(groups: pd.DataFrame) -> None:
     data = frame.copy()
     data["late_delivery_rate"] = pd.to_numeric(data["late_delivery_rate"], errors="coerce")
     data["eligible_orders"] = pd.to_numeric(data["eligible_orders"], errors="coerce")
-    data = data[data["eligible_orders"] >= minimum].dropna(subset=["late_delivery_rate"])
+    valid = data.dropna(subset=["late_delivery_rate"])
+    all_counts = pd.to_numeric(valid["eligible_orders"], errors="coerce").fillna(0)
+    hidden = int((all_counts < minimum).sum())
+    data = valid.loc[all_counts >= minimum].copy()
     data = data.sort_values(["late_delivery_rate", "eligible_orders"], ascending=[False, False])
     data["short_id"] = data["seller_id"].astype(str).str.slice(0, 8)
-    order_counts = pd.to_numeric(data["eligible_orders"], errors="coerce").fillna(0)
-    hidden = int((order_counts < MIN_N_DISPLAY).sum())
-    ranked = data.loc[order_counts >= MIN_N_DISPLAY]
+    ranked = data
     top = ranked.head(15)
     if ranked.empty:
         headline = "Chưa đủ dữ liệu để kết luận."
@@ -398,10 +425,10 @@ def _tab_slice(groups: pd.DataFrame) -> None:
         if mode == "Bảng":
             show = data.copy()
             show["seller"] = show["seller_id"].astype(str).str.slice(0, 8)
-            st.dataframe(show, width="stretch", hide_index=True)
+            st.dataframe(_format_olap_table(show), width="stretch", hide_index=True)
         elif top.empty:
             st.info("Không có seller qua ngưỡng đơn.")
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(minimum)} mẫu")
         else:
             plot = top.sort_values("late_delivery_rate")
             fig = go.Figure(
@@ -422,11 +449,11 @@ def _tab_slice(groups: pd.DataFrame) -> None:
                 style_fig(
                     fig,
                     "Seller nào giao trễ tới khách nhiều nhất trong nhóm này?",
-                    f"Nhóm {_category_label(chosen)} · ít nhất {minimum} đơn đủ mẫu · không theo bộ lọc sidebar",
+                    f"Nhóm {_category_label(chosen)} · ít nhất {fmt_int(minimum)} đơn đủ mẫu · không theo bộ lọc sidebar",
                 ),
                 width="stretch",
             )
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(minimum)} mẫu")
     with side:
         _panel(headline, reading, data, "slice_table")
 
@@ -454,10 +481,10 @@ def _tab_dice(frame: pd.DataFrame) -> None:
     with chart_col:
         mode = _view("dice_view")
         if mode == "Bảng":
-            st.dataframe(data, width="stretch", hide_index=True)
+            st.dataframe(_format_olap_table(data), width="stretch", hide_index=True)
         elif kept.empty:
             st.info("Không có bang qua ngưỡng mẫu.")
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
         else:
             kept = kept.sort_values("n")
             labels = [f"{code} · n={fmt_int(n)}" for code, n in zip(kept["state_code"], kept["n"])]
@@ -497,7 +524,7 @@ def _tab_dice(frame: pd.DataFrame) -> None:
                 ),
                 width="stretch",
             )
-            st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     with side:
         _panel(headline, reading, data, "dice_table")
 
@@ -539,7 +566,8 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
     with chart_col:
         mode = _view("pivot_view")
         if mode == "Bảng":
-            show = matrix.copy()
+            show = text.copy()
+            show.index = [_category_label(name) for name in show.index]
             st.dataframe(show, width="stretch")
         else:
             fig = go.Figure(
@@ -562,7 +590,7 @@ def _tab_pivot(frame: pd.DataFrame) -> None:
                 style_fig(
                     fig,
                     "Nhóm danh mục nào kéo bàn giao trễ theo quý?",
-                    f"Mọi năm gộp theo quý · ô trống khi dưới {MIN_N_DISPLAY} mẫu · không theo bộ lọc sidebar",
+                    f"Mọi năm gộp theo quý · ô trống khi dưới {fmt_int(MIN_N_DISPLAY)} mẫu · không theo bộ lọc sidebar",
                 ),
                 width="stretch",
             )
@@ -711,10 +739,17 @@ def _adhoc_chart() -> None:
     if work.empty:
         st.info("Không có dòng cho bộ lọc này.")
     elif mode == "Bảng" and len(dims) == 1:
-        st.dataframe(work, width="stretch", hide_index=True)
+        show = work.copy()
+        show["dim_1"] = [_adhoc_label(dims[0], value) for value in show["dim_1"]]
+        show["value"] = show["value"].map(lambda value: _adhoc_text(value, kind))
+        show["n"] = show["n"].map(fmt_int)
+        st.dataframe(show, width="stretch", hide_index=True)
     elif mode == "Bảng":
         matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
-        st.dataframe(matrix, width="stretch")
+        show = matrix.map(lambda value: "—" if pd.isna(value) else _adhoc_text(value, kind))
+        show.index = [_adhoc_label(dims[0], value) for value in show.index]
+        show.columns = [_adhoc_label(dims[1], value) for value in show.columns]
+        st.dataframe(show, width="stretch")
     elif len(dims) == 1 and mode == "Đường":
         labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
         opacity = [0.35 if (n or 0) < MIN_N_DISPLAY else 1 for n in work["n"]]
@@ -731,13 +766,16 @@ def _adhoc_chart() -> None:
             )
         )
         figure.update_layout(height=360)
-        figure.update_xaxes(title=dims[0])
-        figure.update_yaxes(title=measure)
+        figure.update_xaxes(title=dims[0], type="category")
+        if kind == "int":
+            figure.update_yaxes(title=measure, **count_axis_ticks(work["value"]))
+        else:
+            figure.update_yaxes(title=measure)
         st.plotly_chart(
             style_fig(figure, f"{measure} theo {dims[0]}", "Tự chọn · tối đa 500 dòng"),
             width="stretch",
         )
-        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     elif len(dims) == 1:
         labels = [_adhoc_label(dims[0], value) for value in work["dim_1"]]
         samples = pd.to_numeric(work["n"], errors="coerce").fillna(0)
@@ -758,10 +796,12 @@ def _adhoc_chart() -> None:
                 f"{measure} theo {dims[0]}",
                 "Tự chọn · tối đa 500 dòng",
             )
-            if kind != "pct":
-                figure.update_xaxes(tickformat=",.0f", tickprefix="" if kind == "int" else "R$ ")
+            if kind == "int":
+                figure.update_xaxes(**count_axis_ticks(values), tickprefix="")
+            elif kind != "pct":
+                figure.update_xaxes(tickformat=",.0f", tickprefix="R$ ")
             st.plotly_chart(figure, width="stretch")
-        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     else:
         counts = work.pivot(index="dim_1", columns="dim_2", values="n")
         matrix = work.pivot(index="dim_1", columns="dim_2", values="value")
@@ -781,13 +821,13 @@ def _adhoc_chart() -> None:
             )
         )
         figure.update_layout(height=max(360, 36 * len(y_labels) + 120))
-        figure.update_xaxes(title=dims[1])
-        figure.update_yaxes(title=dims[0])
+        figure.update_xaxes(title=dims[1], type="category")
+        figure.update_yaxes(title=dims[0], type="category")
         st.plotly_chart(
             style_fig(
                 figure,
                 f"{measure} theo {dims[0]} × {dims[1]}",
-                f"ô trống khi dưới {MIN_N_DISPLAY} mẫu",
+                f"ô trống khi dưới {fmt_int(MIN_N_DISPLAY)} mẫu",
             ),
             width="stretch",
         )

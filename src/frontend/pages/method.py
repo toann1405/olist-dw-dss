@@ -25,7 +25,7 @@ from lib.glossary import (
     short_label,
     short_text,
 )
-from lib.ui import badge_actual, badge_predicted, chip, next_step, page_header
+from lib.ui import badge_actual, badge_predicted, chip, fmt_int, fmt_limit, next_step, page_header
 from src.dss.params import AS_OF_MONTH, N, X
 
 
@@ -245,7 +245,7 @@ def _assumptions() -> None:
     st.write(MODEL_M1)
     st.write(MODEL_M2)
     st.write(
-        f"SPEC khóa trần GMV {X:g}% và trần {int(N)} seller. "
+        f"SPEC khóa trần GMV {fmt_limit(X)}% và trần {fmt_int(N)} seller. "
         "Các ngưỡng còn lại nằm trong src/dss/params.py và không khóa trong SPEC."
     )
     st.write("Hiệu quả can thiệp và tỷ lệ đơn chuyển sang seller khác là giả định, không phải số đã đo.")

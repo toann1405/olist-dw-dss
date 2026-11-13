@@ -44,7 +44,7 @@ def _marketplace() -> tuple[float | None, float | None, float | None]:
 
 def render(settings=None) -> None:
     del settings
-    from lib.ui import fmt_brl, fmt_int, fmt_pct
+    from lib.ui import fmt_brl, fmt_int, fmt_limit, fmt_pct
 
     st.markdown("# **Olist Seller Performance**")
     st.write(
@@ -71,9 +71,9 @@ def render(settings=None) -> None:
 
     one, two = st.columns(2)
     with one, st.container(border=True):
-        st.markdown(f"**GMV ảnh hưởng ≤ {X:g}%**")
+        st.markdown(f"**GMV ảnh hưởng ≤ {fmt_limit(X)}%**")
     with two, st.container(border=True):
-        st.markdown(f"**Can thiệp ≤ {int(N)} seller**")
+        st.markdown(f"**Can thiệp ≤ {fmt_int(N)} seller**")
 
     pages = st.session_state.get("nav_pages", {})
     links = [

@@ -23,7 +23,9 @@ from lib.ui import (
     add_platform_reference,
     add_vertical_platform_reference,
     badge_actual,
+    category_label,
     chart_note,
+    count_axis_ticks,
     filters,
     fmt_brl,
     fmt_int,
@@ -133,6 +135,7 @@ def _with_rates(frame: pd.DataFrame) -> pd.DataFrame:
 
 def constraint_strip(snapshot: pd.DataFrame) -> None:
     st.markdown("**Trạng thái so với ràng buộc**")
+    st.caption("Tính trên toàn bộ phạm vi, không theo bộ lọc")
     if snapshot is None or snapshot.empty:
         st.info("Chưa có kết quả chính sách cho kỳ này.")
         return
@@ -316,7 +319,7 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         ),
         width="stretch",
     )
-    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {MIN_N_DISPLAY} mẫu.")
+    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu.")
     peak = data[data[count_column] >= MIN_N_DISPLAY].dropna(subset=[choice]).sort_values(choice, ascending=False).head(1)
     if not peak.empty:
         row = peak.iloc[0]
@@ -388,7 +391,10 @@ def _bad_events_stack(data: pd.DataFrame) -> None:
         layout_kwargs["barnorm"] = "fraction"
     figure.update_layout(**layout_kwargs)
     figure.update_xaxes(title="Tháng", type="category")
-    figure.update_yaxes(title="Tỷ trọng (%)" if is_pct else "Số sự kiện")
+    if is_pct:
+        figure.update_yaxes(title="Tỷ trọng (%)")
+    else:
+        figure.update_yaxes(title="Số sự kiện", **count_axis_ticks(month_totals))
     st.plotly_chart(
         style_fig(figure, "Tháng xấu là do khâu nào?", scope_subtitle()),
         width="stretch",
@@ -640,7 +646,7 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
     data = data.loc[counts >= MIN_N_DISPLAY]
     if data.empty:
         st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
-        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
         return
     color = LATE if is_rate else NAVY
     errors = []
@@ -688,7 +694,7 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         )
     else:
         chart_note(f"Thanh dài hơn là {place.lower()} có GMV cao hơn.")
-    st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+    st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
 
 
 def _category_scatter(categories: pd.DataFrame) -> None:
@@ -708,10 +714,11 @@ def _category_scatter(categories: pd.DataFrame) -> None:
     platform = _rate(data["bad_orders"].sum(), data["eligible_orders"].sum())
     top_index = data["gmv"].fillna(0).sort_values(ascending=False).head(5).index
     top_names = set(data.loc[top_index, "category_group"].astype(str))
+    cat_display = data["category_group"].map(category_label)
     labels = []
-    for name, rate in zip(data["category_group"].astype(str), data["rate"]):
+    for raw_name, disp_name, rate in zip(data["category_group"].astype(str), cat_display, data["rate"]):
         above = platform is not None and rate is not None and rate > platform
-        labels.append(name if name in top_names or above else "")
+        labels.append(disp_name if raw_name in top_names or above else "")
     figure = go.Figure(go.Scatter(
         x=data["gmv"],
         y=data["rate"],
@@ -722,7 +729,7 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         textfont=dict(size=11, color=NAVY),
         showlegend=False,
         marker=dict(size=sizes, color=NAVY, opacity=point_opacity(data["eligible_orders"])),
-        customdata=list(zip(data["category_group"].astype(str), data["eligible_orders"], data["gmv"])),
+        customdata=list(zip(cat_display, data["eligible_orders"], data["gmv"])),
         hovertemplate="%{customdata[0]}<br>n %{customdata[1]:,.0f}<br>GMV R$ %{customdata[2]:,.0f}<extra></extra>",
     ))
     figure.add_scatter(
@@ -747,7 +754,7 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         key="where_scatter",
     )
     chart_note("Góc trên-phải là nhóm hàng vừa bán nhiều vừa nhiều đơn xấu, cần ưu tiên xử lý.")
-    st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+    st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
 
 
 def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) -> None:
@@ -834,7 +841,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
                 x=mark["seller_share"],
                 y=mark["bad_share"],
                 mode="markers",
-                name=f"{int(N)} seller tệ nhất",
+                name=f"{fmt_int(N)} seller tệ nhất",
                 marker=dict(color=LATE, size=12),
             )
         figure.update_layout(height=360)
@@ -863,7 +870,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             marker=dict(size=8, color=NAVY, opacity=point_opacity(kept["eligible_orders"])),
         ))
         figure.update_layout(height=360)
-        figure.update_xaxes(title="Số đơn")
+        figure.update_xaxes(title="Số đơn", **count_axis_ticks(kept["n_orders_valid"]))
         figure.update_yaxes(title="Đơn trải nghiệm xấu (%)", tickformat=".0%")
         st.plotly_chart(
             style_fig(
@@ -873,7 +880,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             ),
             width="stretch",
         )
-        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     if funnel is not None and not funnel.empty:
         for row in funnel.itertuples(index=False):
             label = "Có closed deal" if int(row.has_closed_deal) == 1 else "Không có closed deal"
@@ -881,6 +888,11 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
                 f"{label}: {fmt_pct(_rate(row.bad_orders, row.eligible_orders))} "
                 f"(n={fmt_int(row.eligible_orders)}, {fmt_int(row.sellers)} seller)."
             )
+        st.caption(
+            "n của hai nhóm là tổng lượt đơn đủ điều kiện tính trải nghiệm xấu theo từng seller "
+            "(có review hoặc ngày giao trên fact_seller_monthly; đơn nhiều seller được tính cho mỗi seller), "
+            "nên khác với KPI Số đơn hợp lệ phân biệt toàn sàn."
+        )
     risk()
     pages = st.session_state.get("nav_pages", {})
     if pages.get("risk") is not None:
@@ -900,7 +912,7 @@ def trust_tab(series: pd.DataFrame, quality: pd.DataFrame) -> None:
             figure.add_bar(x=thin["year_month"], y=thin["n_orders_valid"], name="Tháng dữ liệu thưa", marker_color="#c5cdd6")
         figure.update_layout(height=320, barmode="overlay")
         figure.update_xaxes(title="Tháng")
-        figure.update_yaxes(title="Số đơn")
+        figure.update_yaxes(title="Số đơn", **count_axis_ticks(data["n_orders_valid"]))
         st.plotly_chart(
             style_fig(
                 figure,

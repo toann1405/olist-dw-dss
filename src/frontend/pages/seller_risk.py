@@ -16,7 +16,9 @@ from lib.ui import (
     NAVY,
     REVIEW,
     add_legend_swatch,
+    category_label,
     chart_note,
+    count_axis_ticks,
     fmt_brl,
     fmt_pct,
     kpi_card,
@@ -168,7 +170,7 @@ def _summary(scored: pd.DataFrame, eligible: pd.DataFrame, scenario, min_orders:
             f"Trần {fmt_limit(X)}% · {gmv_ok}",
             (
                 "Phần GMV có thể mất khi xử lý seller bị gắn cờ, "
-                f"giả định {float(R) * 100:.0f}% đơn chuyển sang seller khác, chia cho tổng GMV. "
+                f"giả định {fmt_pct(R, 0)} đơn chuyển sang seller khác, chia cho tổng GMV. "
                 f"Không được vượt {fmt_limit(X)}%."
             ),
         ),
@@ -209,7 +211,7 @@ def _list_tab(eligible: pd.DataFrame) -> None:
     one, two, three, four = st.columns(4, vertical_alignment="bottom")
     region = one.selectbox("Vùng", regions, key="risk_region")
     tier = two.selectbox("Hạng", tier_names, key="risk_tier")
-    top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, key="risk_top")
+    top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, format="%d", key="risk_top")
     needle = four.text_input("Tìm seller", key="risk_search")
     if region != "Tất cả":
         work = work[work["region_name"].astype(str) == region]
@@ -225,18 +227,18 @@ def _list_tab(eligible: pd.DataFrame) -> None:
     show["small"] = pd.to_numeric(show["n_orders_valid"], errors="coerce").fillna(0) < MIN_N_DISPLAY
     view = pd.DataFrame(
         {
-            "Thứ hạng": show["rank"],
+            "Thứ hạng": show["rank"].map(fmt_count),
             "Seller": show["seller_short"],
             "seller_id": show["seller_id"],
             "Hạng": show["tier_name"],
-            "Xác suất đơn xấu": pd.to_numeric(show["p_bad"], errors="coerce"),
-            "Số đơn hợp lệ": pd.to_numeric(show["n_orders_valid"], errors="coerce"),
+            "Xác suất đơn xấu": show["p_bad"].map(fmt_pct),
+            "Số đơn hợp lệ": show["n_orders_valid"].map(fmt_count),
             "GMV": show["gmv"].map(fmt_brl),
             "Bàn giao trễ": show["late_ship_rate"].map(fmt_ratio),
             "Review TB": show["avg_review"].map(fmt_number),
             "Vùng": show["region_name"],
             "Bang": show["state_code"],
-            f"Ít đơn (<{MIN_N_DISPLAY})": show["small"].map(lambda flag: "⚠" if flag else ""),
+            f"Ít đơn (<{fmt_count(MIN_N_DISPLAY)})": show["small"].map(lambda flag: "⚠" if flag else ""),
         }
     )
     event = st.dataframe(
@@ -246,7 +248,6 @@ def _list_tab(eligible: pd.DataFrame) -> None:
         on_select="rerun",
         selection_mode="single-row",
         column_config={
-            "Xác suất đơn xấu": st.column_config.ProgressColumn(min_value=0, max_value=1, format="percent"),
             "seller_id": None,
         },
         key="risk_grid",
@@ -267,9 +268,11 @@ def _distribution(frame: pd.DataFrame) -> None:
     if frame.empty:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
+    p_vals = pd.to_numeric(frame["p_bad"], errors="coerce")
+    bin_counts = pd.cut(p_vals.dropna(), bins=20).value_counts() if not p_vals.dropna().empty else []
     figure = go.Figure(
         go.Histogram(
-            x=pd.to_numeric(frame["p_bad"], errors="coerce"),
+            x=p_vals,
             nbinsx=20,
             name="Số seller",
             marker_color=PREDICTED,
@@ -280,7 +283,7 @@ def _distribution(frame: pd.DataFrame) -> None:
         add_legend_swatch(figure, name, PREDICTED, dash="dash")
     figure.update_layout(height=340)
     figure.update_xaxes(title="Xác suất đơn xấu (%)", tickformat=".0%")
-    figure.update_yaxes(title="Số seller")
+    figure.update_yaxes(title="Số seller", **count_axis_ticks(bin_counts))
     st.plotly_chart(
         style_fig(figure, "Xác suất đơn xấu của seller phân bố thế nào?", f"Tháng chấm {AS_OF_MONTH}"),
         width="stretch",
@@ -369,7 +372,10 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
 
     def _contrib_label(feature: str, value) -> str:
         name = str(feature)
-        if name.startswith(("Vùng:", "Nhóm hàng:")):
+        if name.startswith("Nhóm hàng:"):
+            raw_cat = name.split(":", 1)[1].strip()
+            return f"Nhóm hàng: {category_label(raw_cat)}"
+        if name.startswith("Vùng:"):
             return name
         if value is None or pd.isna(value):
             return name
@@ -396,7 +402,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
         if total_cat_gmv > 0 and not cats.empty:
             cats["share"] = cats["gmv_num"] / total_cat_gmv
             valid_cats = cats
-            main_cat = str(cats.iloc[0]["category_group"])
+            main_cat = category_label(cats.iloc[0]["category_group"])
             main_share = float(cats.iloc[0]["share"])
 
     try:
@@ -654,6 +660,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
                 side="right",
                 showgrid=False,
                 rangemode="tozero",
+                **count_axis_ticks(orders_plot),
             ),
             hovermode="x unified",
             barmode="overlay",
@@ -729,7 +736,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
         figure = go.Figure(
             go.Bar(
                 x=plot_cats["share"],
-                y=plot_cats["category_group"],
+                y=plot_cats["category_group"].map(category_label),
                 orientation="h",
                 name="Tỷ trọng GMV (%)",
                 marker_color=NAVY,
@@ -767,11 +774,7 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
             rows = metrics.loc[metrics["metric"].astype(str) == name, "value"]
             if rows.empty:
                 return "—"
-            value = rows.iloc[0]
-            if value is None or pd.isna(value):
-                return "—"
-            text = f"{float(value):,.3f}"
-            return text.replace(",", "X").replace(".", ",").replace("X", ".")
+            return fmt_number(rows.iloc[0], 3)
 
         def _test_month_label() -> str:
             rows = metrics.loc[metrics["metric"].astype(str) == "test_month", "value"].dropna()
@@ -866,6 +869,7 @@ def render(settings=None) -> None:
         "Số đơn tối thiểu để được chấm",
         min_value=0,
         step=1,
+        format="%d",
         help=explain("risk_score"),
         key="risk_min_orders",
     )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+import math
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -219,36 +220,88 @@ def _missing(value) -> bool:
         return False
 
 
-def fmt_brl(value) -> str:
-    """Reais. Millions use 'tr'. Thousands separators follow Vietnamese style."""
+def _vn_group(text: str) -> str:
+    return text.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def fmt_brl(value, compact: bool = True) -> str:
+    """Reais. Millions use 'tr' when compact=True. Thousands separators follow Vietnamese style."""
     if _missing(value):
         return "—"
     amount = float(value)
     sign = "−" if amount < 0 else ""
     amount = abs(amount)
-    if amount >= 1_000_000:
-        scaled = f"{amount / 1_000_000:,.2f}"
-        scaled = scaled.replace(",", "X").replace(".", ",").replace("X", ".")
+    if compact and amount >= 1_000_000:
+        scaled = _vn_group(f"{amount / 1_000_000:,.2f}")
         return f"{sign}R$ {scaled} tr"
-    text = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    text = _vn_group(f"{amount:,.2f}")
     return f"{sign}R$ {text}"
 
 
-def fmt_pct(value) -> str:
-    """A ratio in 0–1 becomes one decimal percent."""
+def fmt_pct(value, decimals: int = 1) -> str:
+    """A ratio in 0–1 becomes a Vietnamese-formatted percent."""
     if _missing(value):
         return "—"
-    text = f"{abs(float(value)) * 100:,.1f}"
-    text = text.replace(",", "X").replace(".", ",").replace("X", ".")
-    sign = "−" if float(value) < 0 else ""
+    number = float(value) * 100
+    sign = "−" if number < 0 else ""
+    text = _vn_group(f"{abs(number):,.{int(decimals)}f}")
     return f"{sign}{text}%"
 
 
 def fmt_int(value) -> str:
     if _missing(value):
         return "—"
-    text = f"{int(round(float(value))):,}"
-    return text.replace(",", ".")
+    return _vn_group(f"{int(round(float(value))):,}")
+
+
+def fmt_number(value, decimals: int = 1) -> str:
+    """Decimal number with Vietnamese separators (dot thousands, comma decimal)."""
+    if _missing(value):
+        return "—"
+    return _vn_group(f"{float(value):,.{int(decimals)}f}")
+
+
+def fmt_percent_points(value, decimals: int = 1) -> str:
+    """A percent already on a 0–100 scale, formatted in Vietnamese style."""
+    if _missing(value):
+        return "—"
+    number = float(value)
+    sign = "−" if number < 0 else ""
+    return f"{sign}{_vn_group(f'{abs(number):,.{int(decimals)}f}')}%"
+
+
+def fmt_limit(value) -> str:
+    if _missing(value):
+        return "—"
+    number = float(value)
+    if number == int(number):
+        return fmt_int(number)
+    return fmt_number(number)
+
+
+CATEGORY_LABELS: dict[str, str] = {
+    "electronics_it_telephony": "Điện tử & Viễn thông",
+    "home_furniture_decor": "Nhà cửa & Nội thất",
+    "health_beauty_fashion": "Sức khỏe & Thời trang",
+    "sports_leisure_toys": "Thể thao & Giải trí",
+    "auto_tools_construction": "Ô tô & Xây dựng",
+    "books_stationery_media": "Sách & Văn phòng phẩm",
+    "baby_pets_food_drinks": "Mẹ bé, Thú cưng & Thực phẩm",
+    "services_others": "Dịch vụ & Khác",
+    "Unknown": "Chưa phân loại",
+}
+
+
+def category_label(value) -> str:
+    """Short Vietnamese display label for a category_group key."""
+    if _missing(value):
+        return CATEGORY_LABELS["Unknown"]
+    key = str(value).strip()
+    if not key or key.lower() == "unknown":
+        return CATEGORY_LABELS["Unknown"]
+    if key in CATEGORY_LABELS:
+        return CATEGORY_LABELS[key]
+    return key.replace("_", " ").capitalize()
 
 
 def signed_pct(change) -> str | None:
@@ -513,7 +566,38 @@ def apply_theme(fig: go.Figure, height: int = 360) -> go.Figure:
     fig.update_layout(template="olist", height=height)
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(showgrid=True, gridcolor="#ece7df")
+    if getattr(getattr(fig.layout, "yaxis2", None), "overlaying", None):
+        fig.layout.yaxis2.showgrid = False
     return fig
+
+
+def count_axis_ticks(values=None) -> dict:
+    """Tick settings (tickformat='d' and integer dtick >= 1) for count axes."""
+    peak = 0.0
+    if values is not None:
+        for item in values:
+            try:
+                num = float(item)
+            except (TypeError, ValueError):
+                continue
+            if num == num and num > peak:
+                peak = num
+    if peak <= 8:
+        step = 1
+    else:
+        raw = peak / 5.0
+        magnitude = 10 ** int(math.floor(math.log10(raw)))
+        residual = raw / magnitude
+        if residual <= 1:
+            nice = 1
+        elif residual <= 2:
+            nice = 2
+        elif residual <= 5:
+            nice = 5
+        else:
+            nice = 10
+        step = max(1, int(nice * magnitude))
+    return {"tickformat": "d", "dtick": step}
 
 
 def highlight_colors(values: list[float], accent: str = LATE) -> list[str]:
@@ -585,7 +669,7 @@ def scope_subtitle(
     if include_state:
         parts.append(f"bang {state or 'tất cả'}")
     if include_category and category:
-        parts.append(f"nhóm {category}")
+        parts.append(f"nhóm {category_label(category)}")
     if include_funnel:
         funnel = chosen.get("funnel")
         if funnel not in (None, ALL):
@@ -628,6 +712,29 @@ def _enforce_percent_axes(fig: go.Figure) -> None:
     coloraxis = getattr(fig.layout, "coloraxis", None)
     if coloraxis is not None:
         _percent_if_needed(getattr(coloraxis, "colorbar", None))
+
+
+_COUNT_AXIS_PREFIXES = (
+    "Số đơn",
+    "Số seller",
+    "Số sự kiện",
+)
+
+
+def _enforce_count_axes(fig: go.Figure) -> None:
+    def _fix(axis) -> None:
+        text = _axis_title_text(axis)
+        if text.startswith(_COUNT_AXIS_PREFIXES) and "%" not in text:
+            axis.tickformat = "d"
+            current = getattr(axis, "dtick", None)
+            try:
+                step = int(math.ceil(float(current))) if current is not None else 1
+            except (TypeError, ValueError):
+                step = 1
+            axis.dtick = max(1, step)
+
+    fig.for_each_xaxis(_fix)
+    fig.for_each_yaxis(_fix)
 
 
 def style_fig(
@@ -693,4 +800,5 @@ def style_fig(
     if on_right:
         fig.update_layout(margin_r=168)
     _enforce_percent_axes(fig)
+    _enforce_count_axes(fig)
     return fig
