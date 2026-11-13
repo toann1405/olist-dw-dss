@@ -687,7 +687,14 @@ def render(settings=None) -> None:
     if origin == "custom":
         st.warning("Bạn đang xem kết quả theo giả định tùy chỉnh.")
     month = str(scores["as_of_month"].iloc[0])
-    st.caption(f"Tháng chấm {month}. Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller.")
+    n_scored = len(scores)
+    n_eligible = int((pd.to_numeric(scores["n_orders_valid"], errors="coerce").fillna(0) >= int(params.min_orders)).sum())
+    st.caption(
+        f"Tháng chấm {month} · tính trên {fmt_count(n_scored)} seller được chấm "
+        f"({fmt_count(n_eligible)} seller ≥ {fmt_count(params.min_orders)} đơn đủ điều kiện gắn cờ; "
+        f"với hệ số mùa vụ s = {fmt_number(params.s)}). "
+        f"Trần GMV {fmt_limit(X)}%, tối đa {fmt_limit(N)} seller."
+    )
 
     with st.container(border=True):
         if chosen_item is None:

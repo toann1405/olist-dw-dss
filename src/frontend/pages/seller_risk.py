@@ -54,20 +54,20 @@ def _rate(top, bottom):
 
 def _attach(scores: pd.DataFrame, min_orders: int):
     """Add M2 columns. Numbers come from simulate, not a second formula."""
-    result = simulate(scores, "P2", PolicyParams(min_orders=int(min_orders)))
+    params = PolicyParams(min_orders=int(min_orders))
+    baseline = simulate(scores, "P0", params)
+    result = simulate(scores, "P2", params)
     sellers = result.sellers
     out = scores.copy()
     out["tier"] = sellers["tier"].to_numpy()
     out["expected_bad"] = sellers["expected_bad_i"].to_numpy()
     out["flagged"] = sellers["flagged"].to_numpy()
-    probability = pd.to_numeric(out["p_bad"], errors="coerce").fillna(0.0)
-    orders = pd.to_numeric(out["n_orders_valid"], errors="coerce").fillna(0.0)
-    out["baseline_bad"] = probability * orders
+    out["baseline_bad"] = baseline.sellers["expected_bad_i"].to_numpy()
     return out, result
 
 
 def _kpi_numbers(scored: pd.DataFrame, eligible: pd.DataFrame, scenario) -> dict:
-    """Card values from the P2 scenario and the eligible slice."""
+    """Card values from the P2 scenario on all scored sellers; eligibility gates flagging only."""
     flagged = (
         eligible[eligible["flagged"].astype(bool)]
         if not eligible.empty and "flagged" in eligible.columns
@@ -78,9 +78,9 @@ def _kpi_numbers(scored: pd.DataFrame, eligible: pd.DataFrame, scenario) -> dict
         if not flagged.empty
         else pd.Series(dtype=int)
     )
-    baseline = float(pd.to_numeric(eligible["baseline_bad"], errors="coerce").fillna(0).sum())
+    baseline = float(pd.to_numeric(scored["baseline_bad"], errors="coerce").fillna(0).sum())
     flagged_baseline = float(pd.to_numeric(flagged["baseline_bad"], errors="coerce").fillna(0).sum())
-    remaining = float(pd.to_numeric(eligible["expected_bad"], errors="coerce").fillna(0).sum())
+    remaining = float(scenario.expected_bad_orders)
     return {
         "n_eligible": len(eligible),
         "n_scored": len(scored),
@@ -114,25 +114,26 @@ def _forecast_month(as_of: str) -> str | None:
     return f"{year:04d}-{month:02d}"
 
 
-def _flag_sentence(frame: pd.DataFrame) -> str:
-    if frame.empty:
+def _flag_sentence(eligible: pd.DataFrame, scored: pd.DataFrame | None = None) -> str:
+    if eligible.empty:
         return "Chưa đủ dữ liệu để kết luận."
     horizon = _forecast_month(AS_OF_MONTH) or "tới"
     when = f"Tháng {horizon}" if horizon != "tới" else "Tháng tới"
-    flagged = frame[frame["flagged"].astype(bool)] if "flagged" in frame.columns else frame.iloc[0:0]
-    total = len(frame)
+    flagged = eligible[eligible["flagged"].astype(bool)] if "flagged" in eligible.columns else eligible.iloc[0:0]
+    total_eligible = len(eligible)
     n_flagged = len(flagged)
     if n_flagged == 0:
         return (
             f"{when} dự kiến không có seller nào vượt ngưỡng rủi ro (chính sách P2) "
-            f"trong {fmt_count(total)} seller đủ điều kiện."
+            f"trong {fmt_count(total_eligible)} seller đủ điều kiện."
         )
-    total_bad = float(pd.to_numeric(frame["baseline_bad"], errors="coerce").fillna(0).sum())
+    pool = scored if scored is not None and not scored.empty else eligible
+    total_bad = float(pd.to_numeric(pool["baseline_bad"], errors="coerce").fillna(0).sum())
     flagged_bad = float(pd.to_numeric(flagged["baseline_bad"], errors="coerce").fillna(0).sum())
     share = None if total_bad <= 0 else flagged_bad / total_bad
-    share_text = "" if share is None else f", gom khoảng {fmt_ratio(share)} đơn xấu dự kiến"
+    share_text = "" if share is None else f", gom khoảng {fmt_ratio(share)} tổng đơn xấu dự kiến"
     return (
-        f"{when} dự kiến có {fmt_count(n_flagged)}/{fmt_count(total)} seller "
+        f"{when} dự kiến có {fmt_count(n_flagged)}/{fmt_count(total_eligible)} seller "
         f"vượt ngưỡng rủi ro (chính sách P2){share_text}; "
         "xem danh sách bên dưới để chọn seller cần xử lý."
     )
@@ -177,7 +178,10 @@ def _summary(scored: pd.DataFrame, eligible: pd.DataFrame, scenario, min_orders:
             None
             if stats["flagged_share"] is None
             else f"Seller bị gắn cờ chiếm {fmt_ratio(stats['flagged_share'])}",
-            "Tổng xác suất đơn xấu × số đơn của từng seller, trước khi áp dụng chính sách.",
+            (
+                f"Tổng xác suất đơn xấu × số đơn trên toàn bộ {fmt_count(stats['n_scored'])} seller được chấm "
+                f"(cùng phạm vi P0 ở trang Chính sách), trước khi áp dụng chính sách."
+            ),
         ),
     ]
     columns = st.columns(4)
@@ -857,7 +861,7 @@ def render(settings=None) -> None:
     as_of = AS_OF_MONTH
     scored_at = str(scored["scored_at"].iloc[0]).split(".")[0] if "scored_at" in scored.columns else "—"
     eligible = scored[pd.to_numeric(scored["n_orders_valid"], errors="coerce").fillna(0) >= int(min_orders)].copy()
-    page_header("Seller nào đáng lo nhất?", _flag_sentence(eligible), "predicted")
+    page_header("Seller nào đáng lo nhất?", _flag_sentence(eligible, scored), "predicted")
     st.number_input(
         "Số đơn tối thiểu để được chấm",
         min_value=0,
@@ -867,7 +871,7 @@ def render(settings=None) -> None:
     )
     st.caption(
         f"Tháng chấm {as_of}. Job chạy {scored_at}. "
-        f"{fmt_count(len(eligible))} seller đủ điều kiện / {fmt_count(len(scored))} seller tổng."
+        f"{fmt_count(len(eligible))} seller đủ điều kiện gắn cờ / {fmt_count(len(scored))} seller được chấm."
     )
     if eligible.empty:
         next_step("risk")
@@ -875,10 +879,15 @@ def render(settings=None) -> None:
     _summary(scored, eligible, scenario, min_orders)
     stats = _kpi_numbers(scored, eligible, scenario)
     if stats["p2_reduction"] is None:
-        st.caption(f"Nếu áp dụng P2, đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])}.")
+        st.caption(
+            f"Nếu áp dụng P2 trên toàn bộ {fmt_count(stats['n_scored'])} seller được chấm, "
+            f"đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])}."
+        )
     else:
         st.caption(
-            f"Nếu áp dụng P2, đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])} "
+            f"Nếu áp dụng P2 trên toàn bộ {fmt_count(stats['n_scored'])} seller được chấm "
+            f"(gắn cờ trong {fmt_count(stats['n_eligible'])} seller đủ điều kiện), "
+            f"đơn xấu dự kiến còn {fmt_number(stats['p2_remaining'])} "
             f"(giảm {fmt_ratio(stats['p2_reduction'])})."
         )
     tabs = st.tabs(["Danh sách", "Phân bố", "Chi tiết seller", "Độ tin cậy"])
