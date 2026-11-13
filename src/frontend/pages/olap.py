@@ -9,12 +9,14 @@ import streamlit as st
 from lib import adhoc, db, queries
 from lib.glossary import explain
 from lib.ui import (
+    CATEGORY_LABELS,
     LATE,
     MIN_N_DISPLAY,
     NEUTRAL,
     REVIEW,
     add_legend_swatch,
     button_dropdown,
+    category_label as _category_label,
     count_axis_ticks,
     filters,
     fmt_brl,
@@ -31,20 +33,6 @@ DICE_MIN_N = MIN_N_DISPLAY
 _ROLLUP_MARGIN_TOP = 168
 _ROLLUP_LEGEND_GAP = 96
 _LEVEL_LABEL = {"region": "Vùng", "state": "Bang", "city": "Thành phố"}
-_CATEGORY_GROUP_VI = {
-    "home_furniture_decor": "Nhà cửa và nội thất",
-    "health_beauty_fashion": "Sức khỏe, làm đẹp và thời trang",
-    "electronics_it_telephony": "Điện tử, tin học và điện thoại",
-    "sports_leisure_toys": "Thể thao, giải trí và đồ chơi",
-    "auto_tools_construction": "Ô tô, dụng cụ và xây dựng",
-    "books_stationery_media": "Sách, văn phòng phẩm và media",
-    "baby_pets_food_drinks": "Mẹ và bé, thú cưng, thực phẩm",
-    "services_others": "Dịch vụ và nhóm khác",
-}
-
-
-def _category_label(code: str) -> str:
-    return _CATEGORY_GROUP_VI.get(str(code), str(code))
 
 
 def _num(series_value):
@@ -102,6 +90,8 @@ def _format_olap_table(frame: pd.DataFrame) -> pd.DataFrame:
             show[col] = show[col].map(fmt_int)
     if "gmv" in show.columns:
         show["gmv"] = show["gmv"].map(fmt_brl)
+    if "category_group" in show.columns:
+        show["category_group"] = show["category_group"].map(_category_label)
     return show
 
 

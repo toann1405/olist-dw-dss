@@ -23,6 +23,7 @@ from lib.ui import (
     add_platform_reference,
     add_vertical_platform_reference,
     badge_actual,
+    category_label,
     chart_note,
     count_axis_ticks,
     filters,
@@ -713,10 +714,11 @@ def _category_scatter(categories: pd.DataFrame) -> None:
     platform = _rate(data["bad_orders"].sum(), data["eligible_orders"].sum())
     top_index = data["gmv"].fillna(0).sort_values(ascending=False).head(5).index
     top_names = set(data.loc[top_index, "category_group"].astype(str))
+    cat_display = data["category_group"].map(category_label)
     labels = []
-    for name, rate in zip(data["category_group"].astype(str), data["rate"]):
+    for raw_name, disp_name, rate in zip(data["category_group"].astype(str), cat_display, data["rate"]):
         above = platform is not None and rate is not None and rate > platform
-        labels.append(name if name in top_names or above else "")
+        labels.append(disp_name if raw_name in top_names or above else "")
     figure = go.Figure(go.Scatter(
         x=data["gmv"],
         y=data["rate"],
@@ -727,7 +729,7 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         textfont=dict(size=11, color=NAVY),
         showlegend=False,
         marker=dict(size=sizes, color=NAVY, opacity=point_opacity(data["eligible_orders"])),
-        customdata=list(zip(data["category_group"].astype(str), data["eligible_orders"], data["gmv"])),
+        customdata=list(zip(cat_display, data["eligible_orders"], data["gmv"])),
         hovertemplate="%{customdata[0]}<br>n %{customdata[1]:,.0f}<br>GMV R$ %{customdata[2]:,.0f}<extra></extra>",
     ))
     figure.add_scatter(

@@ -279,6 +279,31 @@ def fmt_limit(value) -> str:
     return fmt_number(number)
 
 
+CATEGORY_LABELS: dict[str, str] = {
+    "electronics_it_telephony": "Điện tử & Viễn thông",
+    "home_furniture_decor": "Nhà cửa & Nội thất",
+    "health_beauty_fashion": "Sức khỏe & Thời trang",
+    "sports_leisure_toys": "Thể thao & Giải trí",
+    "auto_tools_construction": "Ô tô & Xây dựng",
+    "books_stationery_media": "Sách & Văn phòng phẩm",
+    "baby_pets_food_drinks": "Mẹ bé, Thú cưng & Thực phẩm",
+    "services_others": "Dịch vụ & Khác",
+    "Unknown": "Chưa phân loại",
+}
+
+
+def category_label(value) -> str:
+    """Short Vietnamese display label for a category_group key."""
+    if _missing(value):
+        return CATEGORY_LABELS["Unknown"]
+    key = str(value).strip()
+    if not key or key.lower() == "unknown":
+        return CATEGORY_LABELS["Unknown"]
+    if key in CATEGORY_LABELS:
+        return CATEGORY_LABELS[key]
+    return key.replace("_", " ").capitalize()
+
+
 def signed_pct(change) -> str | None:
     if _missing(change):
         return None
@@ -644,7 +669,7 @@ def scope_subtitle(
     if include_state:
         parts.append(f"bang {state or 'tất cả'}")
     if include_category and category:
-        parts.append(f"nhóm {category}")
+        parts.append(f"nhóm {category_label(category)}")
     if include_funnel:
         funnel = chosen.get("funnel")
         if funnel not in (None, ALL):

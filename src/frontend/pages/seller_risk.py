@@ -16,6 +16,7 @@ from lib.ui import (
     NAVY,
     REVIEW,
     add_legend_swatch,
+    category_label,
     chart_note,
     count_axis_ticks,
     fmt_brl,
@@ -371,7 +372,10 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
 
     def _contrib_label(feature: str, value) -> str:
         name = str(feature)
-        if name.startswith(("Vùng:", "Nhóm hàng:")):
+        if name.startswith("Nhóm hàng:"):
+            raw_cat = name.split(":", 1)[1].strip()
+            return f"Nhóm hàng: {category_label(raw_cat)}"
+        if name.startswith("Vùng:"):
             return name
         if value is None or pd.isna(value):
             return name
@@ -398,7 +402,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
         if total_cat_gmv > 0 and not cats.empty:
             cats["share"] = cats["gmv_num"] / total_cat_gmv
             valid_cats = cats
-            main_cat = str(cats.iloc[0]["category_group"])
+            main_cat = category_label(cats.iloc[0]["category_group"])
             main_share = float(cats.iloc[0]["share"])
 
     try:
@@ -732,7 +736,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
         figure = go.Figure(
             go.Bar(
                 x=plot_cats["share"],
-                y=plot_cats["category_group"],
+                y=plot_cats["category_group"].map(category_label),
                 orientation="h",
                 name="Tỷ trọng GMV (%)",
                 marker_color=NAVY,

@@ -17,6 +17,7 @@ from lib.ui import (
     NAVY,
     NEUTRAL,
     add_legend_swatch,
+    category_label,
     filters,
     fmt_brl,
     fmt_int,
@@ -212,7 +213,7 @@ def _category_bars(frame: pd.DataFrame) -> None:
     fig = go.Figure(
         go.Bar(
             x=data["gmv"],
-            y=data["category_group"],
+            y=data["category_group"].map(category_label),
             orientation="h",
             name="GMV (R$)",
             showlegend=False,
