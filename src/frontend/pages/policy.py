@@ -30,6 +30,7 @@ from lib.policy_cache import (
     cached_budget_curve,
     cached_compare,
     cached_tornado,
+    cached_tornado_advice,
     param_token,
     score_token,
 )
@@ -37,7 +38,6 @@ from lib.ui import (
     LATE,
     NAVY,
     add_legend_swatch,
-    chart_card,
     chart_note,
     fmt_brl,
     next_step,
@@ -341,53 +341,130 @@ def _budget_curve_chart(curve: pd.DataFrame, p1_result, p2_result) -> None:
     )
 
 
-def _tornado_chart(frame: pd.DataFrame) -> None:
+def _tornado_chart(
+    frame: pd.DataFrame,
+    advice_stability: tuple[str | None, list[tuple[str, str, str | None]]] | None = None,
+) -> None:
+    controls, help_col = st.columns([6, 1], vertical_alignment="bottom")
+    with controls:
+        metric_choice = st.segmented_control(
+            "Chỉ số đánh giá độ nhạy",
+            ["Đơn xấu dự kiến", "GMV bị ảnh hưởng (%)"],
+            default="Đơn xấu dự kiến",
+            key="tornado_metric",
+        )
+    if metric_choice is None:
+        metric_choice = "Đơn xấu dự kiến"
+    with help_col:
+        with st.popover("?"):
+            st.markdown(
+                "- Mỗi giả định được đẩy lệch ±20%, các giả định khác giữ nguyên.\n"
+                "- Độ dài thanh = mức kết quả thay đổi; thanh càng dài, kết quả càng phụ thuộc giả định đó.\n"
+                "- Hệ số mùa vụ nhân vào số đơn của mọi seller nên luôn dài nhất, nhưng làm P0/P1/P2 dịch cùng chiều nên không đổi phương án được chọn.\n"
+                "- Hiệu quả can thiệp chỉ tác động lên seller bị gắn cờ, cần kiểm chứng bằng thí điểm.\n"
+                "- Tỷ lệ chuyển đơn chỉ ảnh hưởng GMV, nên bằng 0 ở chế độ đơn xấu là đúng."
+            )
+
+    is_gmv = metric_choice == "GMV bị ảnh hưởng (%)"
+    metric_col = "gmv_affected_pct" if is_gmv else "expected_bad_orders"
     rows = []
     for factor, part in frame.groupby("factor"):
-        low = part.loc[part["shock"] == "low", "expected_bad_orders"]
-        high = part.loc[part["shock"] == "high", "expected_bad_orders"]
-        if low.empty or high.empty:
+        low = part.loc[part["shock"] == "low", metric_col]
+        base = part.loc[part["shock"] == "base", metric_col]
+        high = part.loc[part["shock"] == "high", metric_col]
+        if low.empty or base.empty or high.empty:
+            continue
+        if pd.isna(low.iloc[0]) or pd.isna(base.iloc[0]) or pd.isna(high.iloc[0]):
             continue
         low_value = float(low.iloc[0])
+        base_value = float(base.iloc[0])
         high_value = float(high.iloc[0])
+        delta_low = low_value - base_value
+        delta_high = high_value - base_value
+        span = max(abs(delta_high - delta_low), abs(delta_low), abs(delta_high))
         rows.append(
             {
                 "factor": factor,
                 "label": FACTOR_LABELS.get(str(factor), str(factor)),
-                "span": abs(high_value - low_value),
+                "span": span,
+                "delta_low": delta_low,
+                "delta_high": delta_high,
                 "low": low_value,
+                "base": base_value,
                 "high": high_value,
             }
         )
     if not rows:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
+
     ordered = sorted(rows, key=lambda row: row["span"])
-    figure = go.Figure(
-        go.Bar(
-            x=[row["span"] for row in ordered],
-            y=[row["label"] for row in ordered],
-            orientation="h",
-            name="Độ lệch đơn xấu dự kiến (số đơn)",
-            marker_color="#6d28d9",
-            customdata=[[fmt_number(row["low"]), fmt_number(row["high"])] for row in ordered],
-            hovertemplate=(
-                "%{y}<br>Đơn xấu dự kiến thấp %{customdata[0]}"
-                "<br>Đơn xấu dự kiến cao %{customdata[1]}<extra></extra>"
-            ),
-        )
+    unit = "điểm %" if is_gmv else "đơn"
+    figure = go.Figure()
+    figure.add_bar(
+        x=[row["delta_low"] for row in ordered],
+        y=[row["label"] for row in ordered],
+        orientation="h",
+        name="Giảm 20%",
+        marker_color=NAVY,
+        customdata=[[fmt_number(row["low"]), fmt_number(row["base"])] for row in ordered],
+        hovertemplate=(
+            "%{y} (Giảm 20%)<br>Độ lệch: %{x:+.2f} " + unit
+            + "<br>Kết quả mới: %{customdata[0]} (gốc %{customdata[1]})<extra></extra>"
+        ),
     )
-    figure.update_layout(height=320, margin_l=160, margin_r=16, margin_b=16)
-    figure.update_xaxes(title="Độ lệch đơn xấu dự kiến (số đơn)")
+    figure.add_bar(
+        x=[row["delta_high"] for row in ordered],
+        y=[row["label"] for row in ordered],
+        orientation="h",
+        name="Tăng 20%",
+        marker_color=LATE,
+        customdata=[[fmt_number(row["high"]), fmt_number(row["base"])] for row in ordered],
+        hovertemplate=(
+            "%{y} (Tăng 20%)<br>Độ lệch: %{x:+.2f} " + unit
+            + "<br>Kết quả mới: %{customdata[0]} (gốc %{customdata[1]})<extra></extra>"
+        ),
+    )
+    figure.add_vline(x=0, line_color="#8a93a0", line_width=1)
+    figure.update_layout(height=320, barmode="overlay", margin_l=160, margin_r=16, margin_b=16)
+    x_title = (
+        "Độ lệch GMV bị ảnh hưởng (điểm phần trăm)"
+        if is_gmv
+        else "Độ lệch đơn xấu dự kiến (đơn)"
+    )
+    figure.update_xaxes(title=x_title)
     figure.update_yaxes(title="Giả định", automargin=True)
-    chart_card(
+    chart_title = (
+        "Giả định nào làm GMV bị ảnh hưởng đổi nhiều nhất?"
+        if is_gmv
+        else "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?"
+    )
+    st.plotly_chart(
         style_fig(
             figure,
-            "Giả định nào làm đơn xấu dự kiến đổi nhiều nhất?",
+            chart_title,
             f"Lệch ±20% quanh ngưỡng gợi ý · tháng chấm {AS_OF_MONTH}",
         ),
-        how_to_read="Thanh dài nhất là giả định cần kiểm chứng trước.",
+        width="stretch",
     )
+    chart_note("Thanh dài nhất là giả định nhạy nhất, nhưng chỉ đáng lo nếu nó làm đổi phương án được chọn.")
+
+    if advice_stability is not None:
+        base_code, changes = advice_stability
+        if not changes:
+            if base_code is None:
+                st.write("Ở mọi mức lệch ±20%, vẫn chưa có phương án nào đạt cả hai trần.")
+            else:
+                st.write(f"Ở mọi mức lệch ±20%, phương án khuyến nghị vẫn là {base_code}.")
+        else:
+            factor, shock, new_code = changes[0]
+            factor_name = FACTOR_LABELS.get(str(factor), str(factor))
+            shock_text = "−20%" if shock == "low" else "+20%"
+            target_text = new_code or "không có phương án đạt trần"
+            st.write(
+                f"{factor_name} ở {shock_text} làm khuyến nghị đổi sang {target_text}. "
+                "Cần kiểm chứng giả định này trước."
+            )
 
 
 def _flagged_source(result) -> pd.DataFrame:
@@ -743,7 +820,8 @@ def render(settings=None) -> None:
     with trust_tab:
         st.caption("Mỗi giả định lệch ±20% quanh ngưỡng gợi ý, không phải slider hiện tại.")
         shocks = cached_tornado(token, param_token(chosen))
-        _tornado_chart(shocks)
+        advice_stability = cached_tornado_advice(token, param_token(chosen))
+        _tornado_chart(shocks, advice_stability)
         if st.toggle("Xem bảng", key="tornado_table"):
             table = shocks.copy()
             table["factor"] = table["factor"].map(lambda name: FACTOR_LABELS.get(str(name), str(name)))

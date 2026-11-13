@@ -9,6 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from lib.insights import recommend_policy
 from src.dss.policy import (
     PolicyParams,
     budget_curve,
@@ -16,6 +17,7 @@ from src.dss.policy import (
     compare_policies,
     goal_seek,
     tornado,
+    tornado_shifts,
 )
 
 _SCORE_COLUMNS = (
@@ -106,3 +108,42 @@ def cached_budget_curve(score_rows: tuple, param_values: tuple):
 def cached_tornado(score_rows: tuple, param_values: tuple):
     params = _params(param_values)
     return tornado(_frame(score_rows), params)
+
+
+def _policy_summary_frame(results) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "policy_code": item.policy_code,
+                "expected_bad_orders": item.expected_bad_orders,
+                "gmv_affected_pct": item.gmv_affected_pct,
+                "n_sellers_flagged": item.n_sellers_flagged,
+                "meets_x": item.meets_x,
+                "meets_n": item.meets_n,
+            }
+            for item in results
+        ]
+    )
+
+
+@st.cache_data(show_spinner=False)
+def cached_tornado_advice(score_rows: tuple, param_values: tuple) -> tuple[str | None, list[tuple[str, str, str | None]]]:
+    frame = _frame(score_rows)
+    params = _params(param_values)
+    base_code = recommend_policy(
+        _policy_summary_frame(compare_policies(frame, params)),
+        params.x_limit,
+        params.n_limit,
+    ).get("code")
+    changes: list[tuple[str, str, str | None]] = []
+    for factor, shock, _mult, shifted in tornado_shifts(params):
+        if shock == "base":
+            continue
+        code = recommend_policy(
+            _policy_summary_frame(compare_policies(frame, shifted)),
+            shifted.x_limit,
+            shifted.n_limit,
+        ).get("code")
+        if code != base_code:
+            changes.append((factor, shock, code))
+    return base_code, changes

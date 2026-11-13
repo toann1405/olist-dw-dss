@@ -307,9 +307,9 @@ def _scale_effects(params: PolicyParams, factor: float) -> PolicyParams:
     )
 
 
-def tornado(frame: pd.DataFrame, params: PolicyParams) -> pd.DataFrame:
-    """P2 results when e_k, r, or s moves by 20 percent. One row per shock."""
-    rows = []
+def tornado_shifts(params: PolicyParams) -> list[tuple[str, str, float, PolicyParams]]:
+    """Return (factor, shock_label, multiplier, shifted_params) for -20%, base, +20%."""
+    cases: list[tuple[str, str, float, PolicyParams]] = []
     shocks = (("e_k", "effect"), ("r", "transfer"), ("s", "season"))
     for name, kind in shocks:
         for factor, label in ((0.8, "low"), (1.0, "base"), (1.2, "high")):
@@ -319,17 +319,25 @@ def tornado(frame: pd.DataFrame, params: PolicyParams) -> pd.DataFrame:
                 shifted = replace(params, r=_clip01(params.r * factor))
             else:
                 shifted = replace(params, s=max(params.s * factor, 0.0))
-            result = simulate(frame, "P2", shifted)
-            rows.append(
-                {
-                    "factor": name,
-                    "shock": label,
-                    "multiplier": factor,
-                    "expected_bad_orders": result.expected_bad_orders,
-                    "gmv_affected_pct": result.gmv_affected_pct,
-                    "n_sellers_flagged": result.n_sellers_flagged,
-                }
-            )
+            cases.append((name, label, factor, shifted))
+    return cases
+
+
+def tornado(frame: pd.DataFrame, params: PolicyParams) -> pd.DataFrame:
+    """P2 results when e_k, r, or s moves by 20 percent. One row per shock."""
+    rows = []
+    for name, label, factor, shifted in tornado_shifts(params):
+        result = simulate(frame, "P2", shifted)
+        rows.append(
+            {
+                "factor": name,
+                "shock": label,
+                "multiplier": factor,
+                "expected_bad_orders": result.expected_bad_orders,
+                "gmv_affected_pct": result.gmv_affected_pct,
+                "n_sellers_flagged": result.n_sellers_flagged,
+            }
+        )
     return pd.DataFrame(rows)
 
 
