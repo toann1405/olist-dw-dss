@@ -134,6 +134,7 @@ def _with_rates(frame: pd.DataFrame) -> pd.DataFrame:
 
 def constraint_strip(snapshot: pd.DataFrame) -> None:
     st.markdown("**Trạng thái so với ràng buộc**")
+    st.caption("Tính trên toàn bộ phạm vi, không theo bộ lọc")
     if snapshot is None or snapshot.empty:
         st.info("Chưa có kết quả chính sách cho kỳ này.")
         return
