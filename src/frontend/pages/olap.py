@@ -400,12 +400,13 @@ def _tab_slice(groups: pd.DataFrame) -> None:
     data = frame.copy()
     data["late_delivery_rate"] = pd.to_numeric(data["late_delivery_rate"], errors="coerce")
     data["eligible_orders"] = pd.to_numeric(data["eligible_orders"], errors="coerce")
-    data = data[data["eligible_orders"] >= minimum].dropna(subset=["late_delivery_rate"])
+    valid = data.dropna(subset=["late_delivery_rate"])
+    all_counts = pd.to_numeric(valid["eligible_orders"], errors="coerce").fillna(0)
+    hidden = int((all_counts < minimum).sum())
+    data = valid.loc[all_counts >= minimum].copy()
     data = data.sort_values(["late_delivery_rate", "eligible_orders"], ascending=[False, False])
     data["short_id"] = data["seller_id"].astype(str).str.slice(0, 8)
-    order_counts = pd.to_numeric(data["eligible_orders"], errors="coerce").fillna(0)
-    hidden = int((order_counts < MIN_N_DISPLAY).sum())
-    ranked = data.loc[order_counts >= MIN_N_DISPLAY]
+    ranked = data
     top = ranked.head(15)
     if ranked.empty:
         headline = "Chưa đủ dữ liệu để kết luận."
@@ -427,7 +428,7 @@ def _tab_slice(groups: pd.DataFrame) -> None:
             st.dataframe(_format_olap_table(show), width="stretch", hide_index=True)
         elif top.empty:
             st.info("Không có seller qua ngưỡng đơn.")
-            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(minimum)} mẫu")
         else:
             plot = top.sort_values("late_delivery_rate")
             fig = go.Figure(
@@ -452,7 +453,7 @@ def _tab_slice(groups: pd.DataFrame) -> None:
                 ),
                 width="stretch",
             )
-            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
+            st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(minimum)} mẫu")
     with side:
         _panel(headline, reading, data, "slice_table")
 
