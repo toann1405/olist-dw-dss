@@ -220,36 +220,63 @@ def _missing(value) -> bool:
         return False
 
 
-def fmt_brl(value) -> str:
-    """Reais. Millions use 'tr'. Thousands separators follow Vietnamese style."""
+def _vn_group(text: str) -> str:
+    return text.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def fmt_brl(value, compact: bool = True) -> str:
+    """Reais. Millions use 'tr' when compact=True. Thousands separators follow Vietnamese style."""
     if _missing(value):
         return "—"
     amount = float(value)
     sign = "−" if amount < 0 else ""
     amount = abs(amount)
-    if amount >= 1_000_000:
-        scaled = f"{amount / 1_000_000:,.2f}"
-        scaled = scaled.replace(",", "X").replace(".", ",").replace("X", ".")
+    if compact and amount >= 1_000_000:
+        scaled = _vn_group(f"{amount / 1_000_000:,.2f}")
         return f"{sign}R$ {scaled} tr"
-    text = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    text = _vn_group(f"{amount:,.2f}")
     return f"{sign}R$ {text}"
 
 
-def fmt_pct(value) -> str:
-    """A ratio in 0–1 becomes one decimal percent."""
+def fmt_pct(value, decimals: int = 1) -> str:
+    """A ratio in 0–1 becomes a Vietnamese-formatted percent."""
     if _missing(value):
         return "—"
-    text = f"{abs(float(value)) * 100:,.1f}"
-    text = text.replace(",", "X").replace(".", ",").replace("X", ".")
-    sign = "−" if float(value) < 0 else ""
+    number = float(value) * 100
+    sign = "−" if number < 0 else ""
+    text = _vn_group(f"{abs(number):,.{int(decimals)}f}")
     return f"{sign}{text}%"
 
 
 def fmt_int(value) -> str:
     if _missing(value):
         return "—"
-    text = f"{int(round(float(value))):,}"
-    return text.replace(",", ".")
+    return _vn_group(f"{int(round(float(value))):,}")
+
+
+def fmt_number(value, decimals: int = 1) -> str:
+    """Decimal number with Vietnamese separators (dot thousands, comma decimal)."""
+    if _missing(value):
+        return "—"
+    return _vn_group(f"{float(value):,.{int(decimals)}f}")
+
+
+def fmt_percent_points(value, decimals: int = 1) -> str:
+    """A percent already on a 0–100 scale, formatted in Vietnamese style."""
+    if _missing(value):
+        return "—"
+    number = float(value)
+    sign = "−" if number < 0 else ""
+    return f"{sign}{_vn_group(f'{abs(number):,.{int(decimals)}f}')}%"
+
+
+def fmt_limit(value) -> str:
+    if _missing(value):
+        return "—"
+    number = float(value)
+    if number == int(number):
+        return fmt_int(number)
+    return fmt_number(number)
 
 
 def signed_pct(change) -> str | None:

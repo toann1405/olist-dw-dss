@@ -318,7 +318,7 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
         ),
         width="stretch",
     )
-    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {MIN_N_DISPLAY} mẫu.")
+    st.caption(f"Tháng tô nhạt là tháng dữ liệu thưa. Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu.")
     peak = data[data[count_column] >= MIN_N_DISPLAY].dropna(subset=[choice]).sort_values(choice, ascending=False).head(1)
     if not peak.empty:
         row = peak.iloc[0]
@@ -645,7 +645,7 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
     data = data.loc[counts >= MIN_N_DISPLAY]
     if data.empty:
         st.info("Không có đủ mẫu cho chỉ số này trong bộ lọc.")
-        st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
         return
     color = LATE if is_rate else NAVY
     errors = []
@@ -693,7 +693,7 @@ def _place_bar(frame: pd.DataFrame, label: str, is_rate: bool, place: str) -> No
         )
     else:
         chart_note(f"Thanh dài hơn là {place.lower()} có GMV cao hơn.")
-    st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
+    st.caption(f"Ẩn {fmt_int(hidden)} nhóm có dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
 
 
 def _category_scatter(categories: pd.DataFrame) -> None:
@@ -752,7 +752,7 @@ def _category_scatter(categories: pd.DataFrame) -> None:
         key="where_scatter",
     )
     chart_note("Góc trên-phải là nhóm hàng vừa bán nhiều vừa nhiều đơn xấu, cần ưu tiên xử lý.")
-    st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+    st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
 
 
 def where_tab(regions: pd.DataFrame, categories: pd.DataFrame, platform_late) -> None:
@@ -839,7 +839,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
                 x=mark["seller_share"],
                 y=mark["bad_share"],
                 mode="markers",
-                name=f"{int(N)} seller tệ nhất",
+                name=f"{fmt_int(N)} seller tệ nhất",
                 marker=dict(color=LATE, size=12),
             )
         figure.update_layout(height=360)
@@ -878,7 +878,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             ),
             width="stretch",
         )
-        st.caption(f"Điểm mờ: dưới {MIN_N_DISPLAY} mẫu")
+        st.caption(f"Điểm mờ: dưới {fmt_int(MIN_N_DISPLAY)} mẫu")
     if funnel is not None and not funnel.empty:
         for row in funnel.itertuples(index=False):
             label = "Có closed deal" if int(row.has_closed_deal) == 1 else "Không có closed deal"

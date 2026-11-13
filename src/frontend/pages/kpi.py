@@ -271,15 +271,14 @@ def _risk_table() -> None:
         st.info("Chưa có seller với ít nhất 5 đơn hợp lệ trong tháng chấm. Chạy job DSS trên workspace trước.")
         return
     show = frame.head(10).copy()
-    show["p_bad"] = pd.to_numeric(show["p_bad"], errors="coerce")
+    show["Điểm rủi ro"] = show["p_bad"].map(fmt_pct)
     show["Đơn"] = show["n_orders_valid"].map(fmt_int)
     show["GMV"] = show["gmv"].map(fmt_brl)
     show["Bàn giao trễ"] = show["late_ship_rate"].map(fmt_pct)
     st.dataframe(
-        show[["seller_id", "p_bad", "Đơn", "GMV", "Bàn giao trễ", "as_of_month"]],
+        show[["seller_id", "Điểm rủi ro", "Đơn", "GMV", "Bàn giao trễ", "as_of_month"]],
         column_config={
             "seller_id": "Seller",
-            "p_bad": st.column_config.ProgressColumn("Điểm rủi ro", min_value=0, max_value=1, format="percent"),
             "as_of_month": "Tháng chấm",
         },
         width="stretch",

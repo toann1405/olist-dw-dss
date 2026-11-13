@@ -169,7 +169,7 @@ def _summary(scored: pd.DataFrame, eligible: pd.DataFrame, scenario, min_orders:
             f"Trần {fmt_limit(X)}% · {gmv_ok}",
             (
                 "Phần GMV có thể mất khi xử lý seller bị gắn cờ, "
-                f"giả định {float(R) * 100:.0f}% đơn chuyển sang seller khác, chia cho tổng GMV. "
+                f"giả định {fmt_pct(R, 0)} đơn chuyển sang seller khác, chia cho tổng GMV. "
                 f"Không được vượt {fmt_limit(X)}%."
             ),
         ),
@@ -210,7 +210,7 @@ def _list_tab(eligible: pd.DataFrame) -> None:
     one, two, three, four = st.columns(4, vertical_alignment="bottom")
     region = one.selectbox("Vùng", regions, key="risk_region")
     tier = two.selectbox("Hạng", tier_names, key="risk_tier")
-    top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, key="risk_top")
+    top_n = three.number_input("Top N", min_value=1, value=int(N), step=1, format="%d", key="risk_top")
     needle = four.text_input("Tìm seller", key="risk_search")
     if region != "Tất cả":
         work = work[work["region_name"].astype(str) == region]
@@ -226,18 +226,18 @@ def _list_tab(eligible: pd.DataFrame) -> None:
     show["small"] = pd.to_numeric(show["n_orders_valid"], errors="coerce").fillna(0) < MIN_N_DISPLAY
     view = pd.DataFrame(
         {
-            "Thứ hạng": show["rank"],
+            "Thứ hạng": show["rank"].map(fmt_count),
             "Seller": show["seller_short"],
             "seller_id": show["seller_id"],
             "Hạng": show["tier_name"],
-            "Xác suất đơn xấu": pd.to_numeric(show["p_bad"], errors="coerce"),
-            "Số đơn hợp lệ": pd.to_numeric(show["n_orders_valid"], errors="coerce"),
+            "Xác suất đơn xấu": show["p_bad"].map(fmt_pct),
+            "Số đơn hợp lệ": show["n_orders_valid"].map(fmt_count),
             "GMV": show["gmv"].map(fmt_brl),
             "Bàn giao trễ": show["late_ship_rate"].map(fmt_ratio),
             "Review TB": show["avg_review"].map(fmt_number),
             "Vùng": show["region_name"],
             "Bang": show["state_code"],
-            f"Ít đơn (<{MIN_N_DISPLAY})": show["small"].map(lambda flag: "⚠" if flag else ""),
+            f"Ít đơn (<{fmt_count(MIN_N_DISPLAY)})": show["small"].map(lambda flag: "⚠" if flag else ""),
         }
     )
     event = st.dataframe(
@@ -247,7 +247,6 @@ def _list_tab(eligible: pd.DataFrame) -> None:
         on_select="rerun",
         selection_mode="single-row",
         column_config={
-            "Xác suất đơn xấu": st.column_config.ProgressColumn(min_value=0, max_value=1, format="percent"),
             "seller_id": None,
         },
         key="risk_grid",
@@ -771,11 +770,7 @@ def _trust(as_of: str, model_name: str, trained_through) -> None:
             rows = metrics.loc[metrics["metric"].astype(str) == name, "value"]
             if rows.empty:
                 return "—"
-            value = rows.iloc[0]
-            if value is None or pd.isna(value):
-                return "—"
-            text = f"{float(value):,.3f}"
-            return text.replace(",", "X").replace(".", ",").replace("X", ".")
+            return fmt_number(rows.iloc[0], 3)
 
         def _test_month_label() -> str:
             rows = metrics.loc[metrics["metric"].astype(str) == "test_month", "value"].dropna()
@@ -870,6 +865,7 @@ def render(settings=None) -> None:
         "Số đơn tối thiểu để được chấm",
         min_value=0,
         step=1,
+        format="%d",
         help=explain("risk_score"),
         key="risk_min_orders",
     )
