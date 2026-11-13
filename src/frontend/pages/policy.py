@@ -41,6 +41,7 @@ from lib.ui import (
     NAVY,
     add_legend_swatch,
     chart_note,
+    count_axis_ticks,
     fmt_brl,
     kpi_card,
     next_step,
@@ -341,7 +342,7 @@ def _budget_curve_chart(curve: pd.DataFrame, p1_result, p2_result) -> None:
             ),
         )
     figure.update_layout(height=360)
-    figure.update_xaxes(title="Số seller gắn cờ")
+    figure.update_xaxes(title="Số seller gắn cờ", **count_axis_ticks(curve["k"]))
     figure.update_yaxes(title="Đơn xấu dự kiến")
     st.plotly_chart(
         style_fig(

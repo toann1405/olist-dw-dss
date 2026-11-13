@@ -17,6 +17,7 @@ from lib.ui import (
     REVIEW,
     add_legend_swatch,
     chart_note,
+    count_axis_ticks,
     fmt_brl,
     fmt_pct,
     kpi_card,
@@ -267,9 +268,11 @@ def _distribution(frame: pd.DataFrame) -> None:
     if frame.empty:
         st.info("Chưa đủ dữ liệu để kết luận.")
         return
+    p_vals = pd.to_numeric(frame["p_bad"], errors="coerce")
+    bin_counts = pd.cut(p_vals.dropna(), bins=20).value_counts() if not p_vals.dropna().empty else []
     figure = go.Figure(
         go.Histogram(
-            x=pd.to_numeric(frame["p_bad"], errors="coerce"),
+            x=p_vals,
             nbinsx=20,
             name="Số seller",
             marker_color=PREDICTED,
@@ -280,7 +283,7 @@ def _distribution(frame: pd.DataFrame) -> None:
         add_legend_swatch(figure, name, PREDICTED, dash="dash")
     figure.update_layout(height=340)
     figure.update_xaxes(title="Xác suất đơn xấu (%)", tickformat=".0%")
-    figure.update_yaxes(title="Số seller")
+    figure.update_yaxes(title="Số seller", **count_axis_ticks(bin_counts))
     st.plotly_chart(
         style_fig(figure, "Xác suất đơn xấu của seller phân bố thế nào?", f"Tháng chấm {AS_OF_MONTH}"),
         width="stretch",
@@ -654,6 +657,7 @@ def _detail(seller_id: str, frame: pd.DataFrame, platform: pd.Series | None) -> 
                 side="right",
                 showgrid=False,
                 rangemode="tozero",
+                **count_axis_ticks(orders_plot),
             ),
             hovermode="x unified",
             barmode="overlay",

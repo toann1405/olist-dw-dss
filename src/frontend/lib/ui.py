@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+import math
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -513,7 +514,38 @@ def apply_theme(fig: go.Figure, height: int = 360) -> go.Figure:
     fig.update_layout(template="olist", height=height)
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(showgrid=True, gridcolor="#ece7df")
+    if getattr(getattr(fig.layout, "yaxis2", None), "overlaying", None):
+        fig.layout.yaxis2.showgrid = False
     return fig
+
+
+def count_axis_ticks(values=None) -> dict:
+    """Tick settings (tickformat='d' and integer dtick >= 1) for count axes."""
+    peak = 0.0
+    if values is not None:
+        for item in values:
+            try:
+                num = float(item)
+            except (TypeError, ValueError):
+                continue
+            if num == num and num > peak:
+                peak = num
+    if peak <= 8:
+        step = 1
+    else:
+        raw = peak / 5.0
+        magnitude = 10 ** int(math.floor(math.log10(raw)))
+        residual = raw / magnitude
+        if residual <= 1:
+            nice = 1
+        elif residual <= 2:
+            nice = 2
+        elif residual <= 5:
+            nice = 5
+        else:
+            nice = 10
+        step = max(1, int(nice * magnitude))
+    return {"tickformat": "d", "dtick": step}
 
 
 def highlight_colors(values: list[float], accent: str = LATE) -> list[str]:
@@ -630,6 +662,29 @@ def _enforce_percent_axes(fig: go.Figure) -> None:
         _percent_if_needed(getattr(coloraxis, "colorbar", None))
 
 
+_COUNT_AXIS_PREFIXES = (
+    "Số đơn",
+    "Số seller",
+    "Số sự kiện",
+)
+
+
+def _enforce_count_axes(fig: go.Figure) -> None:
+    def _fix(axis) -> None:
+        text = _axis_title_text(axis)
+        if text.startswith(_COUNT_AXIS_PREFIXES) and "%" not in text:
+            axis.tickformat = "d"
+            current = getattr(axis, "dtick", None)
+            try:
+                step = int(math.ceil(float(current))) if current is not None else 1
+            except (TypeError, ValueError):
+                step = 1
+            axis.dtick = max(1, step)
+
+    fig.for_each_xaxis(_fix)
+    fig.for_each_yaxis(_fix)
+
+
 def style_fig(
     fig: go.Figure,
     title: str,
@@ -693,4 +748,5 @@ def style_fig(
     if on_right:
         fig.update_layout(margin_r=168)
     _enforce_percent_axes(fig)
+    _enforce_count_axes(fig)
     return fig

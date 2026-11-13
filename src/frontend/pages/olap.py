@@ -15,6 +15,7 @@ from lib.ui import (
     REVIEW,
     add_legend_swatch,
     button_dropdown,
+    count_axis_ticks,
     filters,
     fmt_brl,
     fmt_int,
@@ -731,7 +732,10 @@ def _adhoc_chart() -> None:
         )
         figure.update_layout(height=360)
         figure.update_xaxes(title=dims[0], type="category")
-        figure.update_yaxes(title=measure)
+        if kind == "int":
+            figure.update_yaxes(title=measure, **count_axis_ticks(work["value"]))
+        else:
+            figure.update_yaxes(title=measure)
         st.plotly_chart(
             style_fig(figure, f"{measure} theo {dims[0]}", "Tự chọn · tối đa 500 dòng"),
             width="stretch",
@@ -757,8 +761,10 @@ def _adhoc_chart() -> None:
                 f"{measure} theo {dims[0]}",
                 "Tự chọn · tối đa 500 dòng",
             )
-            if kind != "pct":
-                figure.update_xaxes(tickformat=",.0f", tickprefix="" if kind == "int" else "R$ ")
+            if kind == "int":
+                figure.update_xaxes(**count_axis_ticks(values), tickprefix="")
+            elif kind != "pct":
+                figure.update_xaxes(tickformat=",.0f", tickprefix="R$ ")
             st.plotly_chart(figure, width="stretch")
         st.caption(f"Ẩn {hidden} nhóm có dưới {MIN_N_DISPLAY} mẫu")
     else:

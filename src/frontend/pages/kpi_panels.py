@@ -24,6 +24,7 @@ from lib.ui import (
     add_vertical_platform_reference,
     badge_actual,
     chart_note,
+    count_axis_ticks,
     filters,
     fmt_brl,
     fmt_int,
@@ -388,7 +389,10 @@ def _bad_events_stack(data: pd.DataFrame) -> None:
         layout_kwargs["barnorm"] = "fraction"
     figure.update_layout(**layout_kwargs)
     figure.update_xaxes(title="Tháng", type="category")
-    figure.update_yaxes(title="Tỷ trọng (%)" if is_pct else "Số sự kiện")
+    if is_pct:
+        figure.update_yaxes(title="Tỷ trọng (%)")
+    else:
+        figure.update_yaxes(title="Số sự kiện", **count_axis_ticks(month_totals))
     st.plotly_chart(
         style_fig(figure, "Tháng xấu là do khâu nào?", scope_subtitle()),
         width="stretch",
@@ -863,7 +867,7 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
             marker=dict(size=8, color=NAVY, opacity=point_opacity(kept["eligible_orders"])),
         ))
         figure.update_layout(height=360)
-        figure.update_xaxes(title="Số đơn")
+        figure.update_xaxes(title="Số đơn", **count_axis_ticks(kept["n_orders_valid"]))
         figure.update_yaxes(title="Đơn trải nghiệm xấu (%)", tickformat=".0%")
         st.plotly_chart(
             style_fig(
@@ -905,7 +909,7 @@ def trust_tab(series: pd.DataFrame, quality: pd.DataFrame) -> None:
             figure.add_bar(x=thin["year_month"], y=thin["n_orders_valid"], name="Tháng dữ liệu thưa", marker_color="#c5cdd6")
         figure.update_layout(height=320, barmode="overlay")
         figure.update_xaxes(title="Tháng")
-        figure.update_yaxes(title="Số đơn")
+        figure.update_yaxes(title="Số đơn", **count_axis_ticks(data["n_orders_valid"]))
         st.plotly_chart(
             style_fig(
                 figure,
