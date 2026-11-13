@@ -9,7 +9,14 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from src.dss.policy import PolicyParams, compare_policies, goal_seek, tornado
+from src.dss.policy import (
+    PolicyParams,
+    budget_curve,
+    budget_seek,
+    compare_policies,
+    goal_seek,
+    tornado,
+)
 
 _SCORE_COLUMNS = (
     "seller_id",
@@ -83,6 +90,16 @@ def cached_compare(score_rows: tuple, param_values: tuple):
 @st.cache_data(show_spinner=False)
 def cached_goal(score_rows: tuple, param_values: tuple):
     return goal_seek(_frame(score_rows), _params(param_values))
+
+
+@st.cache_data(show_spinner=False)
+def cached_budget(score_rows: tuple, param_values: tuple):
+    return budget_seek(_frame(score_rows), _params(param_values))
+
+
+@st.cache_data(show_spinner=False)
+def cached_budget_curve(score_rows: tuple, param_values: tuple):
+    return budget_curve(_frame(score_rows), _params(param_values))
 
 
 @st.cache_data(show_spinner=False)

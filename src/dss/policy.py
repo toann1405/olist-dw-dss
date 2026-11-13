@@ -63,6 +63,14 @@ class Scenario:
     sellers: pd.DataFrame
 
 
+@dataclass(frozen=True)
+class BudgetSeekResult:
+    params: PolicyParams
+    scenario: Scenario
+    k: int
+    binding: str
+
+
 def _clip01(value: float) -> float:
     return float(min(1.0, max(0.0, value)))
 
@@ -192,6 +200,101 @@ def goal_seek(frame: pd.DataFrame, params: PolicyParams) -> tuple[PolicyParams, 
             lo = mid
     chosen = _with_theta(params, hi)
     return chosen, simulate(frame, "P2", chosen)
+
+
+def _with_theta_exact(params: PolicyParams, theta_1: float) -> PolicyParams:
+    theta = float(min(1.0, max(0.0, theta_1)))
+    return replace(
+        params,
+        theta_1=theta,
+        theta_2=min(1.0, theta + TIER_GAP_2),
+        theta_3=min(1.0, theta + TIER_GAP_3),
+    )
+
+
+def budget_seek(frame: pd.DataFrame, params: PolicyParams) -> BudgetSeekResult:
+    """Largest k <= n_limit of eligible sellers by p_bad with GMV impact <= x_limit."""
+    out = prepare(frame)
+    eligible = out[out["n_orders_valid"] >= int(params.min_orders)].copy()
+    ranked = eligible.sort_values(
+        ["p_bad", "seller_id"],
+        ascending=[False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+
+    total_gmv = float(out["gmv"].sum())
+    max_k = min(len(ranked), max(0, int(params.n_limit)))
+    if max_k == 0 or total_gmv <= 0:
+        chosen = _with_theta_exact(params, 1.0)
+        sought = simulate(out, "P2", chosen)
+        return BudgetSeekResult(
+            params=chosen,
+            scenario=sought,
+            k=0,
+            binding="X" if total_gmv <= 0 else "N",
+        )
+
+    transfer = _clip01(params.r)
+    cum_gmv = 0.0
+    best_k = 0
+    for idx in range(max_k):
+        cum_gmv += float(ranked.loc[idx, "gmv"]) * (1.0 - transfer)
+        pct = 100.0 * cum_gmv / total_gmv
+        if pct <= float(params.x_limit) + 1e-9:
+            best_k = idx + 1
+        else:
+            break
+
+    binding = "X" if best_k < max_k else "N"
+    if binding == "X" and 0 < best_k < len(ranked):
+        boundary_p = float(ranked.loc[best_k - 1, "p_bad"])
+        if float(ranked.loc[best_k, "p_bad"]) == boundary_p:
+            while best_k > 0 and float(ranked.loc[best_k - 1, "p_bad"]) == boundary_p:
+                best_k -= 1
+
+    theta_1 = 1.0 if best_k == 0 else float(ranked.loc[best_k - 1, "p_bad"])
+    chosen = _with_theta_exact(params, theta_1)
+    sought = simulate(out, "P2", chosen)
+    return BudgetSeekResult(params=chosen, scenario=sought, k=best_k, binding=binding)
+
+
+def budget_curve(frame: pd.DataFrame, params: PolicyParams) -> pd.DataFrame:
+    """Expected bad orders and GMV impact when flagging top k=1..n_limit eligible sellers."""
+    out = prepare(frame)
+    eligible = out[out["n_orders_valid"] >= int(params.min_orders)].copy()
+    ranked = eligible.sort_values(
+        ["p_bad", "seller_id"],
+        ascending=[False, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    max_k = min(len(ranked), max(0, int(params.n_limit)))
+    rows = []
+    for k in range(1, max_k + 1):
+        theta_1 = float(ranked.loc[k - 1, "p_bad"])
+        step_params = replace(_with_theta_exact(params, theta_1), n_limit=k)
+        res = simulate(out, "P2", step_params)
+        rows.append(
+            {
+                "k": k,
+                "theta_1": step_params.theta_1,
+                "expected_bad_orders": res.expected_bad_orders,
+                "gmv_affected_pct": res.gmv_affected_pct,
+                "meets_x": res.meets_x,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def efficiency(scenario: Scenario, baseline: Scenario | float) -> float | None:
+    """Bad orders reduced per percentage point of affected GMV; None if GMV impact is zero."""
+    if scenario is None or baseline is None:
+        return None
+    gmv_pct = scenario.gmv_affected_pct
+    if gmv_pct is None or pd.isna(gmv_pct) or float(gmv_pct) == 0.0:
+        return None
+    base_bad = float(baseline.expected_bad_orders) if hasattr(baseline, "expected_bad_orders") else float(baseline)
+    reduced = base_bad - float(scenario.expected_bad_orders)
+    return reduced / float(gmv_pct)
 
 
 def _scale_effects(params: PolicyParams, factor: float) -> PolicyParams:

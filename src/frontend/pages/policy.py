@@ -25,8 +25,26 @@ from lib.labels import (
     fmt_ratio,
     policy_name,
 )
-from lib.policy_cache import cached_compare, cached_goal, cached_tornado, param_token, score_token
-from lib.ui import chart_card, fmt_brl, kpi_card, next_step, page_header, style_fig
+from lib.policy_cache import (
+    cached_budget,
+    cached_budget_curve,
+    cached_compare,
+    cached_tornado,
+    param_token,
+    score_token,
+)
+from lib.ui import (
+    LATE,
+    NAVY,
+    add_legend_swatch,
+    chart_card,
+    chart_note,
+    fmt_brl,
+    kpi_card,
+    next_step,
+    page_header,
+    style_fig,
+)
 from src.dss.params import (
     AS_OF_MONTH,
     AVG_REVIEW_THRESHOLD,
@@ -44,7 +62,7 @@ from src.dss.params import (
     THETA_3,
     X,
 )
-from src.dss.policy import PolicyParams, scenario_record, simulate
+from src.dss.policy import PolicyParams, efficiency, scenario_record, simulate
 
 RECENT_LIMIT = 5
 FLAGGED_PREVIEW = 50
@@ -233,13 +251,86 @@ def _format_table(frame: pd.DataFrame) -> pd.DataFrame:
     return show.rename(columns=COLUMN_LABELS)
 
 
-def _goal_sentence(chosen: PolicyParams, sought) -> str:
+def _budget_sentence(budget_res, baseline) -> str:
+    chosen = budget_res.params
+    sought = budget_res.scenario
+    delta_bad = (
+        baseline.expected_bad_orders - sought.expected_bad_orders
+        if baseline is not None
+        else 0.0
+    )
+    delta_pct = (
+        delta_bad / baseline.expected_bad_orders
+        if baseline is not None and baseline.expected_bad_orders > 0
+        else 0.0
+    )
     return (
-        f"Để giảm nhiều đơn xấu nhất mà GMV ≤ {fmt_limit(X)}%, "
-        f"nên gắn cờ seller có điểm rủi ro từ {fmt_ratio(chosen.theta_1)} trở lên. "
-        f"Kết quả: {fmt_number(sought.expected_bad_orders)} đơn xấu dự kiến, "
-        f"GMV bị ảnh hưởng {fmt_percent_points(sought.gmv_affected_pct)}, "
-        f"{fmt_count(sought.n_sellers_flagged)} seller bị xử lý."
+        f"Ràng buộc đang bó là {budget_res.binding}. "
+        f"Gắn cờ top {fmt_count(budget_res.k)} seller theo điểm rủi ro "
+        f"(tương đương p_bad ≥ {fmt_ratio(chosen.theta_1)}) → "
+        f"{fmt_number(sought.expected_bad_orders)} đơn xấu dự kiến, "
+        f"giảm {fmt_number(delta_bad)} ({fmt_ratio(delta_pct)}) so với P0, "
+        f"GMV ảnh hưởng {fmt_percent_points(sought.gmv_affected_pct)}."
+    )
+
+
+def _budget_curve_chart(curve: pd.DataFrame, p1_result, p2_result) -> None:
+    if curve.empty:
+        st.info("Chưa đủ seller đủ điều kiện để vẽ đường cong gắn cờ.")
+        return
+    figure = go.Figure(
+        go.Scatter(
+            x=curve["k"],
+            y=curve["expected_bad_orders"],
+            mode="lines",
+            name="P2 theo top k seller",
+            line=dict(color="#6d28d9", width=2.5),
+            customdata=list(zip(curve["theta_1"], curve["gmv_affected_pct"])),
+            hovertemplate=(
+                "Top %{x} seller (p_bad ≥ %{customdata[0]:.1%})"
+                "<br>Đơn xấu dự kiến: %{y:,.1f}"
+                "<br>GMV ảnh hưởng: %{customdata[1]:.1f}%<extra></extra>"
+            ),
+        )
+    )
+    if p1_result is not None:
+        figure.add_hline(
+            y=p1_result.expected_bad_orders,
+            line_dash="dash",
+            line_color=LATE,
+        )
+        add_legend_swatch(
+            figure,
+            f"P1 ({fmt_count(p1_result.n_sellers_flagged)} seller)",
+            LATE,
+            dash="dash",
+        )
+    if p2_result is not None:
+        figure.add_scatter(
+            x=[p2_result.n_sellers_flagged],
+            y=[p2_result.expected_bad_orders],
+            mode="markers",
+            name="Vị trí hiện tại (P2)",
+            marker=dict(color=NAVY, size=11),
+            hovertemplate=(
+                "Vị trí hiện tại: %{x} seller"
+                "<br>Đơn xấu dự kiến: %{y:,.1f}<extra></extra>"
+            ),
+        )
+    figure.update_layout(height=360)
+    figure.update_xaxes(title="Số seller gắn cờ")
+    figure.update_yaxes(title="Đơn xấu dự kiến")
+    st.plotly_chart(
+        style_fig(
+            figure,
+            "Gắn cờ thêm seller giảm được bao nhiêu đơn xấu?",
+            f"Top 1..{fmt_count(len(curve))} seller theo p_bad · tháng chấm {AS_OF_MONTH}",
+        ),
+        width="stretch",
+    )
+    chart_note(
+        "Đường tím đi xuống cho thấy đơn xấu dự kiến giảm khi mở rộng top seller theo p_bad; "
+        "điểm xanh đậm là cấu hình P2 hiện tại."
     )
 
 
@@ -622,15 +713,32 @@ def render(settings=None) -> None:
     goal_tab, trust_tab, assume_tab = st.tabs(
         ["Ngưỡng nào tối ưu", "Kết quả đáng tin đến đâu", "Giả định"],
     )
-    chosen, sought = cached_goal(token, param_token(params))
+    budget_res = cached_budget(token, param_token(params))
+    chosen = budget_res.params
+    sought = budget_res.scenario
+    by_code = {item.policy_code: item for item in results}
+    p0_result = by_code.get("P0")
+    p1_result = by_code.get("P1")
+    p2_result = by_code.get("P2")
     with goal_tab:
-        st.write(_goal_sentence(chosen, sought))
+        st.write(_budget_sentence(budget_res, p0_result))
+        eff_p2 = efficiency(sought, p0_result) if p0_result is not None else None
+        eff_p1 = efficiency(p1_result, p0_result) if p0_result is not None and p1_result is not None else None
+        if eff_p2 is not None:
+            eff_text = f"Hiệu quả biên P2 gợi ý: giảm {fmt_number(eff_p2)} đơn xấu / 1% GMV ảnh hưởng"
+            if eff_p1 is not None:
+                eff_text += f" (so với P1: {fmt_number(eff_p1)})."
+            else:
+                eff_text += "."
+            st.caption(eff_text)
         st.button(
             "Dùng ngưỡng gợi ý này",
             on_click=_use_suggestion,
             args=(chosen.theta_1, chosen.theta_2, chosen.theta_3),
             help="Ghi ngưỡng gợi ý vào giả định và tính lại phần chốt quyết định.",
         )
+        curve = cached_budget_curve(token, param_token(params))
+        _budget_curve_chart(curve, p1_result, p2_result)
     with trust_tab:
         st.caption("Mỗi giả định lệch ±20% quanh ngưỡng gợi ý, không phải slider hiện tại.")
         shocks = cached_tornado(token, param_token(chosen))
