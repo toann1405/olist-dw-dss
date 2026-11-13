@@ -94,6 +94,11 @@ def build_insight_kpi(frame: pd.DataFrame, min_orders: int) -> str:
     if overall is None or overall_n is None or overall_n < int(min_orders):
         return NOT_ENOUGH
     worst = _worst_group(groups)
+    if len(groups) == 1:
+        return (
+            f"Tỷ lệ đơn trải nghiệm xấu tại vùng {worst['region_name']} là "
+            f"{_pct(worst['rate'])} (n={_int(worst['eligible_orders'])})."
+        )
     return (
         f"Tỷ lệ đơn trải nghiệm xấu {_pct(overall)}, cao nhất ở {worst['region_name']} "
         f"({_pct(worst['rate'])}, n={_int(worst['eligible_orders'])})."

@@ -13,6 +13,7 @@ from lib.stats import SPARSE_MONTHS
 from pages import kpi_panels
 from lib.ui import (
     LATE,
+    MIN_N_DISPLAY,
     NAVY,
     NEUTRAL,
     add_legend_swatch,
@@ -301,7 +302,7 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
     if series is None or series.empty or "bad_experience_count" not in series.columns:
         if story is None:
             return "Chưa đủ dữ liệu để kết luận."
-        return build_insight_kpi(story, MIN_ORDERS)
+        return build_insight_kpi(story, MIN_N_DISPLAY)
     data = series.copy()
     data["bad_orders"] = pd.to_numeric(data["bad_experience_count"], errors="coerce")
     data["eligible"] = pd.to_numeric(data["bad_experience_eligible"], errors="coerce")
@@ -323,10 +324,19 @@ def _kpi_conclusion(series: pd.DataFrame | None, story: pd.DataFrame | None) -> 
             direction = f", {points} so với tháng trước"
     region = ""
     if story is not None:
-        _total, groups = _groups(story, MIN_ORDERS)
-        if not groups.empty:
+        _total, groups = _groups(story, MIN_N_DISPLAY)
+        if len(groups) == 1:
+            only = _worst_group(groups)
+            region = (
+                f"; vùng {only['region_name']} có {fmt_pct(only['rate'])} đơn xấu cả kỳ "
+                f"(n={fmt_int(only['eligible_orders'])})"
+            )
+        elif not groups.empty:
             worst = _worst_group(groups)
-            region = f"; vùng {worst['region_name']} cao nhất"
+            region = (
+                f"; vùng {worst['region_name']} cao nhất "
+                f"({fmt_pct(worst['rate'])}, n={fmt_int(worst['eligible_orders'])})"
+            )
     return f"{_month_phrase(last['year_month'])}: {fmt_pct(rate)} đơn xấu{direction}{region}."
 
 
