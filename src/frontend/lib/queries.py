@@ -510,6 +510,8 @@ def platform_month(year_month: str) -> tuple[str, tuple]:
       SUM(f.late_ship_eligible) AS late_ship_eligible,
       SUM(f.negative_review_count) AS negative_review_count,
       SUM(f.negative_review_eligible) AS negative_review_eligible,
+      SUM(f.review_score_sum) AS review_score_sum,
+      SUM(f.review_count) AS review_count,
       SUM(f.cancel_count) AS cancel_count,
       SUM(f.n_orders_placed) AS n_orders_placed,
       SUM(f.handling_days_sum) AS handling_days_sum,

@@ -18,6 +18,7 @@ from lib.ui import (
     LATE,
     MIN_N_DISPLAY,
     NAVY,
+    REVIEW,
     add_legend_swatch,
     add_platform_reference,
     add_vertical_platform_reference,
@@ -323,6 +324,79 @@ def trend_tab(series: pd.DataFrame, platform_bad) -> None:
             f"Tỷ lệ cao nhất trong bộ lọc là {row['year_month']}: {fmt_pct(row[choice])} "
             f"(n={fmt_int(row[count_column])})."
         )
+
+    _bad_events_stack(data)
+
+
+def _bad_events_stack(data: pd.DataFrame) -> None:
+    if data is None or data.empty:
+        st.info("Chưa có sự kiện xấu trong kỳ chọn.")
+        return
+    work = data.sort_values("year_month").copy()
+    components = (
+        ("Bàn giao trễ", "late_ship_count", LATE),
+        ("Review tiêu cực", "negative_review_count", REVIEW),
+        ("Hủy đơn", "cancel_count", NAVY),
+    )
+    for _, column, _ in components:
+        if column in work.columns:
+            work[column] = pd.to_numeric(work[column], errors="coerce").fillna(0.0)
+        else:
+            work[column] = 0.0
+    work["event_total"] = work["late_ship_count"] + work["negative_review_count"] + work["cancel_count"]
+    totals = [(label, float(work[column].sum())) for label, column, _ in components]
+    grand_total = sum(val for _, val in totals)
+    if grand_total <= 0:
+        st.info("Chưa có sự kiện xấu trong kỳ chọn.")
+        return
+
+    top_label, top_value = max(totals, key=lambda item: item[1])
+    st.write(f"Trong kỳ chọn, {top_label} chiếm {fmt_pct(top_value / grand_total)} sự kiện xấu.")
+
+    mode = st.segmented_control(
+        "Chế độ hiển thị",
+        ["Số lượng", "Tỷ trọng %"],
+        default="Số lượng",
+        key="trend_bad_events_mode",
+    )
+    is_pct = mode == "Tỷ trọng %"
+
+    sparse_flags = work["year_month"].isin(SPARSE_MONTHS).tolist()
+    opacities = [0.35 if is_sparse else 0.9 for is_sparse in sparse_flags]
+    month_totals = work["event_total"].tolist()
+
+    figure = go.Figure()
+    for label, column, color in components:
+        counts = work[column].tolist()
+        shares = [
+            0.0 if m_total <= 0 else cnt / m_total
+            for cnt, m_total in zip(counts, month_totals)
+        ]
+        figure.add_bar(
+            x=work["year_month"],
+            y=counts,
+            name=label,
+            marker=dict(color=color, opacity=opacities),
+            customdata=list(zip(counts, shares)),
+            hovertemplate=f"Tháng %{{x}}<br>{label}: %{{customdata[0]:,.0f}} sự kiện (%{{customdata[1]:.1%}})<extra></extra>",
+        )
+    if any(sparse_flags):
+        add_legend_swatch(figure, "Tháng dữ liệu thưa", "#8a93a0", opacity=0.35)
+
+    layout_kwargs = dict(height=380, barmode="stack", hovermode="x unified")
+    if is_pct:
+        layout_kwargs["barnorm"] = "fraction"
+    figure.update_layout(**layout_kwargs)
+    figure.update_xaxes(title="Tháng", type="category")
+    figure.update_yaxes(title="Tỷ trọng (%)" if is_pct else "Số sự kiện")
+    st.plotly_chart(
+        style_fig(figure, "Tháng xấu là do khâu nào?", scope_subtitle()),
+        width="stretch",
+    )
+    chart_note(
+        "Một đơn có thể vừa trễ vừa bị review xấu nên tổng cột là số sự kiện, "
+        "có thể lớn hơn số đơn xấu ở thẻ KPI."
+    )
 
 
 _WHERE_METRICS = (
