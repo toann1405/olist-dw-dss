@@ -143,9 +143,17 @@ def _params_from(applied: dict) -> PolicyParams:
     )
 
 
-def _store_applied(applied: dict, origin: str) -> None:
+def _remember_applied(applied: dict, origin: str) -> None:
     st.session_state["applied"] = applied
     st.session_state["param_origin"] = "default" if _matches_default(applied) else origin
+
+
+def _store_applied(applied: dict, origin: str) -> None:
+    """Write applied values and the slider keys. Callbacks only.
+
+    A form submit cannot assign slider keys after those widgets exist.
+    """
+    _remember_applied(applied, origin)
     _sync_draft(applied)
 
 
@@ -693,7 +701,7 @@ def _assumptions_form() -> None:
             "s": float(season),
             "min_orders": int(min_orders),
         }
-        _store_applied(applied, "custom")
+        _remember_applied(applied, "custom")
         st.rerun()
 
 

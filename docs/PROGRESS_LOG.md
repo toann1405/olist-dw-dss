@@ -14,11 +14,17 @@
 | Đang làm | Branch `fix/seller-risk-page`: M1 trả calibration và đóng góp yếu tố; tab Độ tin cậy có 3 thẻ. Job DSS chưa chạy lại trên Databricks. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chạy lại job DSS để tab Độ tin cậy có số của warehouse. Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 12/11/2026 (ghi đánh giá M1) |
+| Cập nhật | 13/11/2026 (form giả định trang chính sách) |
 
 ---
 
 ## Nhật ký
+
+### 13/11/2026 — Form giả định không ghi đè slider
+
+- **Đã làm:** Nút Áp dụng trên tab Giả định chỉ ghi `applied` rồi `st.rerun()`. Không gán lại key `draft_*` sau khi slider đã được tạo. Nút Đặt lại về mặc định và Dùng ngưỡng gợi ý này vẫn ghi slider trong callback. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** Đã mở `http://localhost:8501/policy`. Đưa số đơn tối thiểu lên 11 rồi bấm Áp dụng: caption thành «tùy chỉnh» và «≥ 11 đơn», không còn `StreamlitAPIException`. Bấm Đặt lại về mặc định: caption về «tham số mặc định» và «≥ 5 đơn».
+- **Chưa làm:** không chạy pytest trong phiên này.
 
 ### 12/11/2026 — Ghi đánh giá M1 cho tab Độ tin cậy
 
