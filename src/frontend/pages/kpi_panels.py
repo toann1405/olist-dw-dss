@@ -881,6 +881,11 @@ def seller_tab(sellers: pd.DataFrame, funnel: pd.DataFrame, risk) -> None:
                 f"{label}: {fmt_pct(_rate(row.bad_orders, row.eligible_orders))} "
                 f"(n={fmt_int(row.eligible_orders)}, {fmt_int(row.sellers)} seller)."
             )
+        st.caption(
+            "n của hai nhóm là tổng lượt đơn đủ điều kiện tính trải nghiệm xấu theo từng seller "
+            "(có review hoặc ngày giao trên fact_seller_monthly; đơn nhiều seller được tính cho mỗi seller), "
+            "nên khác với KPI Số đơn hợp lệ phân biệt toàn sàn."
+        )
     risk()
     pages = st.session_state.get("nav_pages", {})
     if pages.get("risk") is not None:
