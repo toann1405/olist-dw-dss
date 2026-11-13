@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timezone
+from html import escape
 from uuid import uuid4
 
 import pandas as pd
@@ -360,25 +361,21 @@ def _tornado_chart(
     frame: pd.DataFrame,
     advice_stability: tuple[str | None, list[tuple[str, str, str | None]]] | None = None,
 ) -> None:
-    controls, help_col = st.columns([6, 1], vertical_alignment="bottom")
-    with controls:
-        metric_choice = st.segmented_control(
-            "Chỉ số đánh giá độ nhạy",
-            ["Đơn xấu dự kiến", "GMV bị ảnh hưởng (%)"],
-            default="Đơn xấu dự kiến",
-            key="tornado_metric",
-        )
+    metric_choice = st.segmented_control(
+        "Chỉ số đánh giá độ nhạy",
+        ["Đơn xấu dự kiến", "GMV bị ảnh hưởng (%)"],
+        default="Đơn xấu dự kiến",
+        key="tornado_metric",
+        help=(
+            "Mỗi giả định được đẩy lệch ±20%, các giả định khác giữ nguyên. "
+            "Độ dài thanh = mức kết quả thay đổi; thanh càng dài, kết quả càng phụ thuộc giả định đó. "
+            "Hệ số mùa vụ nhân vào số đơn của mọi seller nên luôn dài nhất, nhưng làm P0/P1/P2 dịch cùng chiều nên không đổi phương án được chọn. "
+            "Hiệu quả can thiệp chỉ tác động lên seller bị gắn cờ, cần kiểm chứng bằng thí điểm. "
+            "Tỷ lệ chuyển đơn chỉ ảnh hưởng GMV, nên bằng 0 ở chế độ đơn xấu là đúng."
+        ),
+    )
     if metric_choice is None:
         metric_choice = "Đơn xấu dự kiến"
-    with help_col:
-        with st.popover("?"):
-            st.markdown(
-                "- Mỗi giả định được đẩy lệch ±20%, các giả định khác giữ nguyên.\n"
-                "- Độ dài thanh = mức kết quả thay đổi; thanh càng dài, kết quả càng phụ thuộc giả định đó.\n"
-                "- Hệ số mùa vụ nhân vào số đơn của mọi seller nên luôn dài nhất, nhưng làm P0/P1/P2 dịch cùng chiều nên không đổi phương án được chọn.\n"
-                "- Hiệu quả can thiệp chỉ tác động lên seller bị gắn cờ, cần kiểm chứng bằng thí điểm.\n"
-                "- Tỷ lệ chuyển đơn chỉ ảnh hưởng GMV, nên bằng 0 ở chế độ đơn xấu là đúng."
-            )
 
     is_gmv = metric_choice == "GMV bị ảnh hưởng (%)"
     metric_col = "gmv_affected_pct" if is_gmv else "expected_bad_orders"
@@ -657,15 +654,8 @@ def _render_decision(scores, params: PolicyParams, results, recommended: str | N
 
 
 def _section_header(title: str, help_text: str | None = None) -> None:
-    if help_text is None:
-        st.markdown(f"**{title}**")
-        return
-    head_col, pop_col = st.columns([10, 1], vertical_alignment="center")
-    with head_col:
-        st.markdown(f"**{title}**")
-    with pop_col:
-        with st.popover("?"):
-            st.markdown(help_text)
+    st.markdown(f"**{title}**", help=help_text
+    )
 
 
 def _assumptions_form(scores: pd.DataFrame) -> None:
@@ -825,11 +815,13 @@ def _assumptions_form(scores: pd.DataFrame) -> None:
             kpi_card("Số seller xử lý tối đa", fmt_limit(N))
         st.caption("Chính sách của sàn (đặt trong SPEC), không phải giả định nên không chỉnh ở đây.")
 
-    apply_col, reset_col, _ = st.columns([1.2, 2.2, 4.6])
-    with apply_col:
-        apply = st.button("Áp dụng", type="primary")
-    with reset_col:
-        st.button("Đặt lại về mặc định", on_click=_reset_params)
+    button_row, _ = st.columns([3.4, 4.6])
+    with button_row:
+        apply_col, reset_col = st.columns([1.15, 2.2], gap="small")
+        with apply_col:
+            apply = st.button("Áp dụng", type="primary")
+        with reset_col:
+            st.button("Đặt lại về mặc định", on_click=_reset_params)
     if apply:
         applied = {
             "theta_1": float(theta_1),

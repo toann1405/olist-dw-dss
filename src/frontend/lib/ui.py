@@ -98,14 +98,19 @@ def signed_points(current, previous) -> str | None:
 
 def page_header(title: str, conclusion: str | None, kind: str | None) -> None:
     """Question, one data conclusion, and a single Thực tế or Dự báo badge."""
-    text, mark, action = st.columns([5, 1.1, 1], vertical_alignment="center", gap="medium")
+    text, action = st.columns([6.1, 1], vertical_alignment="center", gap="small")
     with text:
-        st.markdown(f"### {title}")
-    with mark:
+        badge = ""
         if kind == "actual":
-            badge_actual()
+            badge = _badge_html("Thực tế", "#e4eeed", NAVY)
         elif kind == "predicted":
-            badge_predicted()
+            badge = _badge_html("Dự báo", "#ede9fe", "#6d28d9")
+        st.markdown(
+            "<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap'>"
+            f"<span style='font-size:28px;font-weight:600;line-height:1.3;color:{INK}'>"
+            f"{escape(title)}</span>{badge}</div>",
+            unsafe_allow_html=True,
+        )
     with action:
         db.refresh_button(title)
     if conclusion:
@@ -116,11 +121,16 @@ def page_header(title: str, conclusion: str | None, kind: str | None) -> None:
 MIN_N_DISPLAY = 30
 
 
-def _badge(text: str, background: str, color: str) -> None:
-    st.markdown(
-        f"<span style='background:{background};color:{color};padding:2px 8px;border-radius:999px;'>{text}</span>",
-        unsafe_allow_html=True,
+def _badge_html(text: str, background: str, color: str) -> str:
+    return (
+        f"<span style='background:{background};color:{color};padding:2px 8px;"
+        f"border-radius:999px;font-size:0.85rem;font-weight:600;white-space:nowrap'>"
+        f"{escape(text)}</span>"
     )
+
+
+def _badge(text: str, background: str, color: str) -> None:
+    st.markdown(_badge_html(text, background, color), unsafe_allow_html=True)
 
 
 def badge_predicted() -> None:

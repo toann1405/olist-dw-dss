@@ -11,14 +11,26 @@
 | Mục | Nội dung |
 |---|---|
 | Phase hiện tại | Trước hạn 15/11: app Streamlit sáu trang (Home + bốn câu hỏi + Dữ liệu & phương pháp). Power BI là future work. T1 chốt 15/10/2026. X=10, N=40. Tháng chấm DSS 2018-08 |
-| Đang làm | Branch `fix/seller-risk-page`: M1 trả calibration và đóng góp yếu tố; tab Độ tin cậy có 3 thẻ. Job DSS chưa chạy lại trên Databricks. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
+| Đang làm | Branch `feat/policy-review`: siết hàng nút Áp dụng / Đặt lại trên tab Giả định. R09 vẫn ◐. Checkbox PLAN Phase 4/5 chưa tick |
 | Blocker | Không |
 | Việc tiếp theo | Chạy lại job DSS để tab Độ tin cậy có số của warehouse. Chưa mở PR. Báo cáo PDF và slide vẫn còn |
-| Cập nhật | 13/11/2026 (form giả định trang chính sách) |
+| Cập nhật | 13/11/2026 (nút form giả định sát nhau) |
 
 ---
 
 ## Nhật ký
+
+### 13/11/2026 — Nút Áp dụng và Đặt lại sát nhau
+
+- **Đã làm:** Tab Giả định bỏ hàng `st.columns([1.2, 2.2, 4.6])`. Hai nút nằm trong cột hẹp căn trái, rồi hai cột compact `gap="small"`. Giữ nhãn, `type="primary"` và `on_click=_reset_params`. Không đụng logic DSS. Giữ tooltip hover của tiêu đề khối. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** Đã mở `http://localhost:8501/policy`, tab Giả định. Hai nút cùng hàng, cùng cao 40px; khoảng cách đo được 26px; không còn khoảng trống rộng giữa chúng.
+- **Chưa làm:** không chạy pytest trong phiên này.
+
+### 13/11/2026 — Badge sát title, bỏ nút ?
+
+- **Đã làm:** `page_header` đặt nhãn Thực tế/Dự báo ngay sau câu hỏi, nút Làm mới vẫn bên phải. Tab Độ tin cậy dùng `help=` trên segmented control. Tiêu đề khối giả định dùng tooltip hover, không còn `st.popover("?")`. Không tick PLAN. R09 vẫn ◐. Không đổi SPEC §10.
+- **Đã chạy:** Đã mở `http://localhost:8501/policy`. Badge «Dự báo» đứng sát «Chọn chính sách nào?». Tab Độ tin cậy không còn nút `?`. Tab Giả định còn dấu `?` nhỏ cạnh tiêu đề khối, hover chứ không phải button.
+- **Chưa làm:** không chạy pytest trong phiên này.
 
 ### 13/11/2026 — Form giả định không ghi đè slider
 
