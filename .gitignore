@@ -42,6 +42,16 @@ docs/report/*.log
 docs/report/*.out
 docs/report/*.toc
 docs/report/_build/
+docs/report_slide/latex/*.aux
+docs/report_slide/latex/*.log
+docs/report_slide/latex/*.out
+docs/report_slide/latex/*.toc
+docs/report_slide/latex/*.lof
+docs/report_slide/latex/*.lot
+docs/report_slide/latex/*.fls
+docs/report_slide/latex/*.fdb_latexmk
+docs/report_slide/latex/*.synctex.gz
+docs/report_slide/latex/_build/
 
 # --- Local DB files / logs ---
 *.duckdb
