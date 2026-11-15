@@ -165,3 +165,12 @@ Inmon (2005); Kimball & Ross (2013); Golfarelli et al. (1998); Turban/Sharda (DS
 10. `docs/report/` được nhắc trong SPEC nhưng chưa tồn tại.
 11. `overwrite()` trong `dss_job.py` thực chất là DELETE rồi append.
 12. Số P0/P2 là số tạm ngày 12/11, phải xác nhận lại sau lần chạy Job DSS cuối.
+
+
+#### Compile locally:
+```
+cd D:\STUDY\DW\olist-dw-dss\docs\report_slide\latex
+mkdir _build -Force | Out-Null
+pdflatex -interaction=nonstopmode -output-directory=_build Assignment_report.tex
+pdflatex -interaction=nonstopmode -output-directory=_build Assignment_report.tex
+```

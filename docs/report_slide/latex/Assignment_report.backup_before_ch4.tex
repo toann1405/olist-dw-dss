@@ -1,0 +1,1167 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{vntex}
+%\usepackage[english,vietnam]{babel}
+
+%\usepackage[utf8]{inputenc}
+%\usepackage[francais]{babel}
+\usepackage{a4wide,amssymb,epsfig,latexsym,multicol,array,hhline,fancyhdr}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{lastpage}
+\usepackage[lined,boxed,commentsnumbered]{algorithm2e}
+\usepackage{enumerate}
+\usepackage{color}
+\usepackage{graphicx}							% Standard graphics package
+\usepackage{array}
+\usepackage{tabularx, caption}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage[framemethod=tikz]{mdframed}% For highlighting paragraph backgrounds
+\usepackage{multicol}
+\usepackage{rotating}
+\usepackage{graphics}
+\usepackage[a4paper, left=2.5cm, right=2cm, top=2.5cm, bottom=2.5cm, headheight=30pt, headsep=10pt]{geometry}\usepackage{setspace}
+\usepackage{epsfig}
+\usepackage{tikz}
+\usepackage{listings}
+\usetikzlibrary{arrows,snakes,backgrounds}
+\usepackage{hyperref}
+\hypersetup{urlcolor=blue,linkcolor=black,citecolor=black,colorlinks=true} 
+%\usepackage{pstcol} 								% PSTricks with the standard color package
+
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.8}
+
+\newtheorem{theorem}{{\bf Định lý}}
+\newtheorem{property}{{\bf Tính chất}}
+\newtheorem{proposition}{{\bf Mệnh đề}}
+\newtheorem{corollary}[proposition]{{\bf Hệ quả}}
+\newtheorem{lemma}[proposition]{{\bf Bổ đề}}
+
+\everymath{\color{black}}
+%\usepackage{fancyhdr}
+\setlength{\headheight}{40pt}
+\pagestyle{fancy}
+\fancyhead{} % clear all header fields
+\fancyhead[L]{
+ \begin{tabular}{rl}
+    \begin{picture}(25,15)(0,0)
+    \put(0,-8){\includegraphics[width=8mm, height=8mm]{hcmut.png}}
+    %\put(0,-8){\epsfig{width=10mm,figure=hcmut.eps}}
+   \end{picture}&
+	%\includegraphics[width=8mm, height=8mm]{hcmut.png} & %
+	\begin{tabular}{l}
+		\textbf{\bf \ttfamily Trường Đại Học Bách Khoa Tp.Hồ Chí Minh}\\
+		\textbf{\bf \ttfamily Khoa Khoa Học và Kỹ Thuật Máy Tính}
+	\end{tabular} 	
+ \end{tabular}
+}
+\fancyhead[R]{
+	\begin{tabular}{l}
+		\tiny \bf \\
+		\tiny \bf 
+	\end{tabular}  }
+\fancyfoot{} % clear all footer fields
+\fancyfoot[L]{\scriptsize \ttfamily Bài tập lớn môn Kho dữ liệu và Hệ hỗ trợ Quyết định - Niên khóa 2026-2027}
+\fancyfoot[R]{\scriptsize \ttfamily Trang {\thepage}/\pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.3pt}
+
+
+%%%
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{3}
+\makeatletter
+\newcounter {subsubsubsection}[subsubsection]
+\renewcommand\thesubsubsubsection{\thesubsubsection .\@alph\c@subsubsubsection}
+\newcommand\subsubsubsection{\@startsection{subsubsubsection}{4}{\z@}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\newcommand*\l@subsubsubsection{\@dottedtocline{3}{10.0em}{4.1em}}
+\newcommand*{\subsubsubsectionmark}[1]{}
+\makeatother
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+	language=SQL,
+	aboveskip=3mm,
+	belowskip=3mm,
+	showstringspaces=false,
+	columns=flexible,
+	basicstyle={\small\ttfamily},
+	numbers=none,
+	numberstyle=\tiny\color{gray},
+	keywordstyle=\color{blue},
+	commentstyle=\color{dkgreen},
+	stringstyle=\color{mauve},
+	breaklines=true,
+	breakatwhitespace=true,
+	tabsize=3,
+	numbers=left,
+	stepnumber=1,
+	numbersep=1pt,    
+	firstnumber=1,
+	numberfirstline=true
+}
+
+\begin{document}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\everymath{}%
+\color{black}%
+\definecolor{accent}{HTML}{333333}%
+\centering
+
+{\large
+ĐẠI HỌC QUỐC GIA TP.HCM \\
+TRƯỜNG ĐẠI HỌC BÁCH KHOA \\
+KHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH\par
+}
+
+\vspace{1.2cm}
+
+\includegraphics[width=10cm]{hcmut.png}\par
+
+\vspace{1.2cm}
+
+{\large\bfseries KHO DỮ LIỆU VÀ HỆ HỖ TRỢ QUYẾT ĐỊNH (CO4031) -- HK261\par}
+\smallskip
+{\large BÁO CÁO BÀI TẬP LỚN\par}
+
+\vspace{1.2cm}
+
+{\color{accent}\rule{\linewidth}{0.8pt}}\par
+\medskip
+\parbox{\linewidth}{\centering
+{\LARGE\bfseries HỆ HỖ TRỢ QUYẾT ĐỊNH CAN THIỆP \\ NGƯỜI BÁN TRÊN SÀN OLIST\par}
+\smallskip
+{\large\itshape Từ kho dữ liệu đến lựa chọn chính sách\par}
+}\par
+\medskip
+{\color{accent}\rule{\linewidth}{0.8pt}}\par
+
+\vspace{1.2cm}
+
+\begin{tabular}{@{}l@{\hspace{1em}}l@{\hspace{1.5em}}r@{}}
+\textbf{GVHD:} & Đỗ Thanh Thái & \\
+\textbf{Nhóm:} & 18 & \\
+\textbf{Sinh viên thực hiện:} & Nguyễn Đức Toàn & 2313485 \\
+ & Phạm Quan Thành & 2313138 \\
+ & Trần Đăng Khoa & 2311643 \\
+\end{tabular}\par
+
+\vfill
+
+{\normalsize TP. HỒ CHÍ MINH, THÁNG 11/2026\par}
+\end{titlepage}
+
+
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PHẦN MỞ ĐẦU (KHÔNG TÍNH TRANG)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phantomsection
+\addcontentsline{toc}{section}{Bảng phân công thành viên}
+\section*{Bảng phân công thành viên}
+% Ý chính: Phân công vai trò và tỷ lệ đóng góp của 3 thành viên (R14 - yêu cầu bắt buộc của đề).
+% Nguồn repo: docs/PROGRESS_LOG.md
+% Lưu ý bìa (R19): Bổ sung link GitHub, link app https://olist-dw-dss.streamlit.app/ và link video (nếu có) ở trang bìa hoặc phần giới thiệu mở đầu.
+% [CẦN ĐIỀN] Vai trò cụ thể và % đóng góp của từng thành viên.
+
+\begin{table}[H]
+\centering
+\caption{Bảng phân công công việc và tỷ lệ đóng góp của các thành viên}
+\label{tab:member_assignment}
+\begin{tabularx}{\textwidth}{llXc}
+\toprule
+\textbf{MSSV} & \textbf{Họ và tên} & \textbf{Vai trò / Công việc phụ trách} & \textbf{Đóng góp (\%)} \\
+\midrule
+2313485 & Nguyễn Đức Toàn & Thiết kế kho dữ liệu, ETL, viết báo cáo & 100 \\
+2313138 & Phạm Quan Thành & Xây dựng dashboard, phân tích OLAP, viết báo cáo & 100 \\
+2311643 & Trần Đăng Khoa  & Xây dựng DSS, mô hình M1 và M2 & 100 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\phantomsection
+\addcontentsline{toc}{section}{Tóm tắt}
+\section*{Tóm tắt}
+
+Trên sàn thương mại điện tử Olist, người bán tự chuẩn bị kiện hàng và bàn giao cho đơn vị vận chuyển, nên nhóm người bán xử lý chậm hoặc cung cấp sản phẩm kém sẽ kéo tỷ lệ giao trễ và đánh giá tiêu cực của toàn sàn tăng lên. Nhằm giải quyết bài toán lựa chọn chính sách can thiệp người bán hằng tháng, nhóm xây dựng hệ hỗ trợ quyết định (DSS) trên kiến trúc Medallion tại Databricks (Unity Catalog), gồm kho dữ liệu star schema tầng Gold, quy trình ETL kiểm soát chất lượng dữ liệu (DQ), lớp phân tích ROLAP và ứng dụng Streamlit sáu trang tích hợp mô hình dự báo rủi ro (M1) cùng mô hình mô phỏng chính sách (M2).
+
+Trên tập dữ liệu 99.441 đơn hàng lịch sử với tổng GMV đạt R\$ 13.494.400,74, tỷ lệ đơn trải nghiệm xấu (điểm đánh giá $\le 2$ hoặc giao trễ hẹn) chiếm 16,8\%, còn mô hình M1 đạt chỉ số AUC là \textbf{[CẦN SỐ]}. Dưới hai ràng buộc vận hành cố định là $X = 10\%$ GMV bị ảnh hưởng và $N = 40$ người bán mỗi tháng, mô hình M2 cho phép đối chiếu phương án theo ngưỡng KPI cố định (P1) và ngưỡng rủi ro dự báo (P2), làm cơ sở điều chỉnh ngưỡng mục tiêu và ghi nhận quyết định chính thức vào \texttt{dss.decision\_log}.
+
+\phantomsection
+\addcontentsline{toc}{section}{Danh mục từ viết tắt}
+\section*{Danh mục từ viết tắt}
+\nopagebreak[4]
+Bảng~\ref{tab:abbreviations} tổng hợp các chữ viết tắt sử dụng trong báo cáo.\par
+\nopagebreak[4]
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.47\textwidth}@{}}
+\caption{Danh mục thuật ngữ và từ viết tắt}\label{tab:abbreviations}\\
+\toprule
+\textbf{Viết tắt} & \textbf{Tên đầy đủ} & \textbf{Nghĩa tiếng Việt} \\
+\midrule
+\endfirsthead
+\caption[]{Danh mục thuật ngữ và từ viết tắt (tiếp theo)}\\
+\toprule
+\textbf{Viết tắt} & \textbf{Tên đầy đủ} & \textbf{Nghĩa tiếng Việt} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\textit{Xem tiếp trang sau}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+AOV & \textit{Average Order Value} & Giá trị đơn hàng trung bình (GMV chia số đơn hợp lệ) \\
+AUC & \textit{Area Under the ROC Curve} & Diện tích dưới đường cong ROC đánh giá mô hình M1 \\
+DQ & \textit{Data Quality} & Chất lượng dữ liệu và kiểm tra toàn vẹn \\
+DSS & \textit{Decision Support System} & Hệ hỗ trợ quyết định \\
+DW & \textit{Data Warehouse} & Kho dữ liệu \\
+ERD & \textit{Entity-Relationship Diagram} & Sơ đồ thực thể kết hợp \\
+ETL & \textit{Extract, Transform, Load} & Quy trình trích xuất, biến đổi và nạp dữ liệu \\
+GMV & \textit{Gross Merchandise Value} & Tổng giá trị hàng hóa (không gồm phí vận chuyển) \\
+IBGE & \textit{Instituto Brasileiro de Geografia e Estatística} & Viện Địa lý và Thống kê Brazil (bảng ánh xạ 27 bang sang vùng) \\
+KPI & \textit{Key Performance Indicator} & Chỉ số đo lường hiệu suất chính \\
+MQL & \textit{Marketing Qualified Lead} & Khách hàng tiềm năng từ dữ liệu Marketing Funnel \\
+OLAP & \textit{Online Analytical Processing} & Xử lý phân tích trực tuyến \\
+OLTP & \textit{Online Transaction Processing} & Xử lý giao dịch trực tuyến \\
+ROC & \textit{Receiver Operating Characteristic} & Đường cong đặc trưng hoạt động của bộ phân loại \\
+ROLAP & \textit{Relational OLAP} & Phân tích đa chiều trên cơ sở dữ liệu quan hệ \\
+RTM & \textit{Requirements Traceability Matrix} & Ma trận truy xuất yêu cầu \\
+SCD & \textit{Slowly Changing Dimension} & Chiều biến đổi chậm trong kho dữ liệu \\
+SQL & \textit{Structured Query Language} & Ngôn ngữ truy vấn có cấu trúc \\
+UC & \textit{Unity Catalog} & Hệ thống quản trị siêu dữ liệu và phân quyền trên Databricks \\
+\end{longtable}
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Mở đầu và bài toán quyết định}
+\label{sec:ch1}
+
+\subsection{Bối cảnh và lý do chọn đề tài}
+\label{subsec:1_1}
+
+Olist là nền tảng thương mại điện tử kết nối hàng nghìn nhà bán hàng nhỏ lẻ (seller) tại Brazil với các sàn giao dịch lớn. Do không trực tiếp lưu kho toàn bộ hàng hóa, Olist giao người bán tự chuẩn bị đơn và bàn giao kiện hàng cho đơn vị vận chuyển đúng hạn (\texttt{shipping\_limit\_date}). Khi người bán xử lý chậm hoặc cung cấp sản phẩm kém, tình trạng giao trễ và đánh giá tiêu cực lan rộng trên toàn sàn. Trên dữ liệu lịch sử của Olist, tỷ lệ đơn trải nghiệm xấu (điểm đánh giá $\le 2$ hoặc giao trễ hẹn) chiếm 16,8\%, đặt ra nhu cầu giám sát và can thiệp kịp thời nhóm người bán rủi ro cao.
+
+Nhóm đã đối chiếu ba hướng đề tài theo mức độ phù hợp với kho dữ liệu, phân tích đa chiều và hệ hỗ trợ quyết định: quản lý hiệu suất người bán, điều chỉnh ngày hẹn giao theo tuyến bang, và giữ chân khách hàng bằng khuyến mãi. Hướng giữ chân khách hàng thiếu cơ sở nhân quả vì phần lớn khách chỉ mua một lần, và bộ dữ liệu không có chi phí hay phản hồi chiến dịch. Hướng điều chỉnh ngày hẹn giao khả thi về vận hành, nhưng không đo được lợi ích thương mại khi rút ngắn thời gian hẹn và thiếu mã định danh đơn vị vận chuyển.
+
+Hướng quản lý hiệu suất người bán đáp ứng ba điều kiện của một kho dữ liệu gắn với hệ hỗ trợ quyết định: (i) có người ra quyết định rõ ràng, chu kỳ hằng tháng và tiêu chuẩn lựa chọn đo được; (ii) đòi hỏi tích hợp nhiều nguồn, gồm 9 bảng giao dịch Olist, Marketing Funnel (842 \texttt{closed\_deals}, 8.000 \texttt{MQL})~\cite{bib:olist} và bảng phân vùng IBGE (27 bang)~\cite{bib:ibge}; (iii) cho phép mô hình dự báo xác suất rủi ro kết hợp mô phỏng chính sách có ràng buộc. Các chỉ số giao hàng là một phần của đánh giá người bán, nên hướng này bao quát luôn góc nhìn hậu cần trên cùng một kho.
+
+\subsection{Bài toán quyết định}
+\label{subsec:1_2}
+
+Người ra quyết định (\textit{decision maker}) là Trưởng bộ phận Quản lý chất lượng người bán (\textit{Seller Quality / Marketplace Operations Manager}). Hằng tháng, tại tháng chấm chuẩn (\texttt{AS\_OF\_MONTH} = \texttt{2018-08}), nhà quản lý phân loại các người bán đủ điều kiện (tối thiểu \texttt{MIN\_ORDERS} = 5 đơn hợp lệ trong tháng) vào bốn hạng can thiệp tăng dần: \textit{Bình thường}, \textit{Theo dõi} (mức 1), \textit{Cảnh báo và hỗ trợ} (mức 2) và \textit{Tạm ngưng hiển thị} (mức 3).
+
+Hệ thống đối chiếu ba nhóm phương án (\textit{alternatives}):
+\begin{itemize}
+    \item \textbf{P0 (Không can thiệp):} Giữ nguyên hiện trạng của toàn bộ người bán, làm mốc so sánh.
+    \item \textbf{P1 (Ngưỡng KPI cố định):} Can thiệp theo hiệu suất quá khứ, kích hoạt khi tỷ lệ bàn giao trễ vượt \texttt{LATE\_SHIP\_THRESHOLD} = 0,15 hoặc điểm đánh giá trung bình dưới \texttt{AVG\_REVIEW\_THRESHOLD} = 3,5, với hiệu quả giảm đơn xấu giả định \texttt{E\_P1} = 0,50.
+    \item \textbf{P2 (Ngưỡng xác suất rủi ro):} Phân hạng theo xác suất đơn trải nghiệm xấu tháng tới ($p_i$) do mô hình M1 dự báo qua các ngưỡng mặc định $\theta_1 = 0,20$, $\theta_2 = 0,35$ và $\theta_3 = 0,50$ (hiệu quả giả định tương ứng $e_1 = 0,25$, $e_2 = 0,50$ và $e_3 = 0,75$). Các ngưỡng này có thể tùy chỉnh trên giao diện mô phỏng.
+\end{itemize}
+
+Nguyên tắc lựa chọn (\textit{principle of choice}) là tối thiểu hóa tổng số đơn trải nghiệm xấu dự kiến ở tháng tiếp theo (điểm đánh giá $\le 2$ hoặc giao trễ hẹn), đồng thời thỏa hai ràng buộc vận hành: tỷ trọng GMV ảnh hưởng không vượt quá $X = 10\%$ và số người bán xử lý không vượt quá $N = 40$ người mỗi tháng. Các tham số mô phỏng như tỷ lệ giữ lại doanh thu ($R = 0,5$) và hệ số quy mô ($S = 1,0$) được khai báo tập trung trong \texttt{src/dss/params.py} (Bảng~\ref{tab:decision_problem}).
+
+\begin{table}[htbp]
+\centering
+\caption{Thành phần bài toán quyết định quản lý hiệu suất người bán}
+\label{tab:decision_problem}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Thành phần} & \textbf{Mô tả / Giá trị trong hệ thống} \\
+\midrule
+Người ra quyết định & Trưởng bộ phận Quản lý chất lượng người bán (\textit{Seller Quality / Marketplace Ops Manager}) \\
+Đối tượng & Người bán có tối thiểu \texttt{MIN\_ORDERS} = 5 đơn hợp lệ tại \texttt{AS\_OF\_MONTH} = \texttt{2018-08} \\
+Bốn hạng can thiệp & Bình thường; Mức 1: Theo dõi; Mức 2: Cảnh báo và hỗ trợ; Mức 3: Tạm ngưng hiển thị \\
+Phương án & P0: Không can thiệp; P1: Ngưỡng KPI cố định (\texttt{late\_ship} $>$ 0,15 hoặc \texttt{avg\_review} $<$ 3,5; $e_{P1} = 0,50$); P2: Ngưỡng xác suất M1 ($\theta_1 = 0,20$, $\theta_2 = 0,35$, $\theta_3 = 0,50$; $e_1 = 0,25$, $e_2 = 0,50$, $e_3 = 0,75$) \\
+Tiêu chuẩn lựa chọn & Tối thiểu hóa tổng số đơn trải nghiệm xấu dự kiến ở tháng kế tiếp \\
+Ràng buộc trần ($X, N$) & Tỷ trọng GMV bị ảnh hưởng $\le X = 10,0\%$; số người bán xử lý $\le N = 40$ mỗi tháng \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Câu hỏi phân tích}
+\label{subsec:1_3}
+
+Nhóm xây dựng bộ 10 câu hỏi phân tích từ Q1 đến Q10 cho pha \textit{Intelligence}, nối trực tiếp yêu cầu nghiệp vụ với các bảng fact, dimension và phép toán OLAP tầng Gold (Bảng~\ref{tab:analytical_questions}). Trong đó, Q1--Q5 ứng với năm phép OLAP chuẩn (\textit{roll-up, drill-down, slice, dice, pivot}) để tìm điểm nóng theo địa lý, thời gian và danh mục; Q6--Q10 kiểm tra tỷ lệ trải nghiệm xấu cấp người bán, hai trần ràng buộc $(X, N)$, nhóm người bán từ Marketing Funnel và tác động của các tháng thưa.
+
+\begin{longtable}{@{}c>{\raggedright\arraybackslash}p{0.40\textwidth}>{\raggedright\arraybackslash}p{0.26\textwidth}>{\raggedright\arraybackslash}p{0.20\textwidth}@{}}
+\caption{Ánh xạ các câu hỏi phân tích Q1--Q10 với KPI và dimension}\label{tab:analytical_questions}\\
+\toprule
+\textbf{Mã} & \textbf{Câu hỏi phân tích} & \textbf{KPI chính} & \textbf{Dimension} \\
+\midrule
+\endfirsthead
+\caption[]{Ánh xạ các câu hỏi phân tích Q1--Q10 (tiếp theo)}\\
+\toprule
+\textbf{Mã} & \textbf{Câu hỏi phân tích} & \textbf{KPI chính} & \textbf{Dimension} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\textit{Xem tiếp trang sau}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+Q1 & Tỷ lệ bàn giao trễ theo Thành phố $\to$ Bang $\to$ Vùng: lỗi cục bộ hay theo vùng? & \texttt{late\_ship\_rate} & Seller (vùng, bang, TP); Thời gian \\
+Q2 & Tỷ lệ review $\le 2$ theo Năm $\to$ Quý $\to$ Tháng $\to$ Ngày: tháng nào bất thường? & Tỷ lệ review $\le 2$ toàn sàn & Thời gian (ngày) \\
+Q3 & Trong một nhóm danh mục, seller nào có tỷ lệ giao trễ cao nhất? & Tỷ lệ giao trễ hẹn & Nhóm danh mục; Seller \\
+Q4 & Khách Norte/Nordeste, Q1--Q2/2018, hàng cồng kềnh: tỷ lệ trễ và review $\le 2$ theo bang seller? & Tỷ lệ giao trễ; Tỷ lệ review $\le 2$ (seller) & Địa lý khách; Thời gian; Sản phẩm; Bang seller \\
+Q5 & Xoay bảng Bang seller $\times$ Quý sang Nhóm danh mục $\times$ Quý: nguồn trễ nằm ở đâu? & \texttt{late\_ship\_rate} & Bang seller; Quý; Nhóm danh mục \\
+Q6 & Tỷ lệ trải nghiệm xấu theo seller-tháng (loại đơn nhiều seller/\texttt{cross\_seller} ở nhánh review)? & \texttt{bad\_experience\_rate} & Seller; Tháng \\
+Q7 & GMV của seller gắn cờ có vượt trần $X = 10\%$ GMV kỳ? & \% GMV ảnh hưởng ($\le 10\%$) & Seller; Tháng \\
+Q8 & Số seller gắn cờ mỗi tháng có nằm trong trần $N = 40$? & Số seller gắn cờ ($\le 40$) & Seller; Tháng \\
+Q9 & Seller có \texttt{closed\_deals} khác nhóm không qua funnel ở tỷ lệ trải nghiệm xấu? & Tỷ lệ trải nghiệm xấu; Số seller & Seller (funnel); Tháng \\
+Q10 & Sáu tháng thưa (2016-09, 10, 12; 2017-01; 2018-09, 10) có làm lệch KPI so với 2017-02--2018-08? & Tỷ lệ trải nghiệm xấu; Số đơn & Thời gian (tháng) \\
+\end{longtable}
+
+\subsection{Phạm vi, đóng góp và cấu trúc báo cáo}
+\label{subsec:1_4}
+
+Hệ thống xử lý theo chế độ lô (\textit{batch}) trên cửa sổ dữ liệu từ \texttt{2016-09-04} đến \texttt{2018-10-17} (giữ lại cả 6 tháng thưa, không có dữ liệu tháng \texttt{2016-11}) và triển khai trọn bộ pipeline Bronze, Silver và Gold trên Databricks Free Edition với Unity Catalog (UC). Các nội dung nằm ngoài phạm vi gồm tối ưu lợi nhuận ròng (thiếu giá vốn, hoa hồng và phí vận chuyển thực tế), phân tích NLP văn bản đánh giá, dự báo nhu cầu toàn sàn và cơ chế thời gian thực ở môi trường sản xuất (streaming, CDC, Auto Loader, Power BI).
+
+Ba đóng góp chính của báo cáo gồm: (i) thiết kế kho dữ liệu Lakehouse dạng \textit{fact constellation} với 3 bảng fact, 7 dimension và quy trình ETL kiểm soát chất lượng (DQ) qua \texttt{gold.etl\_audit}; (ii) xây dựng lớp phân tích ROLAP trên Databricks SQL Warehouse thực thi nhất quán năm phép OLAP; và (iii) phát triển DSS tích hợp mô hình dự báo M1 cùng mô hình mô phỏng M2 trong ứng dụng Streamlit sáu trang hỗ trợ \textit{what-if}, \textit{goal seeking}, phân tích độ nhạy và lưu vết vào \texttt{dss.decision\_log}.
+
+Bố cục các chương tiếp theo: Chương~\ref{sec:ch2} tóm tắt cơ sở lý thuyết kho dữ liệu, OLAP và DSS; Chương~\ref{sec:ch3} phân tích dữ liệu nguồn, kết quả profiling và kiến trúc giải pháp; Chương~\ref{sec:ch4} trình bày thiết kế tầng Gold, pipeline ETL và kiểm soát chất lượng; Chương~\ref{sec:ch5} trình bày lớp ROLAP, kết quả 5 phép OLAP, mô hình M1, M2 và ứng dụng Streamlit; Chương~\ref{sec:ch6} đối chiếu yêu cầu, đánh giá kết quả, hạn chế và hướng phát triển; Chương~\ref{sec:ch7} tổng kết lời giải bài toán quyết định.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 2
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Cơ sở lý thuyết}
+\label{sec:ch2}
+
+\subsection{Data warehouse và lakehouse}
+\label{subsec:2_1}
+
+Theo Inmon, \textit{data warehouse} (kho dữ liệu) là tập hợp dữ liệu phục vụ ra quyết định quản trị với bốn đặc tính~\cite{bib:inmon2005}:
+\begin{itemize}
+  \item \textit{Subject-oriented} (hướng chủ đề): Dữ liệu được gom theo các đối tượng phân tích chính như đơn hàng, sản phẩm và người bán, giúp nhà quản lý theo dõi xuyên suốt một chủ thể thay vì tra cứu rời rạc từng quy trình tác nghiệp. Trong \texttt{olist-dw-dss}, chín tệp giao dịch Olist và hai tệp Marketing Funnel được tổ chức lại quanh chủ đề hiệu suất người bán.
+  \item \textit{Integrated} (tích hợp): Các nguồn không đồng nhất phải được quy chuẩn về kiểu dữ liệu, đơn vị đo và bộ mã dùng chung để tránh sai lệch khi tổng hợp. Đề tài chuẩn hóa mã bang theo bảng IBGE, đồng nhất tên thành phố và ghép nối người bán từ cả hai nguồn Olist và Marketing Funnel.
+  \item \textit{Time-variant} (biến thiên theo thời gian): Mọi bản ghi đều gắn mốc thời gian xác định nhằm phân tích xu hướng nhiều kỳ. Kho lưu toàn bộ cửa sổ lịch sử 2016--2018 để so sánh biến động tỷ lệ đơn xấu theo từng tháng.
+  \item \textit{Non-volatile} (bất biến): Dữ liệu đã nạp vào kho phục vụ chủ yếu thao tác đọc phân tích và không bị người dùng cuối sửa xóa tùy tiện, bảo đảm báo cáo quá khứ luôn tái lập được. Các bảng Gold chỉ cập nhật có kiểm soát qua quy trình ETL định kỳ.
+\end{itemize}
+
+Hệ tác nghiệp cần độ trễ phản hồi rất ngắn cho từng giao dịch đơn lẻ, còn hệ phân tích lại thực hiện phép quét và tổng hợp trên tập dữ liệu lịch sử lớn. Tách riêng hai khối lượng công việc thành \textit{OLTP} (\textit{online transaction processing}, xử lý giao dịch trực tuyến) và \textit{OLAP} (\textit{online analytical processing}, xử lý phân tích trực tuyến) giúp tránh tranh chấp khóa bảng và bộ nhớ đệm~\cite{bib:inmon2005,bib:kimball2013}. Bảng~\ref{tab:oltp_vs_olap} đối chiếu hai loại hệ thống này.
+
+\begin{table}[htbp]
+\centering
+\caption{So sánh hệ thống xử lý giao dịch (OLTP) và hệ thống phân tích (OLAP)}
+\label{tab:oltp_vs_olap}
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Tiêu chí} & \textbf{OLTP} & \textbf{OLAP} \\
+\midrule
+Mục đích & Vận hành giao dịch hằng ngày. & Tổng hợp, phân tích xu hướng và hỗ trợ quyết định. \\
+Người dùng & Nhân viên vận hành, khách hàng. & Nhà phân tích, quản lý cấp trung và lãnh đạo. \\
+Mô hình & Chuẩn hóa cao (3NF), tối ưu ghi. & Mô hình đa chiều (\textit{star schema}), tối ưu đọc. \\
+Kiểu truy vấn & Giao dịch ngắn, chạm ít bản ghi theo khóa. & Quét dữ liệu lớn, nhiều phép \texttt{JOIN} và tổng hợp. \\
+Độ mới dữ liệu & Thời gian thực tại thời điểm phát sinh. & Cập nhật định kỳ theo lô (\textit{batch}) hoặc vi lô. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Về cấu trúc lưu trữ, kho dữ liệu thường chia thành ba tầng~\cite{bib:inmon2005}: \textit{source/staging layer} tiếp nhận dữ liệu thô để tách biệt hệ nguồn và cho phép chạy lại khi lỗi; \textit{integration/DW layer} làm sạch, khử trùng lặp và chuẩn hóa khóa; còn \textit{presentation/data mart layer} cung cấp góc nhìn phân tích cho người dùng cuối. Có hai cách triển khai ba tầng này~\cite{bib:inmon2005,bib:kimball2013}: hướng \textit{top-down} của Inmon xây dựng kho trung tâm chuẩn 3NF trước rồi mới tách \textit{data mart}, cho độ nhất quán cao nhưng chi phí khởi tạo lớn; ngược lại, hướng \textit{bottom-up} của Kimball dựng từng \textit{data mart} đa chiều theo quy trình ưu tiên và liên kết bằng chiều thống nhất qua \textit{bus matrix}. Với phạm vi năm tuần và trọng tâm bài toán quản lý người bán, \texttt{olist-dw-dss} theo hướng \textit{bottom-up} của Kimball (Mục~\ref{subsec:3_4}).
+
+Để giảm chi phí đồng bộ giữa \textit{data lake} (lưu tệp thô trên lưu trữ đối tượng) và kho dữ liệu SQL riêng biệt, Armbrust và cộng sự~\cite{bib:armbrust2021} đề xuất kiến trúc \textit{data lakehouse}, bổ sung lớp nhật ký giao dịch \textit{ACID} (\textit{atomicity, consistency, isolation, durability}), kiểm soát lược đồ và lập chỉ mục trực tiếp trên tệp Parquet mở. Nhờ chạy trên cùng một bản lưu trữ chuẩn hóa có khả năng truy ngược phiên bản (\textit{time travel}), lakehouse tránh sai lệch dữ liệu giữa dashboard BI và mô hình học máy khi cùng đọc một nguồn. Trên nền Delta Lake của Databricks, luồng dữ liệu tuân theo mô hình \textit{Medallion} gồm ba lớp \textit{Bronze}, \textit{Silver} và \textit{Gold}~\cite{bib:databricks}. Bảng~\ref{tab:medallion_mapping} ánh xạ ba lớp này với các tầng kho dữ liệu và vai trò trong đề tài (xem thêm Mục~\ref{subsec:3_4}, \ref{subsec:3_5} và \ref{subsec:4_1}).
+
+\begin{table}[htbp]
+\centering
+\caption{Ánh xạ kiến trúc Medallion với các khái niệm kho dữ liệu và vai trò trong đề tài}
+\label{tab:medallion_mapping}
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Lớp Medallion} & \textbf{Khái niệm kho dữ liệu} & \textbf{Vai trò trong \texttt{olist-dw-dss}} \\
+\midrule
+Bronze & \textit{Staging layer} (vùng đệm tiếp nhận thô). & Nạp toàn phần (\texttt{overwrite}); giữ các cột nghiệp vụ ở kiểu \texttt{STRING}, bổ sung \texttt{\_ingest\_ts} và \texttt{\_source\_file}. \\
+Silver & \textit{Integration layer} (làm sạch, chuẩn hóa). & Nạp \texttt{overwrite}: ép kiểu dữ liệu, khử trùng lặp, đối chiếu mã bang IBGE và tọa độ địa lý, tách bản ghi lỗi. \\
+Gold & \textit{Data warehouse} và \textit{data mart}. & Triển khai \textit{star schema} / \textit{fact constellation} Delta; cập nhật \texttt{MERGE} theo \textit{grain} và kiểm tra DQ. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Mô hình đa chiều}
+\label{subsec:2_2}
+
+\textit{Dimensional modeling} (mô hình hóa đa chiều) tổ chức dữ liệu phục vụ truy vấn phân tích thông qua hai loại bảng: \textit{fact table} (bảng sự kiện) lưu các chỉ số định lượng (\textit{measures}) kèm khóa ngoại, còn \textit{dimension table} (bảng chiều) lưu ngữ cảnh mô tả như thời gian, địa lý, sản phẩm hay người bán~\cite{bib:kimball2013,bib:golfarelli1998}. Cấu trúc tách biệt này giúp người phân tích viết truy vấn gom nhóm trực quan và tránh lặp lại thông tin mô tả dài trong bảng giao dịch lớn. Trong \texttt{olist-dw-dss}, toàn bộ tầng Gold được thiết kế theo mô hình này để phục vụ đồng thời dashboard OLAP và bài toán DSS (Mục~\ref{subsec:4_1}).
+
+Khi thiết kế bảng sự kiện, bước bắt buộc đầu tiên là ấn định \textit{grain} (độ mịn), tức quy ước một dòng dữ liệu đại diện cho thực thể hay sự kiện ở mức chi tiết nào~\cite{bib:kimball2013}. Xác định đúng độ mịn ngay từ đầu giúp cố định tập bảng chiều hợp lệ và ngăn lỗi cộng trùng doanh thu khi trộn nhiều cấp chi tiết trong cùng bảng. Theo bản chất thời gian, bảng sự kiện chia thành ba loại~\cite{bib:kimball2013}: \textit{transaction fact} ghi nhận từng sự kiện rời rạc (như từng dòng sản phẩm đặt mua), \textit{periodic snapshot fact} tổng hợp trạng thái theo chu kỳ cố định (như hiệu suất người bán hằng tháng), còn \textit{accumulating snapshot fact} theo dõi vòng đời có các mốc thời gian cập nhật dần (như đơn hàng từ lúc đặt đến lúc giao và nhận đánh giá). Đề tài kết hợp cả ba loại bảng sự kiện tại Mục~\ref{subsec:4_1} nhằm vừa truy vết đơn lẻ vừa theo dõi hiệu suất theo tháng.
+
+Các phép đo trong bảng sự kiện mang ba tính chất cộng hợp khác nhau~\cite{bib:kimball2013}. \textit{Additive measures} (như doanh thu hay cước phí) cộng hợp lệ theo mọi chiều, trong khi \textit{semi-additive measures} (như số đơn tồn cuối kỳ) chỉ cộng theo một số chiều chứ không cộng qua chiều thời gian vì sẽ tính lặp trạng thái qua các ngày. Ngược lại, \textit{non-additive measures} (như tỷ lệ giao trễ hay điểm đánh giá trung bình) là tỷ số nên không thể lấy trung bình cộng của các nhóm con; bảng sự kiện phải lưu riêng tử số và mẫu số cộng được rồi mới chia lại ở tầng truy vấn để giữ đúng trọng số (Mục~\ref{subsec:4_3}).
+
+Để bảng chiều tách khỏi khóa nghiệp vụ dễ thay đổi của hệ nguồn (\textit{natural key}), kho dữ liệu cấp phát \textit{surrogate key} (khóa thay thế dạng số nguyên) làm khóa chính~\cite{bib:kimball2013}. Khóa số nguyên giúp phép \texttt{JOIN} gọn nhẹ hơn và hỗ trợ cơ chế \textit{SCD} (\textit{slowly changing dimension}, chiều biến đổi chậm) theo dõi thay đổi thuộc tính theo thời gian: \textit{SCD Type 1} ghi đè trực tiếp giá trị mới khi không cần giữ lịch sử (như sửa lỗi chính tả tên thành phố), còn \textit{SCD Type 2} giữ dòng cũ và chèn phiên bản mới với khóa thay thế mới kèm \texttt{valid\_from}, \texttt{valid\_to} và \texttt{is\_current}. Ví dụ, nếu một người bán chuyển bang kho hàng vào ngày 01/03/2018, các đơn cũ vẫn nối về bản ghi phiên bản cũ thông qua \texttt{seller\_sk} thay vì bị gán nhầm sang địa bàn mới (Mục~\ref{subsec:4_2}).
+
+Ở quy mô nhiều bảng sự kiện, \textit{role-playing dimension} (chiều đa vai) là một bảng chiều vật lý duy nhất được tham chiếu qua nhiều khóa ngoại ứng với các vai trò khác nhau, chẳng hạn \texttt{dim\_date} dùng chung cho ngày đặt hàng, ngày hẹn giao và ngày giao thực tế. Nhiều bảng sự kiện liên kết qua các \textit{conformed dimension} (chiều dùng chung đồng nhất định nghĩa) sẽ tạo thành \textit{fact constellation} (chòm sao sự kiện), được quy hoạch qua \textit{bus matrix} (ma trận giao giữa sự kiện và chiều) để mọi báo cáo dùng chung một chuẩn đo lường~\cite{bib:kimball2013}. Về cấu trúc vật lý, \textit{star schema} (lược đồ sao) phi chuẩn hóa bảng chiều để giảm số phép \texttt{JOIN} và tăng tốc độ truy vấn, còn \textit{snowflake schema} (lược đồ bông tuyết) chuẩn hóa phân cấp chiều nhằm tiết kiệm dung lượng nhưng làm truy vấn phức tạp hơn~\cite{bib:kimball2013,bib:golfarelli1998}. Vì lưu trữ cột Delta Lake nén hiệu quả dữ liệu lặp, \texttt{olist-dw-dss} chọn \textit{fact constellation} gồm các \textit{star schema} dùng chung chiều thống nhất tại Mục~\ref{subsec:4_1} và \ref{subsec:4_2}.
+
+\subsection{ETL và OLAP}
+\label{subsec:2_3}
+
+Hai mô hình đường ống nạp dữ liệu phổ biến là \textit{ETL} (trích xuất, biến đổi trên máy chủ trung gian rồi nạp vào kho) và \textit{ELT} (nạp dữ liệu thô vào vùng lưu trữ trung tâm trước rồi biến đổi trực tiếp bằng năng lực tính toán phân tán của kho)~\cite{bib:kimball2013,bib:databricks}. Chuyển sang ELT giúp tận dụng cụm tính toán Spark khi xử lý nhiều bảng lớn mà không tạo nút cổ chai ở máy chủ trung gian, đồng thời giữ lại nguyên bản dữ liệu thô để tái chạy khi cần sửa luật nghiệp vụ. Về chế độ nạp, \textit{full load} đọc toàn bộ nguồn và ghi đè bảng đích (\texttt{overwrite}), phù hợp cho các lớp đầu để đơn giản hóa đồng bộ; ngược lại, \textit{incremental load} chỉ xử lý phần phát sinh mới và thường thực hiện \textit{upsert} qua lệnh \texttt{MERGE} trên Delta Lake theo đúng khóa hoặc \textit{grain} trong giao dịch ACID~\cite{bib:databricks}. Cơ chế \texttt{MERGE} bảo đảm tính \textit{idempotent} (chạy lại nhiều lần vẫn cho một kết quả, không sinh bản ghi trùng). Hệ thống kết hợp hai phương thức này: Bronze và Silver chạy \textit{full load}, còn Gold dùng \texttt{MERGE} (Mục~\ref{subsec:4_4}).
+
+Đầu vào của kho dữ liệu cần được kiểm tra theo năm tiêu chí \textit{data quality} (chất lượng dữ liệu) để tránh sai lệch chỉ số khi tổng hợp~\cite{bib:kimball2013}: \textit{completeness} bảo đảm các trường khóa và mốc thời gian bắt buộc không bị thiếu hay \texttt{NULL}; \textit{validity} kiểm tra giá trị nằm đúng miền hợp lệ (như điểm đánh giá trong khoảng 1 đến 5) để loại bỏ nhiễu; \textit{uniqueness} xác nhận không trùng khóa ở cấp \textit{grain} nhằm tránh nhân đôi doanh thu; \textit{consistency} kiểm soát tính hợp lý logic giữa các cột (như ngày giao phải sau ngày đặt); và \textit{referential integrity} bảo đảm khóa ngoại ở bảng sự kiện luôn khớp được với bảng chiều thay vì để mồ côi khi \texttt{JOIN}. Các quy tắc kiểm định này được ghi nhận tự động vào bảng \texttt{gold.etl\_audit} tại Mục~\ref{subsec:4_5}.
+
+Trên mô hình đa chiều đã chuẩn hóa, tầng phân tích khai thác dữ liệu qua năm phép toán OLAP cơ bản~\cite{bib:kimball2013,bib:turban_dss}:
+\begin{enumerate}
+  \item \textit{Roll-up}: Gom dữ liệu từ mức chi tiết lên mức tổng hợp cao hơn theo phân cấp chiều (như từ thành phố lên bang và vùng).
+  \item \textit{Drill-down}: Đi sâu từ tổng quan xuống mức chi tiết hơn để truy nguyên nhân (như từ tỷ lệ đánh giá xấu theo năm xuống tháng và ngày).
+  \item \textit{Slice}: Giữ cố định một giá trị trên một chiều để xem lát cắt con (như lọc riêng một nhóm ngành hàng).
+  \item \textit{Dice}: Lọc đồng thời theo điều kiện trên nhiều chiều (như đơn hàng cồng kềnh giao tới vùng Norte và Nordeste trong Q1--Q2/2018).
+  \item \textit{Pivot}: Hoán đổi trục hàng và cột trong bảng chéo để đối chiếu từ góc nhìn khác (như đổi từ bang $\times$ quý sang ngành hàng $\times$ quý).
+\end{enumerate}
+
+Về kiến trúc lưu trữ, các hệ OLAP chia thành ba mô hình cài đặt~\cite{bib:turban_dss}. \textit{ROLAP} (\textit{relational OLAP}) lưu dữ liệu trên bảng quan hệ hoặc bảng cột rồi dịch thao tác phân tích thành câu lệnh SQL động, dễ mở rộng đến dữ liệu chi tiết; \textit{MOLAP} (\textit{multidimensional OLAP}) tính sẵn khối mảng đa chiều để phản hồi cực nhanh nhưng bùng nổ dung lượng khi chiều có độ phân giải lớn; còn \textit{HOLAP} (\textit{hybrid OLAP}) kết hợp dữ liệu tổng hợp dạng khối với bảng chi tiết quan hệ. Đề tài chọn \textit{ROLAP} chạy trên Databricks SQL Warehouse để vừa giữ dữ liệu chi tiết đến cấp đơn hàng và người bán, vừa tận dụng bộ nhớ đệm truy vấn (Mục~\ref{subsec:5_1} và \ref{subsec:5_2}).
+
+\subsection{Hệ hỗ trợ quyết định và mô hình hóa}
+\label{subsec:2_4}
+
+Theo Sharda, Delen và Turban~\cite{bib:turban_dss}, \textit{DSS} (\textit{decision support system}, hệ hỗ trợ quyết định) là hệ thống thông tin tương tác kết hợp dữ liệu lịch sử với các mô hình phân tích nhằm trợ giúp nhà quản trị giải quyết bài toán bán cấu trúc, nơi quy tắc cứng không đủ tự động hóa và cần cân nhắc nhiều phương án. Quy trình ra quyết định chuẩn dựa trên mô hình ba pha kinh điển của Simon~\cite{bib:simon1960} cùng pha thực thi mở rộng~\cite{bib:turban_dss}: \textit{Intelligence} (rà soát dữ liệu để phát hiện vấn đề hoặc cơ hội), \textit{Design} (xây dựng mô hình và sinh phương án ứng phó), \textit{Choice} (định lượng lợi ích, rủi ro để chọn phương án tốt nhất) và \textit{Implementation} (triển khai ngoài thực tế và theo dõi phản hồi). Hình~\ref{fig:simon_phases} minh họa chu trình này và cũng là mạch tổ chức xuyên suốt Chương~\ref{sec:ch5}.
+
+
+Về kiến trúc thành phần, một DSS gồm ba phân hệ bắt buộc là quản lý dữ liệu (\textit{data management}), quản lý mô hình (\textit{model management}) và giao diện người dùng (\textit{user interface}), bổ sung tùy chọn phân hệ quản lý tri thức (\textit{knowledge-based})~\cite{bib:turban_dss}. Xét theo động lực công nghệ, tài liệu phân biệt năm nhóm đơn lẻ (\textit{data-driven}, \textit{model-driven}, \textit{knowledge-driven}, \textit{communication-driven}, \textit{document-driven}) và nhóm kết hợp \textit{compound DSS} (DSS lai). Vì bài toán can thiệp người bán vừa cần truy xuất chỉ số vận hành từ kho dữ liệu (\textit{data-driven}) vừa chạy mô hình dự báo và mô phỏng chính sách (\textit{model-driven}), hệ thống được thiết kế theo kiến trúc \textit{compound DSS} tại Mục~\ref{subsec:5_3}.
+
+Trong pha \textit{Design} và \textit{Choice}, mô hình hóa quyết định tách bài toán thành bốn nhóm thành phần~\cite{bib:turban_dss}: biến quyết định do nhà quản lý kiểm soát (như chọn chính sách và ngưỡng phân tầng), tham số bất định ngoài tầm kiểm soát, hàm mục tiêu định lượng lợi ích kỳ vọng và các ràng buộc nguồn lực vận hành. Việc tách rõ ràng buộc (như giới hạn tỷ trọng GMV ảnh hưởng $X$ và số người bán can thiệp $N$) giúp loại bỏ các phương án tối ưu trên lý thuyết nhưng bất khả thi khi triển khai thực tế tại Mục~\ref{subsec:5_4}.
+
+Xét theo mức thông tin về trạng thái tự nhiên, mô hình phân biệt ba điều kiện quyết định~\cite{bib:turban_dss}: \textit{certainty} (kết quả biết chắc chắn 100\%, ví dụ chi phí cố định mỗi gói hỗ trợ), \textit{risk} (ước lượng được phân phối xác suất xảy ra các trạng thái từ dữ liệu lịch sử) và \textit{uncertainty} (thiếu dữ liệu lịch sử để gán xác suất khách quan cho tham số ngoại sinh, như hiệu lực cải thiện $e_k$ hay tỷ lệ giữ lại doanh thu $r$ khi áp chính sách mới). Để biểu diễn chuỗi nhân quả giữa các thành phần đó, nhà phân tích dùng \textit{influence diagram} (biểu đồ ảnh hưởng) gồm nút quyết định (hình chữ nhật), nút bất định hoặc rủi ro (hình bầu dục) và nút kết quả (hình chữ nhật bo tròn hoặc hình thoi)~\cite{bib:turban_dss}. Trên biểu đồ đã lập, DSS cung cấp ba kỹ thuật phân tích kịch bản~\cite{bib:turban_dss}: \textit{what-if} (đổi tham số đầu vào để quan sát thay đổi kết quả), \textit{goal seeking} (cố định mục tiêu lợi ích để giải ngược ngưỡng chi phí hoặc phạm vi tối thiểu) và \textit{sensitivity analysis} (biến thiên từng giả định bất định để kiểm tra phương án tối ưu có bị đảo thứ hạng hay không), áp dụng ở Mục~\ref{subsec:5_6}.
+
+Để định lượng yếu tố \textit{risk} đầu vào cho mô hình chính sách, đề tài dùng \textit{logistic regression} (hồi quy logistic) vì thuật toán gọn nhẹ, hệ số dễ diễn giải theo nguyên nhân vận hành và xuất trực tiếp xác suất qua hàm \textit{sigmoid} từ tổ hợp tuyến tính $z = \beta_0 + \boldsymbol{\beta}^\top \mathbf{x}$~\cite{bib:sklearn}, cho bởi Phương trình~\eqref{eq:sigmoid}:
+\begin{equation}
+\label{eq:sigmoid}
+\hat{p}(\mathbf{x}) = \frac{1}{1 + e^{-(\beta_0 + \boldsymbol{\beta}^\top \mathbf{x})}}
+\end{equation}
+
+Vì xác suất $\hat{p}_i$ được nhân trực tiếp với số đơn dự kiến để ước lượng lợi ích kỳ vọng trong mô hình mô phỏng chính sách, mô hình dự báo (M1) cần được đánh giá cả năng lực xếp hạng lẫn độ chuẩn xác xác suất~\cite{bib:sklearn}:
+\begin{itemize}
+  \item \textit{AUC-ROC} đo xác suất mô hình gán điểm rủi ro cao hơn cho một đơn vị dương tính so với một đơn vị âm tính ngẫu nhiên ($0{,}5$ tương đương đoán ngẫu nhiên, càng gần $1{,}0$ thì thứ hạng rủi ro càng sắc bén).
+  \item \textit{Brier score} đo sai số bình phương trung bình giữa xác suất dự báo $\hat{p}_i$ và nhãn thực $y_i \in \{0, 1\}$ theo Phương trình~\eqref{eq:brier}; điểm số càng nhỏ thì xác suất càng sát thực tế:
+  \begin{equation}
+  \label{eq:brier}
+  \mathrm{BS} = \frac{1}{N}\sum_{i=1}^{N}(\hat{p}_i - y_i)^2
+  \end{equation}
+  \item \textit{Calibration curve} (đường cong hiệu chỉnh) đối chiếu xác suất dự báo trung bình theo từng giỏ với tỷ lệ thực nghiệm; đường cong bám sát đường chéo $y = x$ chứng tỏ $\hat{p}_i$ không bị thổi phồng hay đánh giá thấp một cách hệ thống khi đưa vào tính toán lợi ích kỳ vọng (Mục~\ref{subsec:5_5}).
+\end{itemize}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Dữ liệu nguồn và kiến trúc giải pháp}
+\label{sec:ch3}
+
+\subsection{Bộ dữ liệu}
+\label{subsec:3_1}
+
+Nguồn giao dịch là bộ \textit{Olist Brazilian E-Commerce} trên Kaggle. Trang dữ liệu mô tả khoảng 100 nghìn đơn đã ẩn danh, phát sinh trên các sàn thương mại điện tử ở Brazil trong các năm 2016--2018; một đơn có thể có nhiều dòng hàng và mỗi dòng do một người bán thực hiện. Kiểm kê toàn bộ tệp nguồn cho 99.441 đơn. Cột \texttt{order\_purchase\_timestamp} đủ trên cả 99.441 dòng, từ 2016-09-04 21:15:19 đến 2018-10-17 17:30:18. Hai tệp \textit{Marketing Funnel by Olist} bổ sung thuộc tính người bán và nối qua \texttt{seller\_id}. Bảng IBGE gồm 27 dòng, ánh xạ mã bang (UF) sang năm vùng Norte, Nordeste, Sudeste, Sul và Centro-Oeste. Olist và Marketing Funnel cùng giấy phép CC BY-NC-SA 4.0. Chín CSV Olist và hai CSV funnel nằm ở Volume \texttt{/Volumes/olist\_catalog/bronze/raw/} (\texttt{olist/}, \texttt{funnel/}); IBGE ở \texttt{ref/}. Bảng~\ref{tab:data_sources} liệt kê từng tệp. \texttt{leads\_qualified} là \texttt{olist\_marketing\_qualified\_leads\_dataset.csv}; \texttt{leads\_closed} là \texttt{olist\_closed\_deals\_dataset.csv}.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Tổng hợp các nguồn dữ liệu đầu vào, số dòng và vai trò}
+\label{tab:data_sources}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{5.15cm}c>{\raggedleft\arraybackslash}p{1.85cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Nguồn / Bảng} & \textbf{Nhóm} & \textbf{Số dòng} & \textbf{Vai trò} \\
+\midrule
+\texttt{orders} & \multirow{9}{*}{Olist} & 99.441 & Header đơn: trạng thái và năm mốc thời gian. \\
+\texttt{order\_items} & & 112.650 & Dòng hàng: sản phẩm, người bán, giá, cước, hạn bàn giao. \\
+\texttt{order\_payments} & & 103.886 & Thanh toán: phương thức, số kỳ trả góp, giá trị. \\
+\texttt{order\_reviews} & & 99.224 & Điểm và nội dung review của khách. \\
+\texttt{customers} & & 99.441 & Khách theo đơn và theo người. \\
+\texttt{sellers} & & 3.095 & Người bán: tiền tố zip, thành phố, bang. \\
+\texttt{products} & & 32.951 & Sản phẩm: danh mục, kích thước, khối lượng. \\
+\texttt{geolocation} & & 1.000.163 & Tiền tố zip sang vĩ độ, kinh độ, thành phố, bang. \\
+\texttt{product\_category\_name\_translation} & & 71 & Tên danh mục tiếng Bồ Đào Nha sang tiếng Anh. \\
+\midrule
+\texttt{leads\_qualified} & \multirow{2}{*}{Funnel} & 8.000 & Lead marketing đủ điều kiện. \\
+\texttt{leads\_closed} & & 842 & Deal đã ký; thuộc tính người bán, nối \texttt{seller\_id}. \\
+\midrule
+\texttt{ibge\_state\_region} & Tham chiếu & 27 & Ánh xạ 27 bang sang vùng. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Profiling và vấn đề chất lượng dữ liệu}
+\label{subsec:3_2}
+
+Kiểm tra chất lượng trên toàn bộ tệp nguồn cho thấy các vấn đề sau. Geolocation có nhiều dòng trên cùng tiền tố zip và có điểm ngoài khung Brazil. Tên thành phố lệch dấu. Một phần sản phẩm thiếu danh mục hoặc thiếu bản dịch. Mốc thời gian của đơn thiếu hoặc đảo thứ tự. Review trùng khóa, và có \texttt{review\_id} gắn nhiều đơn. Thanh toán có giá trị lạ: \texttt{not\_defined} 3 dòng, \texttt{payment\_value} bằng 0 có 9 dòng, \texttt{payment\_installments} bằng 0 có 2 dòng, và 387/98.665 đơn lệch $\lvert \textit{price} + \textit{freight} - \textit{payment} \rvert > 0{,}01$. Cửa sổ mua hàng có sáu tháng thưa. Trong 98.666 đơn có dòng hàng, 1.278 đơn (1,2953\%) thuộc hơn một người bán; không có dòng hàng mồ côi. Bảng đầy đủ các vấn đề và hướng xử lý nằm ở Phụ lục~\ref{pl:3}.
+
+Hình~\ref{fig:orders_per_month} là số đơn theo tháng mua. Sáu tháng thưa, đều dưới 1.000 đơn, là 2016-09 (4 đơn), 2016-10 (324), 2016-12 (1), 2017-01 (800), 2018-09 (16) và 2018-10 (4). Không có tháng 2016-11. Cả 25 tháng có đơn được giữ trong kho; 19 tháng đạt ít nhất 1.000 đơn và liền nhau từ 2017-02 đến 2018-08. Bảng~\ref{tab:profiling_issues} chọn năm vấn đề tiêu biểu. Hướng xử lý bám notebook Silver (\texttt{percentile\_approx} sau bbox, \texttt{city\_norm}, mốc đảo, review mới nhất) và \texttt{COALESCE} về \texttt{'Unknown'} khi dựng \texttt{dim\_product}.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_3_1_orders_per_month.png}{%
+  \includegraphics[width=0.92\textwidth]{images/fig_3_1_orders_per_month.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.2cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_3\_1\_orders\_per\_month.png}\\Số đơn theo tháng mua; tô sáu tháng thưa\vspace{1.2cm}}}%
+}
+\caption{Số đơn theo tháng \texttt{order\_purchase\_timestamp}. Sáu tháng thưa là 2016-09, 2016-10, 2016-12, 2017-01, 2018-09 và 2018-10}
+\label{fig:orders_per_month}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\caption{Năm vấn đề chất lượng dữ liệu tiêu biểu phát hiện khi profiling}
+\label{tab:profiling_issues}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{2.35cm}>{\raggedright\arraybackslash}p{3.15cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Vấn đề} & \textbf{Bảng nguồn} & \textbf{Số lượng lỗi} & \textbf{Hướng xử lý} \\
+\midrule
+Nhiều điểm trên một tiền tố zip; điểm ngoài bbox & \texttt{geolocation} & 17.972 prefix có hơn một dòng; 31 điểm ngoài bbox & \texttt{silver.geolocation\_zip}: một dòng mỗi prefix, \texttt{percentile\_approx} 0,5 sau bbox lat $[-34,6]$, lng $[-74,-28]$. Khách và người bán: zip, rồi (\texttt{city\_norm}, bang), rồi null (\texttt{geo\_match\_level}); không điền 0. \\
+\addlinespace
+Tên thành phố lệch dấu & \texttt{geolocation}, \texttt{customers}, \texttt{sellers} & 73.437 dòng geo có dấu; 8.010 tên thường còn 5.968 sau khi bỏ dấu & \texttt{city\_norm}: chữ thường, bỏ dấu, trim. \texttt{customer\_city} (4.119) và \texttt{seller\_city} (611) không đổi sau khi bỏ dấu. \\
+\addlinespace
+Thiếu danh mục hoặc bản dịch & \texttt{products}, bản dịch danh mục & 610/32.951 sản phẩm thiếu tên; 2 danh mục không có dòng dịch & Giữ khóa sản phẩm. Silver \texttt{LEFT JOIN} bản dịch. Trên \texttt{dim\_product}, \texttt{category\_pt} và \texttt{category\_en} dùng \texttt{COALESCE} về \texttt{'Unknown'}. \\
+\addlinespace
+Mốc thời gian thiếu hoặc đảo thứ tự & \texttt{orders} & NULL: duyệt 160, giao vận 1.783, giao khách 2.965. Đảo: vận trước duyệt 1.359; vận trước mua 166; khách trước vận 23 & Cột chính thức thành null khi đảo; giữ \texttt{raw\_*}; bật \texttt{ts\_inversion\_flag}. So sánh đảo trên \texttt{raw\_*}. \\
+\addlinespace
+Review trùng hoặc dùng chung & \texttt{order\_reviews} & 99.224 dòng; 789 \texttt{review\_id} gắn nhiều đơn; 814 dòng thừa; 547 đơn có hơn một dòng & \texttt{silver.order\_reviews}: một dòng mỗi (\texttt{review\_id}, \texttt{order\_id}), bản \texttt{review\_answer\_timestamp} mới nhất. \texttt{order\_reviews\_dedup}: một review mỗi đơn. Gắn \texttt{shared\_review\_type}; measure review của người bán loại \texttt{cross\_seller}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Kiểm tra khả thi}
+\label{subsec:3_3}
+
+Dữ liệu nguồn đủ điều kiện cho bài toán hiệu suất người bán. Có 173/3.095 người bán đạt ít nhất 10 dòng hàng trong ít nhất sáu tháng, trên ngưỡng 150 người bán cần để huấn luyện. Trong các đơn đã giao, 96.469/96.478 đơn đủ cả hai mốc giao. Tỷ lệ đơn thuộc hơn một người bán là 1.278/98.666 (0,012953), dưới mức 5\%. Tỷ lệ review có điểm không quá 2 là 14.575/99.224 (0,146890), đủ dày để học một biến mục tiêu. Có 19/25 tháng đạt ít nhất 1.000 đơn. Có 380/3.095 người bán trong đơn (12,3\%) khớp deal đã ký, đủ để đưa Marketing Funnel vào như thuộc tính của người bán. Các tiêu chí này là cơ sở chọn đề tài quản lý hiệu suất người bán.
+
+\subsection{Kiến trúc tổng thể}
+\label{subsec:3_4}
+
+Luồng xử lý là batch, một chiều. CSV trên Unity Catalog Volume được đọc vào Bronze, làm sạch ở Silver, rồi dựng thành data mart Kimball ở Gold. Job ETL đi theo thứ tự \texttt{setup}, bronze, silver, dimension Gold, fact Gold và \texttt{fact\_seller\_monthly}; job này dừng ở Gold và không ghi schema \texttt{dss}. Job DSS là job serverless tách riêng: đọc Gold, ghi đè \texttt{dss.seller\_risk\_score} (M1) và \texttt{dss.policy\_scenario} (M2). Databricks SQL Warehouse truy vấn Gold và \texttt{dss} theo ROLAP. Ứng dụng Streamlit đọc qua warehouse và chỉ append \texttt{dss.decision\_log}. Hình~\ref{fig:high_level_arch} là sơ đồ luồng đó. Hợp đồng đọc, ghi và cách nạp của từng lớp nằm ở Bảng~\ref{tab:layer_contract}.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/high_level_architecture.drawio.png}{%
+  \includegraphics[width=0.92\textwidth]{images/high_level_architecture.drawio.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.2cm}\textbf{[CẦN ẢNH]}~\texttt{images/high\_level\_architecture.drawio.png}\\Sơ đồ kiến trúc tổng thể hệ thống\vspace{1.2cm}}}%
+}
+\caption{Kiến trúc tổng thể hệ thống \texttt{olist-dw-dss}}
+\label{fig:high_level_arch}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\caption{Hợp đồng dữ liệu giữa các lớp kiến trúc (bản rút gọn)}
+\label{tab:layer_contract}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.45cm}*{4}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+\textbf{Lớp} & \textbf{Đọc từ} & \textbf{Ghi vào} & \textbf{Cơ chế nạp} & \textbf{Ràng buộc chính} \\
+\midrule
+Volume & Tệp nguồn đã kiểm & CSV \texttt{olist/}, \texttt{funnel/}, \texttt{ref/} & Upload tay. Không phải bước của Job & Không sửa nội dung file. \\
+\addlinespace
+Bronze & Volume & 12 bảng Delta \texttt{bronze.*} & Full load, overwrite & Mọi cột nghiệp vụ \texttt{STRING}, giữ nguyên; thêm \texttt{\_ingest\_ts} và \texttt{\_source\_file}. Không join, không cast nghiệp vụ. \\
+\addlinespace
+Silver & Bronze & Bảng Delta đã chuẩn hóa & Full load, overwrite & Cast, chuẩn hóa, khử trùng trong file. Không chọn bản giữa hai lần nạp. \\
+\addlinespace
+Gold & Silver & 3 fact, 7 dimension, \texttt{etl\_audit} & \texttt{MERGE}: cập nhật khi khớp grain, thêm khi chưa có & Grain và khóa không trùng. Khóa ngoại không khớp trỏ member $-1$. Không xóa dòng nguồn đã mất. \\
+\addlinespace
+\texttt{dss} & Gold & \texttt{seller\_risk\_score}, \texttt{policy\_scenario}, \texttt{decision\_log} & Job DSS ghi đè hai bảng mô hình. Streamlit append \texttt{decision\_log} & Job ETL không ghi \texttt{dss}. Huấn luyện trên Gold. Streamlit không ghi hai bảng mô hình. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Lựa chọn công nghệ}
+\label{subsec:3_5}
+
+Kho, lớp phân tích và hệ hỗ trợ quyết định cùng đọc một bản dữ liệu đã kiểm soát chất lượng. Bảng~\ref{tab:tech_choices} ghi từng lựa chọn và lý do.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\caption{Tổng hợp các lựa chọn công nghệ và lý do}
+\label{tab:tech_choices}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Hạng mục} & \textbf{Lựa chọn} & \textbf{Lý do chọn} \\
+\midrule
+Nền tảng DW & Databricks Free Edition, Delta Lake, Unity Catalog & Một nền tảng cho lưu trữ, xử lý và phân quyền. Delta hỗ trợ \texttt{MERGE}, ràng buộc và \textit{time travel}. Môi trường miễn phí, serverless. \\
+\addlinespace
+OLAP & ROLAP trên Databricks SQL Warehouse & Truy vấn trực tiếp các bảng Gold bằng SQL, không phải bảo trì cube riêng. Quy mô dữ liệu vừa phải. \\
+\addlinespace
+Giao diện & Streamlit & Một ứng dụng cho KPI, OLAP và DSS, có tương tác \textit{what-if} và ghi lại quyết định. Power BI để hướng phát triển. \\
+\addlinespace
+Điều phối & Hai Databricks Job, tách ETL và DSS & Tách vòng đời nạp kho khỏi vòng đời mô hình. Chạy lại DSS không phải nạp lại kho. \\
+\addlinespace
+DSS & Huấn luyện và đọc từ tầng Gold & Dùng chung định nghĩa KPI đã kiểm soát chất lượng với lớp phân tích. Kết quả ghi vào schema \texttt{dss}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 4
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Thiết kế kho dữ liệu, ETL và chất lượng dữ liệu}
+\label{sec:ch4}
+% Tổng số trang dự kiến Chương 4: 7,5 trang.
+
+\subsection{Fact constellation và grain}
+\label{subsec:4_1}
+% Ý chính: 3 bảng fact: fact_order_item (transaction, 1 item), fact_order (accumulating snapshot, 1 đơn, 5 mốc thời gian), fact_seller_monthly (periodic snapshot, seller x tháng). Bus matrix. Giải thích vì sao không cộng n_orders qua seller.
+% Nguồn repo: docs/DESIGN.md §3.1, §4, §4.1; docs/SPEC.md §5
+% Số trang dự kiến: 2,0 trang.
+% [CẦN ẢNH] Hình 4.1 Sơ đồ ERD lược đồ Gold.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_4_1_erd.png}{%
+  \includegraphics[width=0.92\textwidth]{images/fig_4_1_erd.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.2cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_4\_1\_erd.png}\\Sơ đồ thực thể kết hợp (ERD) lược đồ sao/chòm sao Gold\vspace{1.2cm}}}%
+}
+\caption{Sơ đồ ERD mô hình đa chiều tầng Gold}
+\label{fig:erd_gold}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Danh sách các bảng fact, loại fact và grain}
+\label{tab:fact_tables}
+\begin{tabular}{llp{6.5cm}}
+\toprule
+\textbf{Bảng fact} & \textbf{Loại fact} & \textbf{Grain (mức chi tiết)} \\
+\midrule
+\texttt{fact\_order\_item} & Transaction & Một dòng là một mặt hàng trong đơn, khóa (\texttt{order\_id}, \texttt{order\_item\_id}) \\
+\texttt{fact\_order} & Accumulating snapshot & Một dòng là một đơn hàng (\texttt{order\_id}), theo dõi 5 mốc: mua, duyệt, bàn giao vận chuyển, giao khách, dự kiến giao \\
+\texttt{fact\_seller\_monthly} & Periodic snapshot & Một dòng là một người bán trong một tháng mua có ít nhất một mặt hàng (\texttt{seller\_key}, \texttt{month\_key}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Bus matrix giữa các bảng fact và dimension}
+\label{tab:bus_matrix}
+\begin{tabularx}{\textwidth}{Xccccccc}
+  \toprule
+  \textbf{Fact} & \textbf{date} & \textbf{month} & \textbf{customer} & \textbf{seller} & \textbf{product} & \textbf{status} & \textbf{payment} \\
+  \midrule
+  \texttt{fact\_order\_item}     & \checkmark\,(2) & -- & \checkmark & \checkmark & \checkmark & \checkmark & -- \\
+  \texttt{fact\_order}           & \checkmark\,(5) & -- & \checkmark & -- & -- & \checkmark & \checkmark \\
+  \texttt{fact\_seller\_monthly} & -- & \checkmark & -- & \checkmark & -- & -- & -- \\
+  \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Dimension, khóa và SCD}
+\label{subsec:4_2}
+% Ý chính: 7 dimension và 3 hierarchy; dim_date role-playing, dim_month shrunken; surrogate key = max + row_number theo natural key; Unknown member -1; SCD1, dim_seller thiết kế SCD2-ready. Chi tiết cột đưa sang Phụ lục PL.1 (\hyperref[pl:1]{PL.1}).
+% Nguồn repo: docs/DESIGN.md §3.2--3.5, src/etl/03_gold_dims.py
+% Số trang dự kiến: 1,25 trang.
+
+\begin{table}[htbp]
+\centering
+\caption{Các dimension và hệ thống phân cấp (hierarchy)}
+\label{tab:dim_hierarchies}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Dimension} & \textbf{SCD / Đặc điểm} & \textbf{Hierarchy / Vai trò} \\
+\midrule
+7 dimension Gold & [CẦN ĐIỀN] & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Định nghĩa measure và KPI}
+\label{subsec:4_3}
+% Ý chính: GMV = SUM(price), loại canceled/unavailable; tỷ lệ = SUM/SUM; đơn xấu = review <= 2 OR giao trễ; bàn giao trễ != giao trễ tới khách; luật đơn nhiều seller và shared_review_type.
+% Nguồn repo: docs/DESIGN.md §3.6, docs/glossary.md
+% Số trang dự kiến: 1,25 trang.
+
+\begin{table}[htbp]
+\centering
+\caption{Định nghĩa KPI, công thức, mẫu tính và quy tắc loại trừ}
+\label{tab:kpi_definitions}
+\begin{tabularx}{\textwidth}{XXXX}
+\toprule
+\textbf{KPI} & \textbf{Công thức} & \textbf{Mẫu (Denominator)} & \textbf{Loại trừ} \\
+\midrule
+GMV, đơn xấu, bàn giao trễ... & [CẦN ĐIỀN] & [CẦN ĐIỀN] & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Pipeline ETL}
+\label{subsec:4_4}
+% Ý chính: Job olist_etl gồm 6 task, dùng chung run_id. Bronze: overwrite, STRING, thêm _ingest_ts/_source_file. Silver: ép kiểu, city_norm, IBGE, geo median, dedup review 2 tầng, timestamp đảo thành NULL. Gold: MERGE không DELETE, thứ tự nạp. Lý do chọn full refresh (R28). Mapping chi tiết đưa sang Phụ lục PL.2 (\hyperref[pl:2]{PL.2}).
+% Nguồn repo: src/etl/*.py, src/etl/olist_etl.job.yml, docs/SPEC.md §6
+% Số trang dự kiến: 1,75 trang.
+% [CẦN ẢNH] Hình 4.2 Ảnh chụp DAG Job olist_etl trên Databricks.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_4_2_etl_dag.png}{%
+  \includegraphics[width=0.90\textwidth]{images/fig_4_2_etl_dag.png}%
+}{%
+  \fbox{\parbox{0.90\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_4\_2\_etl\_dag.png}\\Ảnh chụp DAG Job \texttt{olist\_etl} (6 task) trên Databricks\vspace{1.0cm}}}%
+}
+\caption{Đồ thị thực thi (DAG) của Job \texttt{olist\_etl}}
+\label{fig:etl_dag}
+\end{figure}
+
+% Placeholder đoạn code MERGE (~8 dòng) trích từ src/etl/
+\begin{lstlisting}[caption={Minh họa câu lệnh MERGE upsert vào tầng Gold (placeholder)},label={lst:gold_merge}]
+-- [CAN DIEN] Trich ~8 dong MERGE INTO tu src/etl/04_gold_facts.py
+MERGE INTO olist_catalog.gold.target AS t
+USING source_view AS s
+ON t.natural_key = s.natural_key
+WHEN MATCHED THEN UPDATE SET *
+WHEN NOT MATCHED THEN INSERT *;
+\end{lstlisting}
+
+\subsection{Chất lượng dữ liệu và kiểm soát}
+\label{subsec:4_5}
+% Ý chính: Delta constraints; gold.etl_audit 10 cột; đối soát rows_read và SUM(price); kiểm tra grain không trùng, không orphan; tự kiểm 4 đặc tính Inmon. Danh sách check đầy đủ đưa sang Phụ lục PL.3 (\hyperref[pl:3]{PL.3}).
+% Nguồn repo: src/etl/_audit.py, src/etl/_dq.py, docs/DESIGN.md §7, §9
+% Số trang dự kiến: 1,25 trang.
+% [CẦN SỐ] Bảng 4.5: kết quả gold.etl_audit của 1 run hoàn chỉnh, rows_dropped_by_dedup, số dòng Gold sau 2 lần chạy (idempotency).
+
+\begin{table}[htbp]
+\centering
+\caption{Kết quả \texttt{gold.etl\_audit} của một lần chạy hoàn chỉnh}
+\label{tab:etl_audit}
+\begin{tabularx}{\textwidth}{Xrrrrr}
+\toprule
+\textbf{Bảng đích} & \textbf{rows\_read} & \textbf{rows\_written} & \textbf{rows\_dropped} & \textbf{Trạng thái} & \textbf{Thời gian} \\
+\midrule
+Các bảng Bronze/Silver/Gold & [CẦN SỐ] & [CẦN SỐ] & [CẦN SỐ] & [CẦN SỐ] & [CẦN SỐ] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Đối chiếu bốn đặc tính Inmon với bằng chứng triển khai trong Gold}
+\label{tab:inmon_evidence}
+\begin{tabular}{lp{9.5cm}}
+\toprule
+\textbf{Đặc tính Inmon} & \textbf{Bằng chứng triển khai ở tầng Gold} \\
+\midrule
+Subject-oriented & [CẦN ĐIỀN] \\
+Integrated & [CẦN ĐIỀN] \\
+Time-variant & [CẦN ĐIỀN] \\
+Non-volatile & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 5
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Từ phân tích đến quyết định: OLAP, DSS và ứng dụng}
+\label{sec:ch5}
+% Tổng số trang dự kiến Chương 5: 9,0 trang.
+% Trình tự Simon: Intelligence (5.1--5.2) -> Design (5.3--5.5) -> Choice/Implementation (5.6--5.7).
+
+\subsection{Lớp phân tích ROLAP}
+\label{subsec:5_1}
+% Ý chính: SQL Warehouse; truy vấn tham số hóa (?); cache; dashboard KPI (thẻ KPI, sparkline, bản đồ bang Brazil, Wilson interval, ẩn nhóm n < 30); tab ad hoc.
+% Nguồn repo: src/frontend/lib/db.py, queries.py, adhoc.py, pages/1_... (kpi)
+% Số trang dự kiến: 1,25 trang.
+% Lưu ý mâu thuẫn docs/code (E1): Tên menu trong app.py có 6 trang và khác một số tên trong SPEC §7/§9.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/app_kpi.png}{%
+  \includegraphics[width=0.92\textwidth]{images/app_kpi.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/app\_kpi.png}\\Giao diện trang KPI tổng quan trên Streamlit\vspace{1.0cm}}}%
+}
+\caption{Giao diện lớp phân tích ROLAP --- trang Sức khỏe marketplace}
+\label{fig:app_kpi}
+\end{figure}
+
+\subsection{Năm phép OLAP và phát hiện}
+\label{subsec:5_2}
+% Ý chính: Mỗi phép gồm câu hỏi, biểu đồ và 1 câu insight. Roll-up: bàn giao trễ theo Vùng -> Bang -> Thành phố. Drill-down: review theo Năm -> Ngày. Slice: nhóm danh mục. Dice: Norte+Nordeste, Q1--Q2/2018, hàng bulky. Pivot: Bang x Quý -> Nhóm x Quý. SQL đưa sang Phụ lục PL.4 (\hyperref[pl:4]{PL.4}).
+% Nguồn repo: src/sql/olap_queries/01--05, src/frontend/pages/2_... (olap)
+% Số trang dự kiến: 1,5 trang.
+% [CẦN SỐ] Insight có số cho 5 phép OLAP (bộ lọc mặc định 2017-02 -> 2018-08).
+% [CẦN ẢNH] Hình 5.2 Lưới 4--5 biểu đồ kết quả các phép OLAP.
+
+\begin{table}[htbp]
+\centering
+\caption{Tổng hợp năm phép OLAP, câu hỏi phân tích và phát hiện chính}
+\label{tab:olap_findings}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Phép OLAP} & \textbf{Câu hỏi phân tích} & \textbf{Phát hiện (Insight có số)} \\
+\midrule
+Roll-up / Drill-down / Slice / Dice / Pivot & [CẦN ĐIỀN] & [CẦN SỐ] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_5_2_olap_charts.png}{%
+  \includegraphics[width=0.92\textwidth]{images/fig_5_2_olap_charts.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_5\_2\_olap\_charts.png}\\Lưới 4--5 biểu đồ minh họa 5 phép OLAP\vspace{1.0cm}}}%
+}
+\caption{Tổng hợp biểu đồ kết quả năm phép OLAP}
+\label{fig:olap_charts}
+\end{figure}
+
+\subsection{Kiến trúc DSS}
+\label{subsec:5_3}
+% Ý chính: Compound DSS (data-driven + model-driven + luật nhẹ trong recommend.py); 3 subsystem (Data, Model, User Interface); ánh xạ pha Simon <-> trang app.
+% Nguồn repo: docs/SPEC.md §8, src/frontend/app.py, src/dss/recommend.py
+% Số trang dự kiến: 1,0 trang.
+% Lưu ý mâu thuẫn docs/code (E1, E7): App có 6 trang; recommend.py có luật đơn giản dù R43 ghi không làm knowledge-driven.
+% [CẦN ẢNH] Hình 5.3 Sơ đồ 3 subsystem của DSS.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_5_3_dss_subsystems.png}{%
+  \includegraphics[width=0.85\textwidth]{images/fig_5_3_dss_subsystems.png}%
+}{%
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_5\_3\_dss\_subsystems.png}\\Ba subsystem của hệ thống DSS (Data, Model, UI)\vspace{1.0cm}}}%
+}
+\caption{Kiến trúc ba thành phần (subsystem) của hệ hỗ trợ quyết định}
+\label{fig:dss_subsystems}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Ánh xạ pha ra quyết định Simon với chức năng DSS và trang ứng dụng}
+\label{tab:simon_app_map}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Pha Simon} & \textbf{Chức năng DSS} & \textbf{Trang ứng dụng Streamlit} \\
+\midrule
+Intelligence / Design / Choice / Implementation & [CẦN ĐIỀN] & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Influence diagram và hệ thống biến}
+\label{subsec:5_4}
+% Ý chính: Biến quyết định (theta1--theta3, ngưỡng KPI, min_orders); không kiểm soát (e_k, r, s); trung gian (p_i, Q_i, hạng); kết quả (đơn xấu dự kiến, %GMV, số seller). Giá trị mặc định đưa sang Phụ lục PL.6 (\hyperref[pl:6]{PL.6}).
+% Nguồn repo: docs/SPEC.md §8, src/dss/params.py
+% Số trang dự kiến: 1,0 trang.
+% [CẦN ẢNH] Hình 5.4 Influence diagram bài toán can thiệp người bán.
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_5_4_influence_diagram.png}{%
+  \includegraphics[width=0.88\textwidth]{images/fig_5_4_influence_diagram.png}%
+}{%
+  \fbox{\parbox{0.88\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/fig\_5\_4\_influence\_diagram.png}\\Influence diagram của mô hình quyết định\vspace{1.0cm}}}%
+}
+\caption{Influence diagram mô tả quan hệ các biến trong DSS}
+\label{fig:influence_diagram}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Phân loại các biến trong mô hình DSS}
+\label{tab:dss_variables}
+\begin{tabularx}{\textwidth}{XXX}
+\toprule
+\textbf{Nhóm biến} & \textbf{Ký hiệu / Tên biến} & \textbf{Ý nghĩa} \\
+\midrule
+Biến quyết định / Không kiểm soát / Trung gian / Kết quả & [CẦN ĐIỀN] & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{M1: Dự báo rủi ro người bán}
+\label{subsec:5_5}
+% Ý chính: Logistic regression trên panel seller x tháng; nhãn tháng t+1 mở rộng ra từng đơn; 5 biến số + one-hot nhóm hàng/vùng; tập train >= 10 item x >= 6 tháng; split theo thời gian (2 tháng cuối); AUC, Brier, calibration; contribution = coef*(x - mean); chấm 2018-08 (342/1.278 seller >= 5 đơn). Loại mô hình: static, under risk.
+% Nguồn repo: src/dss/train.py, src/sql/views/v_seller_features.sql, docs/DESIGN.md §6.6
+% Số trang dự kiến: 1,5 trang.
+% Lưu ý mâu thuẫn docs/code (E4, E5): Tập train khác tập chấm (distribution shift); đặc trưng chưa chuẩn hóa khi dùng L2 mặc định.
+% [CẦN SỐ] AUC, Brier, base_rate, n_train/n_test, tháng test (dss.model_eval), 10 bin calibration (dss.model_calibration), hệ số & contribution mẫu (dss.seller_risk_contrib), phân phối p_bad 2018-08.
+% [CẦN ẢNH] Hình 5.5 Calibration plot của mô hình M1.
+
+\begin{table}[htbp]
+\centering
+\caption{Chỉ số đánh giá mô hình dự báo M1}
+\label{tab:m1_metrics}
+\begin{tabular}{ll}
+\toprule
+\textbf{Chỉ số} & \textbf{Giá trị đo được} \\
+\midrule
+Tháng kiểm thử / $n_{\text{train}}$ / $n_{\text{test}}$ & [CẦN SỐ] \\
+Base rate & [CẦN SỐ] \\
+ROC-AUC & [CẦN SỐ] \\
+Brier score & [CẦN SỐ] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_5_5_calibration.png}{%
+  \includegraphics[width=0.80\textwidth]{images/fig_5_5_calibration.png}%
+}{%
+  \fbox{\parbox{0.80\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH / CẦN SỐ]}~\texttt{images/fig\_5\_5\_calibration.png}\\Đồ thị calibration của mô hình M1 theo 10 bin\vspace{1.0cm}}}%
+}
+\caption{Đồ thị hiệu chuẩn (Calibration plot) của mô hình M1}
+\label{fig:m1_calibration}
+\end{figure}
+
+\subsection{M2: Mô phỏng chính sách}
+\label{subsec:5_6}
+% Ý chính: E[bad] = sum p_i*Q_i*(1 - e_k); GMV bị ảnh hưởng = sum_flagged gmv*(1 - r); P0/P1/P2 với trần X/N; goal seeking (bisection theta1); phân tích độ nhạy tornado +-20% cho e_k, r, s.
+% Nguồn repo: src/dss/policy.py
+% Số trang dự kiến: 1,5 trang.
+% Lưu ý mâu thuẫn docs/code (E3, E12): policy.simulate tính gmv*(1-r) cho mọi seller bị gắn cờ (kể cả hạng Theo dõi); số P0/P2 12/11 là số tạm.
+% [CẦN SỐ] Kết quả P1, xác nhận lại P0/P2 sau lần chạy Job DSS cuối; Goal seek (theta1, %GMV, số seller); Budget seek (k, ràng buộc binding); Tornado low/high cho e_k, r, s.
+% [CẦN ẢNH] Hình 5.6 Biểu đồ Tornado độ nhạy.
+
+\begin{table}[htbp]
+\centering
+\caption{So sánh kết quả mô phỏng các chính sách P0, P1 và P2}
+\label{tab:m2_policies}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Chính sách} & \textbf{Số seller gắn cờ} & \textbf{\% GMV bị ảnh hưởng} & \textbf{$E[\text{đơn xấu}]$} \\
+\midrule
+P0 (Không can thiệp) & 0 & 0\% & [CẦN SỐ] \\
+P1 (Ngưỡng KPI cố định) & [CẦN SỐ P1] & [CẦN SỐ P1] & [CẦN SỐ P1] \\
+P2 (Theo xác suất M1) & [CẦN SỐ] & [CẦN SỐ] & [CẦN SỐ] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/fig_5_6_tornado.png}{%
+  \includegraphics[width=0.82\textwidth]{images/fig_5_6_tornado.png}%
+}{%
+  \fbox{\parbox{0.82\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH / CẦN SỐ]}~\texttt{images/fig\_5\_6\_tornado.png}\\Biểu đồ Tornado độ nhạy $\pm 20\%$ cho $e_k, r, s$\vspace{1.0cm}}}%
+}
+\caption{Phân tích độ nhạy Tornado đối với các giả định $e_k, r, s$}
+\label{fig:m2_tornado}
+\end{figure}
+
+\subsection{Ứng dụng và triển khai}
+\label{subsec:5_7}
+% Ý chính: 6 trang Streamlit; kịch bản 5 bước của manager; nút Chốt ghi dss.decision_log (UUID); xuất CSV; cấu hình st.secrets -> biến môi trường -> .env; deploy Community Cloud; pytest 38 pass. Screenshot các trang khác đưa sang Phụ lục PL.8 (\hyperref[pl:8]{PL.8}).
+% Nguồn repo: src/frontend/app.py, lib/ui.py, lib/db.py, src/tests/, docs/PROGRESS_LOG.md 11--12/11
+% Số trang dự kiến: 1,25 trang.
+% Lưu ý mâu thuẫn docs/code (E2): App đã deploy (không chỉ chạy local như một số mục docs cũ).
+% [CẦN SỐ] Số dòng dss.decision_log sau demo; kết quả test khả dụng (thời gian và số click cho 3 câu hỏi của manager).
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{images/app_policy.png}{%
+  \includegraphics[width=0.92\textwidth]{images/app_policy.png}%
+}{%
+  \fbox{\parbox{0.92\textwidth}{\centering\vspace{1.0cm}\textbf{[CẦN ẢNH]}~\texttt{images/app\_policy.png}\\Giao diện trang chọn chính sách trên Streamlit\vspace{1.0cm}}}%
+}
+\caption{Giao diện trang Chọn chính sách nào (M2 và ghi \texttt{decision\_log})}
+\label{fig:app_policy}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 6
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Đánh giá, hạn chế và hướng phát triển}
+\label{sec:ch6}
+% Tổng số trang dự kiến Chương 6: 3,0 trang.
+
+\subsection{Đối chiếu yêu cầu đề}
+\label{subsec:6_1}
+% Ý chính: 6 mục tiêu của đề và các dòng RTM BB/BB*, đánh dấu đạt/chưa đạt theo trạng thái thật. RTM đầy đủ đưa sang Phụ lục PL.5 (\hyperref[pl:5]{PL.5}).
+% Nguồn repo: docs/SPEC.md §2
+% Số trang dự kiến: 0,75 trang.
+% Lưu ý mâu thuẫn docs/code (E6): RTM trong SPEC đã cũ (R06/R07, R44, R40 cần cập nhật trạng thái thật).
+
+\begin{table}[htbp]
+\centering
+\caption{Checklist đối chiếu mục tiêu đề bài và các yêu cầu bắt buộc}
+\label{tab:rtm_checklist}
+\begin{tabularx}{\textwidth}{lXXl}
+\toprule
+\textbf{Mã} & \textbf{Mục tiêu / Yêu cầu} & \textbf{Bằng chứng trong hệ thống} & \textbf{Trạng thái} \\
+\midrule
+Mục tiêu 1--6 & [CẦN ĐIỀN] & [CẦN ĐIỀN] & [CẦN ĐIỀN] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Đánh giá kết quả}
+\label{subsec:6_2}
+% Ý chính: DW: GMV khớp 3 cách cộng (13.494.400,74), kiểm tra idempotency. M1 so với base rate. M2: P2 mặc định chỉ giảm ~0,5% đơn xấu (số tạm 12/11), thảo luận ngưỡng theta, phân phối p và goal seek.
+% Nguồn repo: docs/PROGRESS_LOG.md 10--12/11
+% Số trang dự kiến: 1,0 trang.
+% [CẦN SỐ] Số dòng Gold sau 2 lần chạy liên tiếp (idempotency); thời gian chạy Job ETL, Job DSS và latency truy vấn OLAP; AUC/Brier so với base rate.
+
+\begin{table}[htbp]
+\centering
+\caption{Tóm tắt kết quả kiểm chứng DW, M1 và M2}
+\label{tab:eval_summary}
+\begin{tabular}{lp{6.0cm}l}
+\toprule
+\textbf{Hạng mục} & \textbf{Tiêu chí kiểm chứng} & \textbf{Kết quả} \\
+\midrule
+DW / M1 / M2 & [CẦN ĐIỀN] & [CẦN SỐ] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hạn chế và bài học}
+\label{subsec:6_3}
+% Ý chính: Dữ liệu 2016--2018; "tháng tới" là mô phỏng one-step-ahead; tháng thưa; e_k/r là giả định; tập train != tập chấm; chưa có backtest; giới hạn Databricks Free Edition. Phát triển theo prototyping qua Phase 0--7 và các thay đổi quyết định (L.O.4.1).
+% Nguồn repo: docs/SPEC.md §10, docs/PLAN.md
+% Số trang dự kiến: 0,75 trang.
+% Lưu ý mâu thuẫn docs/code (E8): SPEC nhắc backtest nhưng repo chưa có code backtest.
+
+\subsection{Hướng phát triển}
+\label{subsec:6_4}
+% Ý chính: Incremental load / CDF / Auto Loader; SCD2 đầy đủ; thử nghiệm A/B đo e_k; backtest theo thời gian; Power BI; service principal thay PAT.
+% Nguồn repo: README.md mục "Limits and future work"
+% Số trang dự kiến: 0,5 trang.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHƯƠNG 7
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Kết luận}
+\label{sec:ch7}
+% Ý chính: Trả lời lại bài toán quyết định ở mục 1.2 bằng 3 câu và 3 con số chính. Nêu rõ điều đã làm được và điều còn mở.
+% Nguồn repo: Toàn bộ báo cáo (Mục 1.2, Chương 4--6)
+% Số trang dự kiến: 1,0 trang.
+% [CẦN SỐ] Xác nhận 3 con số chốt cuối sau khi chạy lại Job DSS.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TÀI LIỆU THAM KHẢO
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\phantomsection
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+\begin{thebibliography}{99}
+
+\bibitem{bib:inmon2005}
+W.~H.~Inmon, 2005, \textit{Building the Data Warehouse} (4th ed.), Wiley.
+
+\bibitem{bib:kimball2013}
+R.~Kimball và M.~Ross, 2013, \textit{The Data Warehouse Toolkit: The Definitive Guide to Dimensional Modeling} (3rd ed.), Wiley.
+
+\bibitem{bib:golfarelli1998}
+M.~Golfarelli, D.~Maio, và S.~Rizzi, 1998, ``Conceptual Design of Data Warehouses from E/R Schemes'', \textit{Proceedings of the 31st Hawaii International Conference on System Sciences (HICSS)}, IEEE Computer Society.
+
+\bibitem{bib:turban_dss}
+R.~Sharda, D.~Delen, và E.~Turban, 2018, \textit{Business Intelligence, Analytics, and Data Science: A Managerial Perspective} (4th ed.), Pearson.
+
+\bibitem{bib:simon1960}
+H.~A.~Simon, 1960, \textit{The New Science of Management Decision}, Harper \& Brothers.
+
+\bibitem{bib:armbrust2021}
+M.~Armbrust, A.~Ghodsi, R.~Xin, và M.~Zaharia, 2021, ``Lakehouse: A New Generation of Open Platforms that Unify Data Warehousing and Advanced Analytics'', \textit{Conference on Innovative Data Systems Research (CIDR)}, \url{https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf}.
+
+\bibitem{bib:databricks}
+Databricks, \textit{Databricks Documentation: Medallion Architecture, Delta Lake MERGE và Unity Catalog}, \url{https://docs.databricks.com/}.
+
+\bibitem{bib:sklearn}
+scikit-learn Developers, \textit{scikit-learn User Guide and API Reference}, \url{https://scikit-learn.org/stable/}.
+
+\bibitem{bib:olist}
+Olist và Kaggle, \textit{Brazilian E-Commerce Public Dataset by Olist} (\url{https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce}) và \textit{Marketing Funnel by Olist} (\url{https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist}), giấy phép CC BY-NC-SA 4.0.
+
+\bibitem{bib:ibge}
+Instituto Brasileiro de Geografia e Estatística (IBGE), 2026, \textit{Localidades API: Estados do Brasil (27 đơn vị hành chính)}, \url{https://servicodados.ibge.gov.br/api/v1/localidades/estados}, truy cập ngày 15/10/2026.
+
+% TODO: Mở lại \bibitem{bib:click_that_hood} và thêm \cite{bib:click_that_hood} khi viết Mục 5.1 (bản đồ choropleth Brazil) để bảo đảm 1-1 giữa trích dẫn và Tài liệu tham khảo.
+% \bibitem{bib:click_that_hood}
+% Code for America, \textit{click\_that\_hood: \texttt{public/data/brazil-states.geojson}}, \url{https://github.com/codeforamerica/click_that_hood/blob/master/public/data/brazil-states.geojson}, giấy phép MIT (Copyright \copyright~2013--2021 Code for America), truy cập ngày 11/11/2026.
+
+\end{thebibliography}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PHỤ LỤC (KHÔNG TÍNH TRANG)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\phantomsection
+\addcontentsline{toc}{section}{Phụ lục}
+\section*{Phụ lục}
+
+\phantomsection
+\label{pl:1}
+\subsection*{PL.1 Data dictionary của Gold và \texttt{dss}}
+% Ý chính: Danh sách đầy đủ bảng, cột, kiểu dữ liệu, khóa và mô tả của schema gold và dss.
+% Nguồn repo: docs/DESIGN.md §6.3--6.6
+% [CẦN SỐ] Số dòng các bảng còn Pending (fact_seller_monthly, dim_date, dim_month).
+
+\phantomsection
+\label{pl:2}
+\subsection*{PL.2 Source-to-target mapping Bronze -- Silver -- Gold}
+% Ý chính: Bảng ánh xạ cột từ CSV nguồn -> Bronze -> Silver -> Gold và bảng ước lượng số dòng.
+% Nguồn repo: docs/DESIGN.md §5, §6.1--6.4
+% [CẦN SỐ] Số dòng còn Pending trong DESIGN §5 (silver reviews, reviews_dedup, geolocation_zip, ...).
+
+\phantomsection
+\label{pl:3}
+\subsection*{PL.3 Quy tắc làm sạch và kiểm soát chất lượng dữ liệu}
+% Ý chính: Bảng profiling đầy đủ, các quy tắc làm sạch, CHECK constraints, kiểm tra trong _dq.py và bảng etl_audit cho mọi bảng.
+% Nguồn repo: docs/SPEC.md §3, docs/DESIGN.md §7, §9, src/etl/_dq.py
+% [CẦN SỐ] Bảng gold.etl_audit đầy đủ mọi bảng.
+
+\phantomsection
+\label{pl:4}
+\subsection*{PL.4 Mã SQL năm phép OLAP và view \texttt{v\_seller\_features}}
+% Ý chính: Toàn văn câu truy vấn SQL của 5 phép OLAP (01--05) và view v_seller_features.
+% Nguồn repo: src/sql/olap_queries/, src/sql/views/v_seller_features.sql
+
+\phantomsection
+\label{pl:5}
+\subsection*{PL.5 Ma trận truy xuất yêu cầu (RTM) đầy đủ}
+% Ý chính: Bảng RTM đầy đủ BB/BB* đã cập nhật trạng thái thực tế theo code.
+% Nguồn repo: docs/SPEC.md §2 (đối chiếu trạng thái thật ở E6).
+
+\phantomsection
+\label{pl:6}
+\subsection*{PL.6 Tham số DSS, công thức M2 và schema \texttt{decision\_log}}
+% Ý chính: Giá trị mặc định trong params.py, công thức M2 đầy đủ và cấu trúc bảng dss.decision_log.
+% Nguồn repo: src/dss/params.py, src/dss/policy.py, docs/DESIGN.md §6.6
+
+\phantomsection
+\label{pl:7}
+\subsection*{PL.7 Hướng dẫn chạy lại hệ thống}
+% Ý chính: Điều kiện tiên quyết, cấu hình secrets/biến môi trường, upload Volume, chạy Job ETL và Job DSS, khởi chạy Streamlit.
+% Nguồn repo: README.md mục "How to run"
+
+\phantomsection
+\label{pl:8}
+\subsection*{PL.8 Ảnh chụp màn hình ứng dụng Streamlit}
+% Ý chính: Ảnh chụp tất cả 6 trang và các tab của ứng dụng Streamlit (có sẵn images/app_home.png, app_kpi.png, app_policy.png).
+% Nguồn repo: docs/PROGRESS_LOG.md (11/11), docs/images/
+% [CẦN ẢNH] Ảnh các trang/tab còn thiếu ngoài 3 ảnh đã có.
+
+\phantomsection
+\label{pl:9}
+\subsection*{PL.9 Lịch sử quyết định và tiến độ các Phase}
+% Ý chính: Tổng hợp lịch sử thay đổi quyết định thiết kế (E1--E12, L.O.4.1) và timeline thực hiện qua các Phase 0--7.
+% Nguồn repo: docs/SPEC.md §10, docs/PLAN.md
+
+\end{document}
+
